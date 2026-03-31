@@ -23,6 +23,7 @@ export type ChangeFields = {
   approved_at: string;
   implemented_at: string;
   job_id: string;
+  change_title: string;  // Agent-written short title — e.g. "Fix meta description on Pricing page"
   month: number;
 
   // Client-facing fields (populated by audit agent for portal display)

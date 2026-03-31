@@ -14,6 +14,7 @@ import {
   getTechnicalProposed,
   hasTechnicalDetails,
   getDocUrl,
+  getImpactLabel,
 } from "@/lib/portal-labels";
 import type { Change } from "@/lib/changes";
 
@@ -491,16 +492,27 @@ function ApprovalMasterDetailInner({
         ) : (
           <div className="flex-1 flex flex-col">
             <div className="flex-1 overflow-y-auto p-8 pb-24">
+              {(() => {
+                const fields = effectiveSelected.fields;
+                const type = fields.type || fields.change_type;
+                const cat = fields.cat || fields.category;
+                const priority = fields.priority;
+                const page_url = fields.page_url;
+                const whyText = getWhyItMatters(fields);
+                const technicalTypes = new Set(['Schema', 'Canonical', 'Alt Text', 'Redirect', 'GEO']);
+                const isTechnicalType = technicalTypes.has(type);
+
+                return <>
               {/* Badges row */}
               <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <StatusBadge value={effectiveSelected.fields.cat || effectiveSelected.fields.category || "Other"} variant="category" />
-                {effectiveSelected.fields.type && (
-                  <StatusBadge value={effectiveSelected.fields.type} variant="category" />
+                <StatusBadge value={cat || "Other"} variant="category" />
+                {type && (
+                  <StatusBadge value={type} variant="category" />
                 )}
-                {effectiveSelected.fields.confidence && (
-                  <StatusBadge value={effectiveSelected.fields.confidence} variant="confidence" />
+                {fields.confidence && (
+                  <StatusBadge value={fields.confidence} variant="confidence" />
                 )}
-                {effectiveSelected.fields.implementation_tier === "tier_1" && (
+                {fields.implementation_tier === "tier_1" && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
                     Quick win
                   </span>
@@ -508,93 +520,143 @@ function ApprovalMasterDetailInner({
               </div>
 
               {/* Title */}
-              <h2 className="text-xl font-semibold text-white/90 mb-1">
-                {getListItemTitle(
-                  effectiveSelected.fields.type || effectiveSelected.fields.change_type,
-                  effectiveSelected.fields.page_url
-                )}
+              <h2 className="text-xl font-semibold text-white/90 mb-3">
+                {getListItemTitle(type, page_url, undefined, fields.change_title)}
               </h2>
+
+              {/* URL pill */}
               <a
-                href={effectiveSelected.fields.page_url}
+                href={page_url}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-violet-400/60 hover:text-violet-400 transition-colors block truncate mb-8"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-400/15 text-violet-300 text-xs font-mono hover:bg-violet-500/15 transition-colors mb-4"
               >
-                {effectiveSelected.fields.page_url}
+                {truncateUrl(page_url)} <span>↗</span>
               </a>
+
+              {/* Metadata bar */}
+              <div className="flex items-center gap-4 text-xs text-white/40 py-3 border-y border-white/[0.06] mb-6 flex-wrap">
+                <span><span className="text-white/20">Category</span> <span className="text-white/50">{cat}</span></span>
+                <span className="text-white/[0.1]">·</span>
+                <span><span className="text-white/20">Type</span> <span className="text-white/50">{type}</span></span>
+                <span className="text-white/[0.1]">·</span>
+                <span><span className="text-white/20">Priority</span> <span className="text-white/50">{priority}</span></span>
+                <span className="text-white/[0.1]">·</span>
+                <span><span className="text-white/20">Impact</span> <span className="text-white/50">{getImpactLabel(type)}</span></span>
+              </div>
 
               <div className="space-y-6">
                 {/* What We Recommend */}
                 <div>
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">
-                    What We Recommend
-                  </h3>
-                  <p className="text-sm text-white/70 leading-relaxed">
-                    {getWhatWeRecommend(effectiveSelected.fields)}
-                  </p>
-                </div>
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">What We Recommend</h3>
+                  <p className="text-sm text-white/70 leading-relaxed">{getWhatWeRecommend(fields)}</p>
 
-                {/* View the Draft — only for content changes with a doc */}
-                {getDocUrl(effectiveSelected.fields) && (
-                  <div>
-                    <a
-                      href={getDocUrl(effectiveSelected.fields)!}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-violet-400/80 hover:text-violet-400 transition-colors duration-150 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-400/15 hover:bg-violet-500/15"
-                    >
-                      View the Draft ↗
-                    </a>
-                  </div>
-                )}
+                  {/* Merge short "Why It Matters" here */}
+                  {whyText.length < 50 && whyText.length > 0 && (
+                    <p className="text-sm text-white/60 leading-relaxed mt-2">{whyText}</p>
+                  )}
 
-                {/* Why It Matters */}
-                <div>
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">
-                    Why It Matters
-                  </h3>
-                  <p className="text-sm text-white/50 leading-relaxed italic">
-                    {getWhyItMatters(effectiveSelected.fields)}
-                  </p>
-                </div>
-
-                {/* Technical Details — collapsed, only when there's raw data to show */}
-                {hasTechnicalDetails(effectiveSelected.fields, getWhatWeRecommend(effectiveSelected.fields)) && (
-                  <div>
-                    <button
-                      onClick={() => setShowTechnical(!showTechnical)}
-                      className="flex items-center gap-2 text-xs text-white/20 hover:text-white/40 transition-colors duration-150"
-                    >
-                      <span className={`transition-transform duration-150 ${showTechnical ? "rotate-90" : ""}`}>▶</span>
-                      Technical Details
-                    </button>
-                    {showTechnical && (() => {
-                      const techCurrent = getTechnicalCurrent(effectiveSelected.fields);
-                      const techProposed = getTechnicalProposed(effectiveSelected.fields, getWhatWeRecommend(effectiveSelected.fields));
-                      return (
-                        <div className="mt-3 space-y-3">
-                          {techCurrent && (
-                            <div>
-                              <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current</div>
-                              <pre className="text-xs font-mono text-white/60 bg-red-500/5 border border-red-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
-                                {techCurrent}
-                              </pre>
-                            </div>
-                          )}
-                          {techProposed && (
-                            <div>
-                              <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed</div>
-                              <pre className="text-xs font-mono text-emerald-300/70 bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
-                                {techProposed}
-                              </pre>
-                            </div>
-                          )}
+                  {/* Current → Proposed comparison */}
+                  {(fields.current_value?.trim() || fields.proposed_value?.trim()) && (
+                    <div className="mt-4 space-y-3">
+                      {fields.current_value?.trim() && (
+                        <div>
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current</div>
+                          <div className={`text-sm bg-white/[0.03] border border-white/[0.08] rounded-lg px-4 py-3 ${isTechnicalType ? 'font-mono text-white/60 text-xs whitespace-pre-wrap break-all' : 'text-white/60'}`}>
+                            {fields.current_value}
+                          </div>
                         </div>
-                      );
-                    })()}
+                      )}
+                      {fields.proposed_value?.trim() && (
+                        <div>
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed</div>
+                          <div className={`text-sm bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-4 py-3 ${isTechnicalType ? 'font-mono text-emerald-300/70 text-xs whitespace-pre-wrap break-all' : 'text-emerald-300/80'}`}>
+                            {fields.proposed_value}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* View the Draft */}
+                {getDocUrl(fields) && (
+                  <a href={getDocUrl(fields)!} target="_blank" rel="noreferrer"
+                     className="inline-flex items-center gap-1.5 text-xs text-violet-400/80 hover:text-violet-400 transition-colors px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-400/15 hover:bg-violet-500/15">
+                    View the Draft ↗
+                  </a>
+                )}
+
+                {/* Why It Matters — separate section only if 50+ chars */}
+                {whyText.length >= 50 && (
+                  <div>
+                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">Why It Matters</h3>
+                    <p className="text-sm text-white/60 leading-relaxed">{whyText}</p>
                   </div>
                 )}
+
+                {/* Technical Breakdown — collapsible */}
+                <div>
+                  <button
+                    onClick={() => setShowTechnical(!showTechnical)}
+                    className="flex items-center gap-2 text-xs text-white/20 hover:text-white/40 transition-colors"
+                  >
+                    <span className={`transition-transform duration-150 ${showTechnical ? "rotate-90" : ""}`}>▶</span>
+                    Technical Breakdown
+                  </button>
+                  {showTechnical && (
+                    <div className="mt-3 space-y-4">
+                      {fields.current_value?.trim() && (
+                        <div>
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current State</div>
+                          <pre className="text-xs font-mono text-white/60 bg-red-500/5 border border-red-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
+                            {fields.current_value}
+                          </pre>
+                        </div>
+                      )}
+                      {fields.proposed_value?.trim() && (
+                        <div>
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Change</div>
+                          <pre className="text-xs font-mono text-emerald-300/70 bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
+                            {fields.proposed_value}
+                          </pre>
+                        </div>
+                      )}
+                      {fields.reasoning?.trim() && (
+                        <div>
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Our Analysis</div>
+                          <p className="text-xs text-white/40 leading-relaxed">{fields.reasoning}</p>
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Implementation</div>
+                        <p className="text-xs text-white/40">
+                          {fields.implementation_tier === 'tier_1'
+                            ? 'Quick win — no visual impact on your site'
+                            : 'Requires review — may affect page appearance'}
+                        </p>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Page</div>
+                        <p className="text-xs text-white/40 font-mono break-all">{fields.page_url}</p>
+                        {fields.is_nav_page && (
+                          <span className="text-[10px] text-blue-400 mt-1 inline-block">This is a navigation page (high-traffic)</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* What happens next? */}
+                <div className="text-xs text-white/25 py-3 border-t border-white/[0.06]">
+                  {getApprovalStatus(effectiveSelected) === 'pending'
+                    ? "When you approve, we'll implement this change within 48 hours. You'll see it in your next monthly report."
+                    : ''}
+                </div>
               </div>
+
+                </>;
+              })()}
 
               {/* Question textarea */}
               {showQuestion && (

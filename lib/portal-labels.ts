@@ -46,14 +46,35 @@ function extractPath(url: string): string {
 export function getListItemTitle(
   type: string,
   pageUrl: string,
-  truncateAt?: number
+  truncateAt?: number,
+  changeTitle?: string
 ): string {
+  if (changeTitle?.trim()) return changeTitle.trim();
   const action = ACTION_VERBS[type] || `Update ${type.toLowerCase()}`;
   let path = extractPath(pageUrl);
   if (truncateAt && path.length > truncateAt) {
     path = path.slice(0, truncateAt - 3) + "...";
   }
   return `${action} on ${path}`;
+}
+
+// ─── Impact Labels ─────────────────────────────────────────────
+
+export function getImpactLabel(type: string): string {
+  const map: Record<string, string> = {
+    "Metadata": "Search results appearance",
+    "Redirect": "Redirect — URL change",
+    "GEO": "AI search visibility",
+    "Schema": "No visual change",
+    "Canonical": "No visual change",
+    "Alt Text": "No visual change",
+    "Removal": "No visual change",
+    "Content": "Visible content change",
+    "Heading": "Visible content change",
+    "FAQ": "Visible content change",
+    "Internal Link": "Visible content change",
+  };
+  return map[type] || "SEO improvement";
 }
 
 // ─── Category Explanations ─────────────────────────────────────
