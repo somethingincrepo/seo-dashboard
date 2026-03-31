@@ -1,14 +1,12 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { getClientByToken } from "@/lib/clients";
 import { getClientReports } from "@/lib/reports";
 import { GlassCard } from "@/components/ui/GlassCard";
 
-export const revalidate = 3600;
+export const revalidate = 0;
 
 function Delta({ value, label }: { value: number | undefined; label: string }) {
-  const val = value ?? 0;
-  const isPositive = val >= 0;
+  const isPositive = (value ?? 0) >= 0;
   return (
     <div className="text-center">
       <div className={`text-xl font-bold ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
@@ -25,28 +23,29 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
   if (!client) notFound();
 
   const reports = await getClientReports(client.id);
+  const isOnboarding = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"]
+    .includes(client.fields.plan_status);
 
   return (
-    <div className="min-h-screen">
-      <header className="glass sticky top-0 z-10 px-6 py-4 flex items-center justify-between">
-        <div>
-          <div className="font-semibold text-sm">{client.fields.company_name}</div>
-          <div className="text-white/35 text-xs">Monthly Reports</div>
-        </div>
-        <Link href={`/portal/${token}`} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
-          ← Approvals
-        </Link>
-      </header>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold">Reports</h1>
+        <p className="text-white/40 text-sm mt-1">Monthly performance summaries</p>
+      </div>
 
-      <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
-        <h1 className="text-2xl font-semibold">Monthly Reports</h1>
+      {reports.length === 0 && (
+        <GlassCard className="p-12 text-center">
+          <div className="text-3xl mb-4 text-white/20">◎</div>
+          <div className="font-medium text-white/70 mb-2">No reports yet</div>
+          <div className="text-sm text-white/40 max-w-xs mx-auto">
+            {isOnboarding
+              ? "Your first monthly report will be ready after Month 1 optimizations are complete."
+              : "Reports will appear here after your first monthly cycle."}
+          </div>
+        </GlassCard>
+      )}
 
-        {reports.length === 0 && (
-          <GlassCard className="p-12 text-center">
-            <div className="text-white/30 text-sm">No reports yet. Your first report will appear here after Month 1.</div>
-          </GlassCard>
-        )}
-
+      <div className="space-y-4">
         {reports.map((report) => {
           const priorities = report.fields.next_month_priorities
             ? report.fields.next_month_priorities.split("\n").filter(Boolean)
@@ -54,6 +53,7 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
 
           return (
             <GlassCard key={report.id} className="overflow-hidden">
+              {/* Report header */}
               <div className="p-5 border-b border-white/8 flex items-center justify-between">
                 <div>
                   <div className="font-semibold">Month {report.fields.month}</div>
@@ -68,20 +68,16 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
                     <span className="text-xs text-white/40">{report.fields.changes_made} changes implemented</span>
                   )}
                   {report.fields.pdf_url && (
-                    <a
-                      href={report.fields.pdf_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/20 text-violet-300 hover:bg-violet-500/30 transition-all"
-                    >
-                      PDF Report ↗
+                    <a href={report.fields.pdf_url} target="_blank" rel="noreferrer"
+                      className="text-xs px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/20 text-violet-300 hover:bg-violet-500/30 transition-all">
+                      PDF ↗
                     </a>
                   )}
                 </div>
               </div>
 
               {/* Metrics */}
-              <div className="p-5 grid grid-cols-3 gap-4">
+              <div className="p-5 grid grid-cols-3 gap-6">
                 <Delta value={report.fields.gsc_clicks_delta} label="Clicks" />
                 <Delta value={report.fields.gsc_impressions_delta} label="Impressions" />
                 <div className="text-center">
@@ -93,11 +89,11 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
               {/* Next month priorities */}
               {priorities.length > 0 && (
                 <div className="px-5 pb-5">
-                  <div className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Next month priorities</div>
+                  <div className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Next month</div>
                   <ul className="space-y-1">
                     {priorities.map((p, i) => (
                       <li key={i} className="text-sm text-white/60 flex items-start gap-2">
-                        <span className="text-violet-400 mt-0.5">·</span>
+                        <span className="text-violet-400 mt-0.5 flex-shrink-0">·</span>
                         {p.replace(/^[-•·*]\s*/, "")}
                       </li>
                     ))}

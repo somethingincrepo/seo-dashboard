@@ -1,140 +1,164 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals } from "@/lib/changes";
+import { getClientReports } from "@/lib/reports";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { ChangeCard } from "@/components/ui/ChangeCard";
-import Link from "next/link";
+import { OnboardingTracker } from "@/components/portal/OnboardingTracker";
 
-export const revalidate = 0; // Always fresh for client portal
+export const revalidate = 0;
 
-export default async function ClientPortalPage({ params }: { params: Promise<{ token: string }> }) {
+const ONBOARDING_STATUSES = new Set(["form_submitted", "onboarding_setup", "month1_audit"]);
+
+export default async function PortalDashboard({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const client = await getClientByToken(token);
-
   if (!client) notFound();
 
-  const pendingChanges = await getPendingApprovals(client.id);
+  const [pending, reports] = await Promise.all([
+    getPendingApprovals(client.id),
+    getClientReports(client.id),
+  ]);
 
-  // Group by page
-  const byPage: Record<string, typeof pendingChanges> = {};
-  pendingChanges.forEach((c) => {
-    const page = c.fields.page_url || "Site-wide";
-    if (!byPage[page]) byPage[page] = [];
-    byPage[page].push(c);
-  });
-
-  const tier1 = pendingChanges.filter((c) => c.fields.implementation_tier === "tier_1");
-  const tier2 = pendingChanges.filter((c) => c.fields.implementation_tier !== "tier_1");
+  const planStatus = client.fields.plan_status || "form_submitted";
+  const isOnboarding = ONBOARDING_STATUSES.has(planStatus);
+  const latestReport = reports[0];
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="glass sticky top-0 z-10 px-6 py-4 flex items-center justify-between">
-        <div>
-          <div className="font-semibold text-sm">{client.fields.company_name}</div>
-          <div className="text-white/35 text-xs">SEO Approval Portal</div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-white/40 text-xs">{pendingChanges.length} pending</span>
-          <Link
-            href={`/portal/${token}/reports`}
-            className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
-          >
-            Reports →
-          </Link>
-        </div>
-      </header>
-
-      <div className="max-w-3xl mx-auto px-6 py-10 space-y-10">
-        {/* Intro */}
-        <div>
-          <h1 className="text-2xl font-semibold">Your SEO Approvals</h1>
-          <p className="text-white/40 text-sm mt-2 leading-relaxed">
-            Review the recommendations below. Approve changes you&apos;re comfortable with, skip
-            ones you&apos;d like to hold off on, or ask a question if you need clarification.
-            Approved changes are implemented within 24 hours.
-          </p>
-        </div>
-
-        {pendingChanges.length === 0 && (
-          <GlassCard className="p-12 text-center">
-            <div className="text-4xl mb-4">✦</div>
-            <div className="font-medium mb-1">All caught up!</div>
-            <div className="text-white/40 text-sm">No pending approvals right now. We&apos;ll notify you when new recommendations are ready.</div>
-          </GlassCard>
-        )}
-
-        {/* Tier 1 changes */}
-        {tier1.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-white/70">Quick Wins</h2>
-              <span className="text-xs text-white/30">{tier1.length} changes · no design impact</span>
-            </div>
-            {Object.entries(byPage)
-              .filter(([, changes]) => changes.some((c) => c.fields.implementation_tier === "tier_1"))
-              .map(([page, changes]) => (
-                <PageGroup
-                  key={page}
-                  page={page}
-                  changes={changes.filter((c) => c.fields.implementation_tier === "tier_1")}
-                  token={token}
-                />
-              ))}
-          </section>
-        )}
-
-        {/* Tier 2 changes */}
-        {tier2.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-white/70">Content & Structural</h2>
-              <span className="text-xs text-white/30">{tier2.length} changes · may require design review</span>
-            </div>
-            {Object.entries(byPage)
-              .filter(([, changes]) => changes.some((c) => c.fields.implementation_tier !== "tier_1"))
-              .map(([page, changes]) => (
-                <PageGroup
-                  key={page}
-                  page={page}
-                  changes={changes.filter((c) => c.fields.implementation_tier !== "tier_1")}
-                  token={token}
-                />
-              ))}
-          </section>
-        )}
+    <div className="space-y-8">
+      {/* Greeting */}
+      <div>
+        <h1 className="text-2xl font-semibold">
+          {isOnboarding ? "Welcome aboard" : "Your SEO Overview"}
+        </h1>
+        <p className="text-white/40 text-sm mt-1">
+          {isOnboarding
+            ? "Here's where things stand as we get your program set up."
+            : "Here's what's happening with your SEO program."}
+        </p>
       </div>
-    </div>
-  );
-}
 
-function PageGroup({
-  page,
-  changes,
-  token,
-}: {
-  page: string;
-  changes: Awaited<ReturnType<typeof getPendingApprovals>>;
-  token: string;
-}) {
-  // Truncate URL for display
-  let displayPage = page;
-  try {
-    const url = new URL(page);
-    displayPage = url.pathname === "/" ? url.hostname : url.pathname;
-  } catch {
-    // not a URL
-  }
+      {/* Onboarding path */}
+      {isOnboarding && (
+        <>
+          <OnboardingTracker planStatus={planStatus} />
+          {pending.length > 0 && (
+            <GlassCard className="p-5 border border-amber-400/15">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="font-semibold text-white/90 mb-1">
+                    {pending.length} recommendation{pending.length !== 1 ? "s" : ""} ready for review
+                  </div>
+                  <div className="text-sm text-white/50">
+                    Your initial audit is complete. Review and approve changes to kick off implementation.
+                  </div>
+                </div>
+                <Link
+                  href={`/portal/${token}/approvals`}
+                  className="flex-shrink-0 px-5 py-2.5 rounded-xl bg-violet-600/40 border border-violet-400/30 text-sm font-medium text-white hover:bg-violet-500/50 transition-all"
+                >
+                  Review now →
+                </Link>
+              </div>
+            </GlassCard>
+          )}
+        </>
+      )}
 
-  return (
-    <div>
-      <div className="text-xs text-white/30 font-mono mb-2 px-1">{displayPage}</div>
-      <div className="space-y-3">
-        {changes.map((change) => (
-          <ChangeCard key={change.id} change={change} token={token} />
-        ))}
-      </div>
+      {/* Active client path */}
+      {!isOnboarding && (
+        <>
+          {/* Metrics */}
+          <div className="grid grid-cols-3 gap-4">
+            <GlassCard className="p-5 text-center">
+              <div className="text-3xl font-bold text-amber-400">{pending.length}</div>
+              <div className="text-white/40 text-xs mt-1 uppercase tracking-wider">Pending</div>
+            </GlassCard>
+            <GlassCard className="p-5 text-center">
+              <div className="text-3xl font-bold text-emerald-400">{latestReport?.fields.changes_made ?? "—"}</div>
+              <div className="text-white/40 text-xs mt-1 uppercase tracking-wider">Implemented</div>
+            </GlassCard>
+            <GlassCard className="p-5 text-center">
+              <div className="text-3xl font-bold text-violet-400">
+                {latestReport ? `M${latestReport.fields.month}` : "—"}
+              </div>
+              <div className="text-white/40 text-xs mt-1 uppercase tracking-wider">Latest Report</div>
+            </GlassCard>
+          </div>
+
+          {/* Pending CTA */}
+          {pending.length > 0 ? (
+            <GlassCard className="p-5 border border-amber-400/15">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="font-semibold text-white/90 mb-1">
+                    {pending.length} recommendation{pending.length !== 1 ? "s" : ""} ready for your review
+                  </div>
+                  <div className="text-sm text-white/50">
+                    Approve the ones you&apos;re happy with — implemented within 24 hours.
+                  </div>
+                </div>
+                <Link
+                  href={`/portal/${token}/approvals`}
+                  className="flex-shrink-0 px-5 py-2.5 rounded-xl bg-violet-600/40 border border-violet-400/30 text-sm font-medium text-white hover:bg-violet-500/50 transition-all"
+                >
+                  Review →
+                </Link>
+              </div>
+            </GlassCard>
+          ) : (
+            <GlassCard className="p-8 text-center">
+              <div className="text-2xl mb-3">✦</div>
+              <div className="font-medium text-white/80 mb-1">All caught up</div>
+              <div className="text-sm text-white/40">
+                No pending approvals. We&apos;ll notify you when new recommendations are ready.
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Latest report snapshot */}
+          {latestReport && (
+            <section>
+              <div className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+                Latest Report — Month {latestReport.fields.month}
+              </div>
+              <GlassCard className="p-5">
+                <div className="grid grid-cols-3 gap-6 text-center mb-4">
+                  {[
+                    { val: latestReport.fields.gsc_clicks_delta, label: "Clicks" },
+                    { val: latestReport.fields.gsc_impressions_delta, label: "Impressions" },
+                    { val: latestReport.fields.ai_citation_score, label: "AI Score", noSign: true },
+                  ].map(({ val, label, noSign }) => (
+                    <div key={label}>
+                      <div className={`text-2xl font-bold ${
+                        noSign ? "text-blue-400" :
+                        (val ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"
+                      }`}>
+                        {val == null ? "—" : noSign ? val : `${val >= 0 ? "+" : ""}${val}`}
+                      </div>
+                      <div className="text-white/30 text-xs mt-1">{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-center gap-3">
+                  <Link
+                    href={`/portal/${token}/reports`}
+                    className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    View all reports →
+                  </Link>
+                  {latestReport.fields.pdf_url && (
+                    <a href={latestReport.fields.pdf_url} target="_blank" rel="noreferrer"
+                      className="text-xs text-white/40 hover:text-white/60 transition-colors">
+                      Download PDF ↗
+                    </a>
+                  )}
+                </div>
+              </GlassCard>
+            </section>
+          )}
+        </>
+      )}
     </div>
   );
 }
