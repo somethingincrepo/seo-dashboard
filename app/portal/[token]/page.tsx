@@ -6,6 +6,7 @@ import { getClientReports } from "@/lib/reports";
 import { MetricTile } from "@/components/ui/MetricTile";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { OnboardingTracker } from "@/components/portal/OnboardingTracker";
+import { PipelineBoard } from "@/components/portal/PipelineBoard";
 
 export const revalidate = 0;
 
@@ -68,6 +69,16 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
           accent="blue"
         />
       </div>
+
+      {/* ─── Pipeline Board ─── */}
+      {allChanges.length > 0 && (
+        <section>
+          <div className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+            Pipeline
+          </div>
+          <PipelineBoard changes={allChanges} token={token} />
+        </section>
+      )}
 
       {/* ─── Status-aware content ─── */}
 

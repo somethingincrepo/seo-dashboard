@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
-import { getPendingApprovals } from "@/lib/changes";
-import { GlassCard } from "@/components/ui/GlassCard";
-import { CategorySection } from "@/components/portal/CategorySection";
+import { getPendingApprovals, getClientChanges } from "@/lib/changes";
+import { ApprovalMasterDetail } from "@/components/portal/ApprovalMasterDetail";
 
 export const revalidate = 0;
 
@@ -13,32 +12,28 @@ export default async function ContentApprovalsPage({ params }: { params: Promise
 
   const clientId = client.fields.client_id || client.id;
 
-  const pending = await getPendingApprovals(clientId);
-  const changes = pending.filter((c) => (c.fields.cat || c.fields.category) === "Content");
+  const [pending, allChanges] = await Promise.all([
+    getPendingApprovals(clientId),
+    getClientChanges(clientId),
+  ]);
 
-  if (changes.length === 0) {
-    return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-white/90">Content</h1>
-          <p className="text-white/40 text-sm mt-1">Content rewrites, new content, and structural changes.</p>
-        </div>
-        <GlassCard className="p-12 text-center">
-          <div className="text-3xl mb-4 text-white/20">✦</div>
-          <div className="font-medium text-white/70 mb-1">No content changes pending</div>
-          <div className="text-sm text-white/40">All caught up in this category.</div>
-        </GlassCard>
-      </div>
-    );
-  }
+  const decided = allChanges.filter(
+    (c) => c.fields.approval !== "pending" && c.fields.approval_status !== "pending"
+  );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-white/90">Content</h1>
         <p className="text-white/40 text-sm mt-1">Content rewrites, new content, and structural changes.</p>
       </div>
-      <CategorySection category="Content" changes={changes} token={token} />
+      <ApprovalMasterDetail
+        changes={pending}
+        decidedChanges={decided}
+        token={token}
+        contactEmail={client.fields.contact_email}
+        categoryFilter="Content"
+      />
     </div>
   );
 }
