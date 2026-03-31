@@ -3,20 +3,15 @@ import Link from "next/link";
 import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals, getClientChanges } from "@/lib/changes";
 import { getClientReports } from "@/lib/reports";
-import { MetricTile } from "@/components/ui/MetricTile";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { OnboardingTracker } from "@/components/portal/OnboardingTracker";
+import { DashboardHero } from "@/components/portal/DashboardHero";
+import { DashboardTimeline } from "@/components/portal/DashboardTimeline";
 import { PipelineBoard } from "@/components/portal/PipelineBoard";
-import { PriorityFilterWrapper } from "@/components/portal/PriorityFilter";
 
 export const revalidate = 0;
 
-const ONBOARDING_STATUSES = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"];
-const ACTIVE_STATUSES = ["active"];
-
-export default async function PortalDashboard({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ priority?: string }> }) {
+export default async function PortalDashboard({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const { priority } = await searchParams;
   const client = await getClientByToken(token);
   if (!client) notFound();
 
@@ -28,96 +23,68 @@ export default async function PortalDashboard({ params, searchParams }: { params
     getClientChanges(clientId),
   ]);
 
-  const filteredChanges = priority
-    ? allChanges.filter((c) => c.fields.priority === priority)
-    : allChanges;
-
   const status = client.fields.status || client.fields.plan_status || "form_submitted";
+  const contactName = client.fields.contact_name || client.fields.company_name || "there";
   const latestReport = reports[0];
-  const isOnboarding = ONBOARDING_STATUSES.includes(status);
-  const isActive = ACTIVE_STATUSES.includes(status);
 
+  const pendingCount = pending.length;
+  const approvedCount = allChanges.filter(
+    (c) => (c.fields.approval || c.fields.approval_status) === "approved" &&
+            c.fields.execution_status !== "complete" && !c.fields.implemented_at
+  ).length;
   const implementedCount = allChanges.filter(
     (c) => c.fields.execution_status === "complete" || !!c.fields.implemented_at
   ).length;
+  const tier1Ids = pending
+    .filter((c) => c.fields.implementation_tier === "tier_1")
+    .map((c) => c.id);
+  const tier1Count = tier1Ids.length;
 
   return (
     <div className="space-y-10">
       {/* Greeting */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white/90">
-          {isOnboarding ? "Welcome aboard" : "Your SEO Overview"}
+        <h1 className="text-2xl font-semibold tracking-tight text-white/90">
+          Welcome, {contactName.split(" ")[0]}
         </h1>
-        <p className="text-base text-white/40 mt-1">
-          {isOnboarding
-            ? "Here's where things stand as we get your program set up."
-            : "Here's what's happening with your SEO program."}
+        <p className="text-sm text-white/40 mt-1">
+          Here's what's happening with your SEO.
         </p>
       </div>
 
-      {/* ─── Metric Tiles ─── */}
-      <div className="grid grid-cols-4 gap-3">
-        <MetricTile
-          label="Pending Approvals"
-          value={pending.length}
-          sub={pending.length === 0 ? "Nothing to review" : undefined}
-          accent={pending.length > 0 ? "amber" : "emerald"}
-        />
-        <MetricTile
-          label="Implemented"
-          value={implementedCount}
-          sub={implementedCount === 0 ? "Starting soon" : undefined}
-          accent="violet"
-        />
-        {isActive ? (
-          <>
-            <MetricTile
-              label="Latest Report"
-              value={latestReport ? `Month ${latestReport.fields.month}` : "Coming soon"}
-              sub={latestReport?.fields.sent_at
-                ? new Date(latestReport.fields.sent_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                : undefined}
-              accent="blue"
-            />
-            <MetricTile
-              label="Total Changes"
-              value={allChanges.length}
-              sub="All time"
-              accent="violet"
-            />
-          </>
-        ) : (
-          <MetricTile
-            label="Month"
-            value={`Month ${client.fields.month_number || 1}`}
-            sub="Your program progress"
-            accent="blue"
-          />
-        )}
-      </div>
+      {/* Hero Action Card */}
+      <DashboardHero
+        pendingCount={pendingCount}
+        approvedCount={approvedCount}
+        implementedCount={implementedCount}
+        tier1Count={tier1Count}
+        tier1Ids={tier1Ids}
+        token={token}
+        contactName={contactName}
+        status={status}
+        reports={reports}
+      />
 
-      {/* ─── Pipeline Board ─── */}
+      {/* Pipeline Board */}
       {allChanges.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25">
-              Pipeline
-            </div>
-            <PriorityFilterWrapper /> {/* needs Suspense wrapper in client usage */}
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
+            Pipeline
           </div>
-          <PipelineBoard changes={filteredChanges} token={token} />
+          <PipelineBoard changes={allChanges} token={token} />
         </section>
       )}
 
-      {/* ─── Onboarding: Tracker at bottom ─── */}
-      {isOnboarding && (
-        <GlassCard className="p-5">
-          <OnboardingTracker planStatus={status} />
-        </GlassCard>
-      )}
+      {/* Timeline */}
+      <DashboardTimeline
+        client={client}
+        pendingCount={pendingCount}
+        approvedCount={approvedCount}
+        implementedCount={implementedCount}
+      />
 
-      {/* ─── Active: Latest report snapshot ─── */}
-      {isActive && latestReport && (
+      {/* Latest Report */}
+      {latestReport && (
         <section>
           <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
             Latest Report — Month {latestReport.fields.month}
@@ -153,27 +120,6 @@ export default async function PortalDashboard({ params, searchParams }: { params
             </div>
           </GlassCard>
         </section>
-      )}
-
-      {/* Active + no pending + no report */}
-      {isActive && pending.length === 0 && !latestReport && (
-        <GlassCard className="p-8 text-center">
-          <div className="text-2xl mb-3 text-violet-400/40">✦</div>
-          <div className="font-medium text-white/80 mb-1">All caught up</div>
-          <div className="text-sm text-white/40">
-            No pending approvals. We'll notify you when new recommendations are ready.
-          </div>
-        </GlassCard>
-      )}
-
-      {/* Paused / Failed */}
-      {(status === "paused" || status === "failed") && (
-        <GlassCard className="p-8 text-center">
-          <div className="font-medium text-white/80 mb-1">
-            {status === "paused" ? "Your program is paused" : "Something went wrong"}
-          </div>
-          <div className="text-sm text-white/40">Contact us for details.</div>
-        </GlassCard>
       )}
     </div>
   );

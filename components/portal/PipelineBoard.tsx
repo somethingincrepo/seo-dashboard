@@ -7,7 +7,7 @@ import { getListItemTitle, CATEGORY_EXPLANATIONS } from "@/lib/portal-labels";
 import { updateApproval } from "@/lib/changes";
 import type { Change } from "@/lib/changes";
 
-const MAX_VISIBLE = 3;
+const MAX_VISIBLE = 4;
 
 interface PipelineBoardProps {
   changes: Change[];
@@ -41,7 +41,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
   const columns: Column[] = [
     {
       key: "pending",
-      label: "Pending Review",
+      label: "To Review",
       color: "text-amber-400",
       dotColor: "bg-amber-400",
       borderColor: "border-t-amber-500",
@@ -56,23 +56,12 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
       items: filteredChanges.filter(
         (c) =>
           getApproval(c) === "approved" &&
-          !isComplete(c) &&
-          c.fields.execution_status !== "implementing"
-      ),
-    },
-    {
-      key: "implementing",
-      label: "In Progress",
-      color: "text-blue-400",
-      dotColor: "bg-blue-400",
-      borderColor: "border-t-blue-500",
-      items: filteredChanges.filter(
-        (c) => c.fields.execution_status === "implementing" && !isComplete(c)
+          !isComplete(c)
       ),
     },
     {
       key: "complete",
-      label: "Complete",
+      label: "Implemented",
       color: "text-violet-400",
       dotColor: "bg-violet-400",
       borderColor: "border-t-violet-500",
@@ -138,7 +127,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
 
   return (
     <div className="relative">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {columns.map((col) => {
           const visible = col.items.slice(0, MAX_VISIBLE);
           const overflow = col.items.length - MAX_VISIBLE;
