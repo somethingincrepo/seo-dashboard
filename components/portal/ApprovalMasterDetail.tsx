@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { BatchApproveButton } from "@/components/portal/BatchApproveButton";
@@ -52,6 +52,7 @@ function ApprovalMasterDetailInner({
   contactEmail,
   categoryFilter,
 }: ApprovalMasterDetailProps) {
+  const router = useRouter();
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "decided">("pending");
   const [localChanges, setLocalChanges] = useState<Map<string, LocalDecision>>(new Map());
@@ -61,6 +62,7 @@ function ApprovalMasterDetailInner({
   const [showTechnical, setShowTechnical] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<string>("All");
+  const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
@@ -128,13 +130,17 @@ function ApprovalMasterDetailInner({
 
   const applyDecision = async (changeId: string, decision: "approved" | "skipped" | "question", notes?: string) => {
     setSubmitting(true);
+    setError(null);
     try {
       const res = await fetch("/api/approvals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recordId: changeId, decision, notes, token }),
       });
-      if (!res.ok) throw new Error("Approval request failed");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Server error ${res.status}`);
+      }
       setLocalChanges((prev) => {
         const next = new Map(prev);
         next.set(changeId, { approval: decision, client_notes: notes || "" });
@@ -151,6 +157,7 @@ function ApprovalMasterDetailInner({
 
       setTimeout(() => {
         setFeedback(null);
+        setError(null);
         setShowQuestion(false);
         setQuestionText("");
         setShowTechnical(false);
@@ -166,7 +173,10 @@ function ApprovalMasterDetailInner({
             setSelectedChangeId(null);
           }
         }
+        router.refresh();
       }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -552,6 +562,14 @@ function ApprovalMasterDetailInner({
                   return (
                     <div className="text-sm text-emerald-300 py-2 text-center">
                       {feedback}
+                    </div>
+                  );
+                }
+
+                if (error) {
+                  return (
+                    <div className="text-sm text-red-300 py-2 text-center">
+                      {error}
                     </div>
                   );
                 }

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getListItemTitle, CATEGORY_EXPLANATIONS, getWhatWeRecommend, getWhyItMatters, getTechnicalCurrent, getTechnicalProposed, hasTechnicalDetails, getDocUrl } from "@/lib/portal-labels";
 import type { Change } from "@/lib/changes";
@@ -23,6 +24,7 @@ interface Column {
 }
 
 export function PipelineBoard({ changes, token }: PipelineBoardProps) {
+  const router = useRouter();
   const [selectedChange, setSelectedChange] = useState<Change | null>(null);
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
   const [questionText, setQuestionText] = useState("");
   const [showTechnical, setShowTechnical] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filteredChanges = changes.filter((c) => !removedIds.has(c.id));
 
@@ -74,13 +77,17 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
 
   const applyDecision = useCallback(async (change: Change, decision: "approved" | "skipped" | "question", notes?: string) => {
     setSubmitting(true);
+    setError(null);
     try {
       const res = await fetch("/api/approvals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recordId: change.id, decision, notes, token }),
       });
-      if (!res.ok) throw new Error("Approval request failed");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Server error ${res.status}`);
+      }
       if (decision === "approved") {
         setFeedback("Got it — we'll implement this within 24 hours.");
       } else if (decision === "skipped") {
@@ -95,11 +102,14 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
         setShowQuestion(false);
         setQuestionText("");
         setShowTechnical(false);
+        router.refresh();
       }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
-  }, []);
+  }, [token]);
 
   function extractPath(url: string): string {
     try {
@@ -399,6 +409,10 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
               {feedback ? (
                 <div className="text-sm text-emerald-300 py-2 text-center">
                   {feedback}
+                </div>
+              ) : error ? (
+                <div className="text-sm text-red-300 py-2 text-center">
+                  {error}
                 </div>
               ) : selectedChange.fields.approval !== "pending" ? (
                 <div className="text-sm text-white/40 py-2">
