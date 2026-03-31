@@ -17,6 +17,26 @@ import { isAwarenessFlag } from "@/lib/portal-labels";
  *   cat === "AI-GEO"                           → Blue AI optimization card
  */
 
+function isFlag(value: string): boolean {
+  if (!value || value.trim().length === 0) return true;
+  const v = value.trim().toLowerCase();
+  return (
+    v.startsWith("(no rewrite") ||
+    v.startsWith("no rewrite") ||
+    v.startsWith("flagged for") ||
+    v === "tbd" ||
+    v === "n/a" ||
+    v === "none" ||
+    v.startsWith("review needed")
+  );
+}
+
+function isInstruction(value: string): boolean {
+  return /^(update|add|fix|change|replace|remove|complete|rewrite|optimize|include)\b/i.test(
+    value.trim()
+  );
+}
+
 interface ChangePreviewProps {
   fields: ChangeFields;
   cat: string;
@@ -27,10 +47,12 @@ export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
   const current = fields.current_value?.trim() || "";
   const proposed = fields.proposed_value?.trim() || "";
 
+  // eslint-disable-next-line no-console
+  console.log("[ChangePreview] proposed_value:", fields.proposed_value);
+
   if (!current && !proposed) return null;
 
-  // Filter out awareness flags from proposed — they aren't real rewrites
-  const effectiveProposed = proposed && !isAwarenessFlag(proposed) ? proposed : "";
+  const effectiveProposed = proposed && !isFlag(proposed) ? proposed : "";
 
   // Redirect gets its own special flow card regardless of category
   if (type === "Redirect") {
@@ -154,16 +176,15 @@ function parseMetadata(value: string): { title: string | null; description: stri
 
   const v = value.trim();
 
-  // Detect flags/instructions — not actual content
-  if (v.match(/^\(no rewrite|^flagged for|^no change|^TBD|^review needed/i)) {
+  if (isFlag(v)) {
     return { title: null, description: null };
   }
 
-  // Detect analyst shorthand — not actual content
-  if (v.match(/^Title:\s*(acceptable|too short|ok|good|missing|needs)/i)) {
+  // Detect analyst shorthand (single-word assessment, not real content)
+  if (v.match(/^Title:\s*(acceptable|too short|ok|good|missing|needs)\s*\.?\s*$/i)) {
     return { title: null, description: null };
   }
-  if (v.match(/^Desc:\s*(acceptable|too short|ok|good|generic|missing|boilerplate|needs)/i)) {
+  if (v.match(/^Desc:\s*(acceptable|too short|ok|good|generic|missing|boilerplate|needs)\s*\.?\s*$/i)) {
     return { title: null, description: null };
   }
 
@@ -229,21 +250,20 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
   const breadcrumb = buildBreadcrumb(pageUrl);
   const urlTitle = titleFromUrl(pageUrl);
 
-  // Resolve effective titles — never leave blank, fall back to URL-generated title
   const currentTitle = currentMeta.title || urlTitle;
-  const currentTitleDimmed = !currentMeta.title; // dimmed if generated from URL
+  const currentTitleDimmed = !currentMeta.title;
   const currentDesc = currentMeta.description;
 
-  const proposedHasContent = proposedMeta.title || proposedMeta.description;
+  const proposedHasStructured = proposedMeta.title || proposedMeta.description;
 
-  // Proposed card: show new fields at full brightness, carry forward unchanged fields dimmed
-  // If proposed doesn't have a title, carry forward from current (or URL-generated)
   const proposedTitle = proposedMeta.title || currentTitle;
-  const proposedTitleDimmed = !proposedMeta.title; // dimmed if unchanged/generated
+  const proposedTitleDimmed = !proposedMeta.title;
+
+  const proposedIsEmpty = isFlag(proposed);
+  const proposedLabel = isInstruction(proposed) ? "Proposed Direction" : "Proposed Search Appearance";
 
   return (
     <div className="mt-4 space-y-3">
-      {/* ALWAYS show current card — even if current_value is empty/unparseable */}
       <div>
         <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current Search Appearance</div>
         <SearchResultCard
@@ -254,17 +274,28 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
           variant="current"
         />
       </div>
-      {proposed && proposedHasContent && (
-        <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Search Appearance</div>
-          <SearchResultCard
-            title={proposedTitle}
-            titleDimmed={proposedTitleDimmed}
-            description={proposedMeta.description}
-            breadcrumb={breadcrumb}
-            variant="proposed"
-          />
-        </div>
+      {!proposedIsEmpty && (
+        proposedHasStructured ? (
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
+            <SearchResultCard
+              title={proposedTitle}
+              titleDimmed={proposedTitleDimmed}
+              description={proposedMeta.description}
+              breadcrumb={breadcrumb}
+              variant="proposed"
+            />
+          </div>
+        ) : (
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
+            <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.06] border-l-2 border-l-emerald-400/30">
+              <p className="text-sm text-white/70 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
+                {proposed}
+              </p>
+            </div>
+          </div>
+        )
       )}
     </div>
   );
