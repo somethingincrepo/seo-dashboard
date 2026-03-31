@@ -1,5 +1,6 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { BatchApproveButton } from "@/components/portal/BatchApproveButton";
@@ -26,7 +27,20 @@ interface LocalDecision {
   client_notes: string;
 }
 
-export function ApprovalMasterDetail({
+export function ApprovalMasterDetail(props: ApprovalMasterDetailProps) {
+  return (
+    <Suspense fallback={
+      <div className="flex gap-6 h-[calc(100vh-12rem)]">
+        <div className="w-[40%] flex items-center justify-center text-white/30 text-sm">Loading...</div>
+        <div className="w-[60%]" />
+      </div>
+    }>
+      <ApprovalMasterDetailInner {...props} />
+    </Suspense>
+  );
+}
+
+function ApprovalMasterDetailInner({
   changes,
   decidedChanges,
   token,
@@ -41,6 +55,21 @@ export function ApprovalMasterDetail({
   const [questionText, setQuestionText] = useState("");
   const [showTechnical, setShowTechnical] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+
+  // Deep-link: auto-select change from ?selected= query param
+  const initialSelected = searchParams.get("selected");
+  useEffect(() => {
+    if (initialSelected) {
+      setSelectedChangeId(initialSelected);
+      // Scroll the selected item into view in the list
+      setTimeout(() => {
+        const el = document.querySelector(`[data-change-id="${initialSelected}"]`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 100);
+    }
+  }, [initialSelected]);
 
   const getEffectiveChange = useCallback(
     (change: Change): Change => {
@@ -208,7 +237,7 @@ export function ApprovalMasterDetail({
         )}
 
         {/* Change list */}
-        <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+        <div ref={listRef} className="flex-1 overflow-y-auto space-y-6 pr-1">
           {activeChanges.length === 0 && (
             <div className="py-12 text-center text-white/30 text-sm">
               {activeTab === "pending" ? "All caught up!" : "No decided changes yet."}
@@ -228,6 +257,7 @@ export function ApprovalMasterDetail({
                   const changeType = change.fields.type || change.fields.change_type;
                   return (
                     <button
+                      data-change-id={change.id}
                       key={change.id}
                       onClick={() => {
                         setSelectedChangeId(change.id);
@@ -297,6 +327,7 @@ export function ApprovalMasterDetail({
                     return (
                       <button
                         key={change.id}
+                        data-change-id={change.id}
                         onClick={() => {
                           setSelectedChangeId(change.id);
                           setFeedback(null);
