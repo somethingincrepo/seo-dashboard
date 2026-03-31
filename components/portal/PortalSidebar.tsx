@@ -9,7 +9,6 @@ interface PortalSidebarProps {
   companyName: string;
   token: string;
   pendingCount: number;
-  decidedCount: number;
   categoryBreakdown: Record<string, number>;
   monthNumber: number;
   clientStatus: string;
@@ -34,7 +33,6 @@ export function PortalSidebar({
   companyName,
   token,
   pendingCount,
-  decidedCount,
   categoryBreakdown,
   monthNumber,
   clientStatus,
@@ -83,12 +81,9 @@ export function PortalSidebar({
                 >
                   <span className="text-base">{item.icon}</span>
                   <span className="flex-1">{item.label}</span>
-                  {item.suffix === "/approvals" && (pendingCount > 0 || decidedCount > 0) && (
-                    <span className="text-[10px] text-white/30 ml-auto mr-1">
-                      <span className="text-amber-300">{pendingCount}</span> pending
-                      {decidedCount > 0 && (
-                        <> · <span className="text-white/40">{decidedCount}</span> decided</>
-                      )}
+                  {item.suffix === "/approvals" && pendingCount > 0 && (
+                    <span className="text-[10px] text-amber-300 ml-auto mr-1">
+                      {pendingCount} to review
                     </span>
                   )}
                 </Link>
