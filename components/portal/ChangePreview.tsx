@@ -120,26 +120,61 @@ function RedirectPreview({ current, proposed }: { current: string; proposed: str
 
 // ─── Metadata: Google Search Result Preview ────────────────────
 
-function parseMetadataFields(text: string): { title: string; description: string } {
-  let title = "";
-  let description = "";
+/**
+ * Robust metadata parser — handles all real-world Airtable formats:
+ *   Format 1: "Title Tag: Some Title Here"
+ *   Format 2: "Meta Description: Some description here"
+ *   Format 3: Raw text with no prefix labels
+ *   Format 4: "Title Tag: ... Meta Description: ..." (both on one line)
+ *   Format 5: Analyst shorthand like "Title: acceptable. Desc: generic boilerplate"
+ *   Format 6: Flags/instructions like "(no rewrite — flagged for awareness)"
+ */
+function parseMetadata(value: string): { title: string | null; description: string | null } {
+  if (!value || value.trim().length === 0) return { title: null, description: null };
 
-  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-  for (const line of lines) {
-    const lower = line.toLowerCase();
-    if (lower.startsWith("title tag:") || lower.startsWith("title:")) {
-      title = line.replace(/^(title tag|title)\s*:\s*/i, "").trim();
-    } else if (lower.startsWith("meta description:") || lower.startsWith("description:")) {
-      description = line.replace(/^(meta description|description)\s*:\s*/i, "").trim();
+  const v = value.trim();
+
+  // Detect flags/instructions — not actual content
+  if (v.match(/^\(no rewrite|^flagged for|^no change|^TBD|^review needed/i)) {
+    return { title: null, description: null };
+  }
+
+  // Detect analyst shorthand — not actual content
+  if (v.match(/^Title:\s*(acceptable|too short|ok|good|missing|needs)/i)) {
+    return { title: null, description: null };
+  }
+
+  let title: string | null = null;
+  let description: string | null = null;
+
+  // Extract "Title Tag: ..." or "Title: ..." — everything up to the next field label or end
+  const titleMatch = v.match(/Title\s*(?:Tag)?\s*[:=]\s*(.+?)(?=\.\s*(?:Meta\s*)?Desc(?:ription)?|$)/i);
+  if (titleMatch) {
+    const t = titleMatch[1].trim().replace(/\.$/, '');
+    // Only use if it looks like actual title content (not analyst notes)
+    if (t.length > 10 && !t.match(/^(acceptable|too short|generic|missing|ok|good|needs)/i)) {
+      title = t;
     }
   }
 
+  // Extract "Meta Description: ..." or "Description: ..." or "Desc: ..."
+  const descMatch = v.match(/(?:Meta\s*)?Desc(?:ription)?\s*[:=]\s*(.+?)$/i);
+  if (descMatch) {
+    const d = descMatch[1].trim().replace(/\.$/, '');
+    if (d.length > 10 && !d.match(/^(acceptable|too short|generic|missing|boilerplate|ok|good|needs)/i)) {
+      description = d;
+    }
+  }
+
+  // If no structured labels found and the text is long enough, it's probably raw content
   if (!title && !description) {
-    if (lines.length >= 2) {
-      title = lines[0];
-      description = lines.slice(1).join(" ");
-    } else if (lines.length === 1) {
-      title = lines[0];
+    if (v.length > 20 && !v.match(/[:=]/) && !v.match(/^(Title|Desc|Meta|Nav page|Critical)/i)) {
+      // Guess whether it's a title or description based on length
+      if (v.length < 70) {
+        title = v;
+      } else {
+        description = v;
+      }
     }
   }
 
@@ -161,14 +196,23 @@ function buildBreadcrumb(pageUrl: string): string {
 }
 
 function MetadataPreview({ current, proposed, pageUrl }: { current: string; proposed: string; pageUrl: string }) {
-  const currentMeta = parseMetadataFields(current);
-  const proposedMeta = parseMetadataFields(proposed);
+  const currentMeta = parseMetadata(current);
+  const proposedMeta = parseMetadata(proposed);
   const breadcrumb = buildBreadcrumb(pageUrl);
   const proposedHasContent = proposedMeta.title || proposedMeta.description;
 
+  // Build the proposed card with carry-forward from current for unchanged fields
+  // e.g. if only description is changing, show current title dimmed in proposed card
+  const proposedDisplay = {
+    title: proposedMeta.title,
+    titleDimmed: !proposedMeta.title && currentMeta.title ? currentMeta.title : null,
+    description: proposedMeta.description,
+    descriptionDimmed: !proposedMeta.description && currentMeta.description ? currentMeta.description : null,
+  };
+
   return (
     <div className="mt-4 space-y-3">
-      {current && (
+      {current && (currentMeta.title || currentMeta.description) && (
         <div>
           <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current Search Appearance</div>
           <SearchResultCard title={currentMeta.title} description={currentMeta.description} breadcrumb={breadcrumb} variant="current" />
@@ -177,31 +221,63 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
       {proposed && proposedHasContent && (
         <div>
           <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Search Appearance</div>
-          <SearchResultCard title={proposedMeta.title} description={proposedMeta.description} breadcrumb={breadcrumb} variant="proposed" />
+          <SearchResultCard
+            title={proposedDisplay.title}
+            titleDimmed={proposedDisplay.titleDimmed}
+            description={proposedDisplay.description}
+            descriptionDimmed={proposedDisplay.descriptionDimmed}
+            breadcrumb={breadcrumb}
+            variant="proposed"
+          />
         </div>
       )}
     </div>
   );
 }
 
-function SearchResultCard({ title, description, breadcrumb, variant }: { title: string; description: string; breadcrumb: string; variant: "current" | "proposed" }) {
+function SearchResultCard({
+  title,
+  titleDimmed,
+  description,
+  descriptionDimmed,
+  breadcrumb,
+  variant,
+}: {
+  title: string | null;
+  titleDimmed?: string | null;
+  description: string | null;
+  descriptionDimmed?: string | null;
+  breadcrumb: string;
+  variant: "current" | "proposed";
+}) {
   const borderColor = variant === "current" ? "border-l-red-400/30" : "border-l-emerald-400/30";
+  const displayTitle = title || titleDimmed;
+  const displayDesc = description || descriptionDimmed;
+  const isTitleDimmed = !title && !!titleDimmed;
+  const isDescDimmed = !description && !!descriptionDimmed;
+
   return (
     <div className={`bg-white/[0.03] rounded-xl p-4 border border-white/[0.06] border-l-2 ${borderColor}`}>
-      {title ? (
-        <div className="text-blue-400 text-base font-medium leading-snug" style={{ overflowWrap: "anywhere" }}>
-          {title.length > 60 ? title.slice(0, 60) + "..." : title}
+      {displayTitle ? (
+        <div
+          className={`text-base font-medium leading-snug ${isTitleDimmed ? "text-blue-400/30" : "text-blue-400"}`}
+          style={{ overflowWrap: "anywhere" }}
+        >
+          {displayTitle.length > 60 ? displayTitle.slice(0, 60) + "..." : displayTitle}
         </div>
       ) : (
-        <div className="text-white/20 text-sm">No title tag</div>
+        <div className="text-white/20 text-sm italic">No title tag</div>
       )}
       <div className="text-emerald-400/60 text-xs mt-1">{breadcrumb}</div>
-      {description ? (
-        <div className="text-sm text-white/60 mt-1.5 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
-          {description.length > 160 ? description.slice(0, 160) + "..." : description}
+      {displayDesc ? (
+        <div
+          className={`text-sm mt-1.5 leading-relaxed ${isDescDimmed ? "text-white/20" : "text-white/60"}`}
+          style={{ overflowWrap: "anywhere" }}
+        >
+          {displayDesc.length > 160 ? displayDesc.slice(0, 160) + "..." : displayDesc}
         </div>
       ) : (
-        <div className="text-white/20 text-xs mt-1.5">No description available</div>
+        <div className="text-white/20 text-xs mt-1.5 italic">No meta description</div>
       )}
     </div>
   );
