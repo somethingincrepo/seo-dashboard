@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateApproval, undoApproval } from "@/lib/changes";
+import { updateApproval, revertDecision } from "@/lib/changes";
 import { getClientByToken } from "@/lib/clients";
 
 export async function POST(request: NextRequest) {
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (decision === "undo") {
-      const result = await undoApproval(recordId);
+      const result = await revertDecision(recordId);
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 409 });
       }

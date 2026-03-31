@@ -77,7 +77,11 @@ export async function getChangeById(recordId: string): Promise<Change | null> {
   return records[0] ?? null;
 }
 
-export async function undoApproval(recordId: string): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Undo any non-pending decision back to pending.
+ * Rejects if already implemented.
+ */
+export async function revertDecision(recordId: string): Promise<{ ok: boolean; error?: string }> {
   const change = await getChangeById(recordId);
   if (!change) return { ok: false, error: "Change not found" };
 
@@ -95,7 +99,7 @@ export async function undoApproval(recordId: string): Promise<{ ok: boolean; err
     approval: "pending",
     approval_status: "pending",
     approved_at: null,
-    client_notes: change.fields.client_notes, // preserve notes
+    client_notes: change.fields.client_notes,
   });
 
   return { ok: true };

@@ -343,9 +343,9 @@ function ApprovalMasterDetailInner({
                     Nav page
                   </span>
                 )}
-                {isDecided && approval === "approved" && (
+                {isDecided && (approval === "approved" || approval === "skipped") && (
                   <>
-                    <span className="text-[10px] text-emerald-400">✓</span>
+                    <span className={`text-[10px] ${approval === "approved" ? "text-emerald-400" : "text-slate-400"}`}>{approval === "approved" ? "✓" : "—"}</span>
                     {!change.fields.implemented_at && (
                       <button
                         onClick={(e) => {
@@ -355,7 +355,7 @@ function ApprovalMasterDetailInner({
                         disabled={submitting}
                         className="text-[10px] text-white/25 hover:text-red-300 underline underline-offset-2 transition-colors ml-0.5 disabled:opacity-50"
                       >
-                        Undo
+                        {approval === "approved" ? "Undo" : "Unskip"}
                       </button>
                     )}
                   </>
@@ -684,15 +684,37 @@ function ApprovalMasterDetailInner({
                 if (!isLocal && approval !== "pending") {
                   if (approval === "approved") {
                     return (
-                      <div className="text-sm text-white/40 py-2">
-                        You approved this on {formatDate(effectiveSelected.fields.approved_at)}.
+                      <div className="flex items-center justify-center gap-2 py-2">
+                        <span className="text-sm text-white/40">
+                          You approved this on {formatDate(effectiveSelected.fields.approved_at)}.
+                        </span>
+                        {!effectiveSelected.fields.implemented_at && (
+                          <button
+                            onClick={() => handleUndo(effectiveSelected.id)}
+                            disabled={submitting}
+                            className="text-xs text-white/30 hover:text-red-300 underline underline-offset-2 transition-colors"
+                          >
+                            Undo
+                          </button>
+                        )}
                       </div>
                     );
                   }
                   if (approval === "skipped") {
                     return (
-                      <div className="text-sm text-white/40 py-2">
-                        You skipped this.
+                      <div className="flex items-center justify-center gap-2 py-2">
+                        <span className="text-sm text-white/40">
+                          You skipped this.
+                        </span>
+                        {!effectiveSelected.fields.implemented_at && (
+                          <button
+                            onClick={() => handleUndo(effectiveSelected.id)}
+                            disabled={submitting}
+                            className="text-xs text-white/30 hover:text-red-300 underline underline-offset-2 transition-colors"
+                          >
+                            Unskip
+                          </button>
+                        )}
                       </div>
                     );
                   }

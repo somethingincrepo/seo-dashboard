@@ -490,14 +490,25 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                   {error}
                 </div>
               ) : selectedChange.fields.approval !== "pending" ? (
-                <div className="text-sm text-white/40 py-2">
-                  {selectedChange.fields.approval === "approved"
-                    ? `You approved this on ${formatDate(selectedChange.fields.approved_at)}.`
-                    : selectedChange.fields.approval === "skipped"
-                    ? "You skipped this."
-                    : selectedChange.fields.approval === "question"
-                    ? "Question pending."
-                    : null}
+                <div className="text-sm text-white/40 py-2 flex items-center justify-center gap-2">
+                  <span>
+                    {selectedChange.fields.approval === "approved"
+                      ? `You approved this on ${formatDate(selectedChange.fields.approved_at)}.`
+                      : selectedChange.fields.approval === "skipped"
+                      ? "You skipped this."
+                      : selectedChange.fields.approval === "question"
+                      ? "Question pending."
+                      : null}
+                  </span>
+                  {(selectedChange.fields.approval === "approved" || selectedChange.fields.approval === "skipped") && !selectedChange.fields.implemented_at && (
+                    <button
+                      onClick={() => handleUndo(selectedChange.id)}
+                      disabled={submitting}
+                      className="text-xs text-white/30 hover:text-red-300 underline underline-offset-2 transition-colors"
+                    >
+                      {selectedChange.fields.approval === "approved" ? "Undo" : "Unskip"}
+                    </button>
+                  )}
                 </div>
               ) : confirmApprove ? (
                 <div className="space-y-2">
