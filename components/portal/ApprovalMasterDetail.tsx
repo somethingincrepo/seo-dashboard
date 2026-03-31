@@ -2,17 +2,11 @@
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { GlassCard } from "@/components/ui/GlassCard";
 import { BatchApproveButton } from "@/components/portal/BatchApproveButton";
 import {
-  getChangeTitle,
   getListItemTitle,
-  CATEGORY_EXPLANATIONS,
   getWhatWeRecommend,
   getWhyItMatters,
-  getTechnicalCurrent,
-  getTechnicalProposed,
-  hasTechnicalDetails,
   getDocUrl,
   getImpactLabel,
 } from "@/lib/portal-labels";
@@ -503,49 +497,81 @@ function ApprovalMasterDetailInner({
                 const isTechnicalType = technicalTypes.has(type);
 
                 return <>
-              {/* Badges row */}
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <StatusBadge value={cat || "Other"} variant="category" />
-                {type && (
-                  <StatusBadge value={type} variant="category" />
-                )}
-                {fields.confidence && (
-                  <StatusBadge value={fields.confidence} variant="confidence" />
-                )}
-                {fields.implementation_tier === "tier_1" && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
-                    Quick win
-                  </span>
-                )}
-              </div>
-
               {/* Title */}
               <h2 className="text-xl font-semibold text-white/90 mb-3">
                 {getListItemTitle(type, page_url, undefined, fields.change_title)}
               </h2>
 
-              {/* URL pill */}
+              {/* URL pill — shows domain + path, not just "/" */}
               <a
                 href={page_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-400/15 text-violet-300 text-xs font-mono hover:bg-violet-500/15 transition-colors mb-4"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-400/15 text-violet-300 text-xs font-mono hover:bg-violet-500/15 transition-colors mb-4 max-w-full"
               >
-                {truncateUrl(page_url)} <span>↗</span>
+                <span className="truncate">{(() => {
+                  try {
+                    const u = new URL(page_url);
+                    const path = u.pathname === '/' ? '' : u.pathname;
+                    const display = u.hostname + path;
+                    return display.length > 60 ? display.slice(0, 57) + '...' : display;
+                  } catch { return page_url; }
+                })()}</span>
+                <span className="flex-shrink-0">↗</span>
               </a>
 
-              {/* Metadata bar */}
-              <div className="flex items-center gap-4 text-xs text-white/40 py-3 border-y border-white/[0.06] mb-6 flex-wrap">
-                <span><span className="text-white/20">Category</span> <span className="text-white/50">{cat}</span></span>
-                <span className="text-white/[0.1]">·</span>
-                <span><span className="text-white/20">Type</span> <span className="text-white/50">{type}</span></span>
-                <span className="text-white/[0.1]">·</span>
-                <span><span className="text-white/20">Priority</span> <span className="text-white/50">{priority}</span></span>
-                <span className="text-white/[0.1]">·</span>
-                <span><span className="text-white/20">Impact</span> <span className="text-white/50">{getImpactLabel(type)}</span></span>
+              {/* Metadata chips row */}
+              <div className="flex items-center gap-2 py-3 border-y border-white/[0.06] mb-5 flex-wrap">
+                {cat && (
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50">{cat}</span>
+                )}
+                {type && (
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50">{type}</span>
+                )}
+                {priority && (
+                  <span className={`text-[11px] px-2.5 py-1 rounded-full border ${
+                    priority === "Critical"
+                      ? "bg-red-500/15 text-red-400 border-red-400/20"
+                      : priority === "High"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                      : priority === "Medium"
+                      ? "bg-white/[0.05] text-white/40 border-white/[0.08]"
+                      : "bg-white/[0.03] text-white/30 border-white/[0.06]"
+                  }`}>{priority} Priority</span>
+                )}
+                {(() => {
+                  const impact = getImpactLabel(type);
+                  const impactColor = impact.startsWith("No visual")
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
+                    : impact.startsWith("Visible")
+                    ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                    : impact.startsWith("Search")
+                    ? "bg-blue-500/10 text-blue-400 border-blue-400/15"
+                    : impact.startsWith("Redirect")
+                    ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                    : impact.startsWith("AI")
+                    ? "bg-blue-500/10 text-blue-400 border-blue-400/15"
+                    : "bg-white/[0.05] text-white/40 border-white/[0.08]";
+                  return <span className={`text-[11px] px-2.5 py-1 rounded-full border ${impactColor}`}>{impact}</span>;
+                })()}
+                {fields.implementation_tier === "tier_1" && (
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">Quick win</span>
+                )}
+                {fields.is_nav_page && (
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-400/15">Nav page</span>
+                )}
+                {fields.confidence && (
+                  <span className={`text-[11px] px-2.5 py-1 rounded-full border ${
+                    fields.confidence === "High"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
+                      : fields.confidence === "Medium"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                      : "bg-red-500/10 text-red-400 border-red-400/15"
+                  }`}>{fields.confidence} Confidence</span>
+                )}
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-5">
                 {/* What We Recommend */}
                 <div>
                   <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">What We Recommend</h3>
@@ -556,13 +582,13 @@ function ApprovalMasterDetailInner({
                     <p className="text-sm text-white/60 leading-relaxed mt-2">{whyText}</p>
                   )}
 
-                  {/* Current → Proposed comparison */}
+                  {/* Current → Proposed comparison — full width, proper wrapping */}
                   {(fields.current_value?.trim() || fields.proposed_value?.trim()) && (
                     <div className="mt-4 space-y-3">
                       {fields.current_value?.trim() && (
                         <div>
                           <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current</div>
-                          <div className={`text-sm bg-white/[0.03] border border-white/[0.08] rounded-lg px-4 py-3 ${isTechnicalType ? 'font-mono text-white/60 text-xs whitespace-pre-wrap break-all' : 'text-white/60'}`}>
+                          <div className={`w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 ${isTechnicalType ? 'font-mono text-white/60 text-xs' : 'text-sm text-white/60'}`} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                             {fields.current_value}
                           </div>
                         </div>
@@ -570,7 +596,7 @@ function ApprovalMasterDetailInner({
                       {fields.proposed_value?.trim() && (
                         <div>
                           <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed</div>
-                          <div className={`text-sm bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-4 py-3 ${isTechnicalType ? 'font-mono text-emerald-300/70 text-xs whitespace-pre-wrap break-all' : 'text-emerald-300/80'}`}>
+                          <div className={`w-full bg-emerald-500/5 border border-emerald-400/10 rounded-xl px-4 py-3 ${isTechnicalType ? 'font-mono text-emerald-300/70 text-xs' : 'text-sm text-emerald-300/80'}`} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                             {fields.proposed_value}
                           </div>
                         </div>
@@ -595,60 +621,13 @@ function ApprovalMasterDetailInner({
                   </div>
                 )}
 
-                {/* Technical Breakdown — collapsible */}
-                <div>
-                  <button
-                    onClick={() => setShowTechnical(!showTechnical)}
-                    className="flex items-center gap-2 text-xs text-white/20 hover:text-white/40 transition-colors"
-                  >
-                    <span className={`transition-transform duration-150 ${showTechnical ? "rotate-90" : ""}`}>▶</span>
-                    Technical Breakdown
-                  </button>
-                  {showTechnical && (
-                    <div className="mt-3 space-y-4">
-                      {fields.current_value?.trim() && (
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current State</div>
-                          <pre className="text-xs font-mono text-white/60 bg-red-500/5 border border-red-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
-                            {fields.current_value}
-                          </pre>
-                        </div>
-                      )}
-                      {fields.proposed_value?.trim() && (
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Change</div>
-                          <pre className="text-xs font-mono text-emerald-300/70 bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
-                            {fields.proposed_value}
-                          </pre>
-                        </div>
-                      )}
-                      {fields.reasoning?.trim() && (
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Our Analysis</div>
-                          <p className="text-xs text-white/40 leading-relaxed">{fields.reasoning}</p>
-                        </div>
-                      )}
-                      <div>
-                        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Implementation</div>
-                        <p className="text-xs text-white/40">
-                          {fields.implementation_tier === 'tier_1'
-                            ? 'Quick win — no visual impact on your site'
-                            : 'Requires review — may affect page appearance'}
-                        </p>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Page</div>
-                        <p className="text-xs text-white/40 font-mono break-all">{fields.page_url}</p>
-                        {fields.is_nav_page && (
-                          <span className="text-[10px] text-blue-400 mt-1 inline-block">This is a navigation page (high-traffic)</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Our Analysis — reasoning field shown as muted italic line, only if it adds info */}
+                {fields.reasoning?.trim() && fields.reasoning !== whyText && (
+                  <p className="text-xs text-white/30 leading-relaxed italic">{fields.reasoning}</p>
+                )}
 
                 {/* What happens next? */}
-                <div className="text-xs text-white/25 py-3 border-t border-white/[0.06]">
+                <div className="text-xs text-white/25 pt-6 pb-3 border-t border-white/[0.06]">
                   {getApprovalStatus(effectiveSelected) === 'pending'
                     ? "When you approve, we'll implement this change within 48 hours. You'll see it in your next monthly report."
                     : ''}
