@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getListItemTitle, CATEGORY_EXPLANATIONS, getWhatWeRecommend, getWhyItMatters, getTechnicalCurrent, getTechnicalProposed, hasTechnicalDetails, getDocUrl } from "@/lib/portal-labels";
-import { updateApproval } from "@/lib/changes";
 import type { Change } from "@/lib/changes";
 
 const MAX_VISIBLE = 4;
@@ -76,7 +75,12 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
   const applyDecision = useCallback(async (change: Change, decision: "approved" | "skipped" | "question", notes?: string) => {
     setSubmitting(true);
     try {
-      await updateApproval(change.id, decision, notes);
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: change.id, decision, notes, token }),
+      });
+      if (!res.ok) throw new Error("Approval request failed");
       if (decision === "approved") {
         setFeedback("Got it — we'll implement this within 24 hours.");
       } else if (decision === "skipped") {

@@ -15,7 +15,6 @@ import {
   hasTechnicalDetails,
   getDocUrl,
 } from "@/lib/portal-labels";
-import { updateApproval } from "@/lib/changes";
 import type { Change } from "@/lib/changes";
 
 const CATEGORY_ORDER = ["Technical", "On-Page", "Content", "AI-GEO"];
@@ -130,7 +129,12 @@ function ApprovalMasterDetailInner({
   const applyDecision = async (changeId: string, decision: "approved" | "skipped" | "question", notes?: string) => {
     setSubmitting(true);
     try {
-      await updateApproval(changeId, decision, notes);
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: changeId, decision, notes, token }),
+      });
+      if (!res.ok) throw new Error("Approval request failed");
       setLocalChanges((prev) => {
         const next = new Map(prev);
         next.set(changeId, { approval: decision, client_notes: notes || "" });
