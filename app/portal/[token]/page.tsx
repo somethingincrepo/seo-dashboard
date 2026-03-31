@@ -36,13 +36,13 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   ).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Greeting */}
       <div>
-        <h1 className="text-2xl font-semibold text-white/90">
+        <h1 className="text-3xl font-bold tracking-tight text-white/90">
           {isOnboarding ? "Welcome aboard" : "Your SEO Overview"}
         </h1>
-        <p className="text-white/40 text-sm mt-1">
+        <p className="text-base text-white/40 mt-1">
           {isOnboarding
             ? "Here's where things stand as we get your program set up."
             : "Here's what's happening with your SEO program."}
@@ -50,7 +50,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
       </div>
 
       {/* ─── Metric Tiles ─── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-3">
         <MetricTile
           label="Pending Approvals"
           value={pending.length}
@@ -64,14 +64,22 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
           accent="violet"
         />
         {isActive ? (
-          <MetricTile
-            label="Latest Report"
-            value={latestReport ? `Month ${latestReport.fields.month}` : "Coming soon"}
-            sub={latestReport?.fields.sent_at
-              ? new Date(latestReport.fields.sent_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-              : undefined}
-            accent="blue"
-          />
+          <>
+            <MetricTile
+              label="Latest Report"
+              value={latestReport ? `Month ${latestReport.fields.month}` : "Coming soon"}
+              sub={latestReport?.fields.sent_at
+                ? new Date(latestReport.fields.sent_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                : undefined}
+              accent="blue"
+            />
+            <MetricTile
+              label="Total Changes"
+              value={allChanges.length}
+              sub="All time"
+              accent="violet"
+            />
+          </>
         ) : (
           <MetricTile
             label="Month"
@@ -85,7 +93,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
       {/* ─── Pipeline Board ─── */}
       {allChanges.length > 0 && (
         <section>
-          <div className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
             Pipeline
           </div>
           <PipelineBoard changes={allChanges} token={token} />
@@ -94,7 +102,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
 
       {/* ─── Onboarding: Tracker at bottom ─── */}
       {isOnboarding && (
-        <GlassCard className="p-6">
+        <GlassCard className="p-5">
           <OnboardingTracker planStatus={status} />
         </GlassCard>
       )}
@@ -102,7 +110,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
       {/* ─── Active: Latest report snapshot ─── */}
       {isActive && latestReport && (
         <section>
-          <div className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
             Latest Report — Month {latestReport.fields.month}
           </div>
           <GlassCard className="p-5">

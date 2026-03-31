@@ -39,7 +39,6 @@ export default async function ActivityPage({
 
   const entries: TimelineEntry[] = [];
 
-  // Process changes
   for (const c of changes) {
     const approval = c.fields.approval || c.fields.approval_status;
     const changeType = c.fields.type || c.fields.change_type || "";
@@ -100,7 +99,6 @@ export default async function ActivityPage({
     }
   }
 
-  // Process reports
   for (const r of reports) {
     entries.push({
       kind: "report",
@@ -109,7 +107,6 @@ export default async function ActivityPage({
     });
   }
 
-  // Sort newest first (empty dates to bottom)
   entries.sort((a, b) => {
     if (!a.date && !b.date) return 0;
     if (!a.date) return 1;
@@ -117,7 +114,6 @@ export default async function ActivityPage({
     return b.date.localeCompare(a.date);
   });
 
-  // Group by month
   const grouped: Record<string, TimelineEntry[]> = {};
   for (const entry of entries) {
     let key = "Earlier";
@@ -178,10 +174,10 @@ export default async function ActivityPage({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
-        <h1 className="text-2xl font-semibold text-white/90">Activity</h1>
-        <p className="text-white/40 text-sm mt-1">
+        <h1 className="text-3xl font-bold tracking-tight text-white/90">Activity</h1>
+        <p className="text-base text-white/40 mt-1">
           Everything that&apos;s happened on your SEO program
         </p>
       </div>
@@ -197,14 +193,13 @@ export default async function ActivityPage({
         <div className="space-y-8">
           {Object.entries(grouped).map(([month, monthEntries]) => (
             <section key={month}>
-              <div className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
                 {month}
               </div>
               <GlassCard>
-                <div className="divide-y divide-white/6">
+                <div className="divide-y divide-white/[0.06]">
                   {monthEntries.map((entry, i) => (
                     <div key={i} className="px-5 py-3.5 flex items-start gap-4">
-                      {/* Colored dot */}
                       <div className="flex-shrink-0 mt-0.5">
                         <div
                           className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium ${
@@ -219,11 +214,10 @@ export default async function ActivityPage({
                         </div>
                       </div>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
                         {entry.kind === "report" ? (
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm text-white/80">
+                            <span className="text-sm font-medium text-white/80">
                               Monthly Report — Month {entry.month}
                             </span>
                           </div>
@@ -234,7 +228,7 @@ export default async function ActivityPage({
                                 value={entry.cat}
                                 variant="category"
                               />
-                              <span className="text-sm text-white/80">
+                              <span className="text-sm font-medium text-white/80">
                                 {entry.title}
                               </span>
                               <span className="text-xs text-white/30">
@@ -257,7 +251,6 @@ export default async function ActivityPage({
                         )}
                       </div>
 
-                      {/* Date */}
                       {entry.date && (
                         <div className="text-xs text-white/25 flex-shrink-0">
                           {formatDate(entry.date)}

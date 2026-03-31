@@ -73,10 +73,10 @@ export function PortalSidebar({
                 <Link
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all",
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all border-l-2",
                     isActive
-                      ? "bg-white/8 text-white font-medium"
-                      : "text-white/60 hover:text-white hover:bg-white/8"
+                      ? "bg-white/[0.06] text-white/90 font-medium border-l-violet-400"
+                      : "border-l-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
                   )}
                 >
                   <span className="text-base">{item.icon}</span>
@@ -103,8 +103,8 @@ export function PortalSidebar({
                           className={cn(
                             "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all",
                             catActive
-                              ? "text-white/90 bg-white/6 font-medium"
-                              : "text-white/40 hover:text-white/60 hover:bg-white/4"
+                              ? "text-white/90 bg-white/[0.06] font-medium"
+                              : "text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
                           )}
                         >
                           <span className="flex-1">{cat}</span>
@@ -120,7 +120,7 @@ export function PortalSidebar({
         </nav>
 
         {/* Bottom — month + status */}
-        <div className="border-t border-white/8 pt-4 px-2">
+        <div className="border-t border-white/[0.08] pt-4 px-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-white/30">Month {monthNumber || "—"}</span>
             <StatusBadge value={clientStatus} variant="plan_status" />
@@ -129,7 +129,7 @@ export function PortalSidebar({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 ml-56 p-8">{children}</main>
+      <main className="flex-1 ml-56 p-10">{children}</main>
     </div>
   );
 }

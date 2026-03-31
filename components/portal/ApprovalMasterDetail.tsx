@@ -30,7 +30,7 @@ interface LocalDecision {
 export function ApprovalMasterDetail(props: ApprovalMasterDetailProps) {
   return (
     <Suspense fallback={
-      <div className="flex gap-6 h-[calc(100vh-12rem)]">
+      <div className="flex gap-0 h-[calc(100vh-12rem)]">
         <div className="w-[40%] flex items-center justify-center text-white/30 text-sm">Loading...</div>
         <div className="w-[60%]" />
       </div>
@@ -58,12 +58,10 @@ function ApprovalMasterDetailInner({
   const listRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
-  // Deep-link: auto-select change from ?selected= query param
   const initialSelected = searchParams.get("selected");
   useEffect(() => {
     if (initialSelected) {
       setSelectedChangeId(initialSelected);
-      // Scroll the selected item into view in the list
       setTimeout(() => {
         const el = document.querySelector(`[data-change-id="${initialSelected}"]`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -98,7 +96,6 @@ function ApprovalMasterDetailInner({
 
   const activeChanges = activeTab === "pending" ? effectivePending : effectiveDecided;
 
-  // Group by category
   const grouped: Record<string, Change[]> = {};
   for (const c of activeChanges) {
     const cat = c.fields.cat || c.fields.category || "Other";
@@ -139,7 +136,6 @@ function ApprovalMasterDetailInner({
         setShowQuestion(false);
         setQuestionText("");
         setShowTechnical(false);
-        // Auto-advance to next pending
         const currentIdx = effectivePending.findIndex((c) => c.id === changeId);
         const nextPending = effectivePending.find((c, i) => i > currentIdx && !localChanges.has(c.id));
         if (nextPending) {
@@ -189,12 +185,88 @@ function ApprovalMasterDetailInner({
     });
   };
 
+  const renderListItems = (catChanges: Change[]) =>
+    catChanges.map((change) => {
+      const approval = getApprovalStatus(change);
+      const isSelected = selectedChangeId === change.id;
+      const changeType = change.fields.type || change.fields.change_type;
+      const isDecided = activeTab === "decided";
+      let decidedBorder = "border-l-transparent";
+      if (isDecided) {
+        if (approval === "approved") decidedBorder = "border-l-emerald-400/40";
+        else if (approval === "skipped") decidedBorder = "border-l-white/10 opacity-50";
+        else if (approval === "question") decidedBorder = "border-l-blue-400/40";
+      }
+
+      return (
+        <button
+          data-change-id={change.id}
+          key={change.id}
+          onClick={() => {
+            setSelectedChangeId(change.id);
+            setFeedback(null);
+            setShowQuestion(false);
+            setQuestionText("");
+            setShowTechnical(false);
+          }}
+          className={`w-full text-left px-4 py-3 cursor-pointer transition-all duration-150 border-l-2 ${
+            isSelected
+              ? "border-l-violet-400 bg-white/[0.06]"
+              : isDecided
+              ? `${decidedBorder} hover:bg-white/[0.04]`
+              : "border-l-transparent hover:bg-white/[0.04] hover:border-l-white/10"
+          }`}
+        >
+          <div className="flex items-start gap-2.5">
+            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-white/80 truncate">
+                {getListItemTitle(changeType, change.fields.page_url, 30)}
+              </div>
+              <div className="text-xs text-white/30 mt-0.5 truncate">
+                {truncateUrl(change.fields.page_url || "")}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {change.fields.confidence && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                    change.fields.confidence === "High"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
+                      : change.fields.confidence === "Medium"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                      : "bg-red-500/10 text-red-400 border-red-400/15"
+                  }`}>
+                    {change.fields.confidence}
+                  </span>
+                )}
+                {change.fields.implementation_tier === "tier_1" && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
+                    Quick win
+                  </span>
+                )}
+                {change.fields.is_nav_page && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-400/20">
+                    Nav page
+                  </span>
+                )}
+                {isDecided && approval === "approved" && (
+                  <span className="text-[10px] text-emerald-400">✓</span>
+                )}
+                {isDecided && approval === "question" && (
+                  <span className="text-[10px] text-blue-400">?</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </button>
+      );
+    });
+
   return (
-    <div className="flex gap-6 h-[calc(100vh-12rem)]">
-      {/* ── Left Panel ── */}
-      <div className="w-[40%] flex flex-col min-w-0 border-r border-white/5 pr-6">
-        {/* Tab toggle */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 mb-4">
+    <div className="flex gap-0 h-[calc(100vh-12rem)]">
+      {/* ── Left Panel (List) ── */}
+      <div className="w-[40%] flex flex-col min-w-0 border-r border-white/[0.06] pr-6">
+        {/* Segmented control */}
+        <div className="inline-flex rounded-xl bg-white/[0.04] p-1 mb-4">
           {(["pending", "decided"] as const).map((tab) => {
             const count = tab === "pending" ? effectivePending.length : effectiveDecided.length;
             return (
@@ -207,10 +279,10 @@ function ApprovalMasterDetailInner({
                   setShowQuestion(false);
                   setShowTechnical(false);
                 }}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                className={`flex-1 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                   activeTab === tab
-                    ? "bg-white/10 text-white/90"
-                    : "text-white/40 hover:text-white/60"
+                    ? "bg-white/[0.08] rounded-lg text-white/90 shadow-sm"
+                    : "text-white/30 hover:text-white/50"
                 }`}
               >
                 {tab === "pending" ? "Pending" : "Decided"}
@@ -226,7 +298,7 @@ function ApprovalMasterDetailInner({
 
         {/* Overview bar — pending only */}
         {activeTab === "pending" && effectivePending.length > 0 && (
-          <div className="flex items-center justify-between gap-3 mb-4 px-1">
+          <div className="flex items-center justify-between gap-3 mb-3 px-1">
             <span className="text-sm text-white/60">
               <span className="text-white/90 font-semibold">{effectivePending.length}</span> pending
             </span>
@@ -237,240 +309,154 @@ function ApprovalMasterDetailInner({
         )}
 
         {/* Change list */}
-        <div ref={listRef} className="flex-1 overflow-y-auto space-y-6 pr-1">
+        <div ref={listRef} className="flex-1 overflow-y-auto pr-1">
           {activeChanges.length === 0 && (
             <div className="py-12 text-center text-white/30 text-sm">
               {activeTab === "pending" ? "All caught up!" : "No decided changes yet."}
             </div>
           )}
 
-          {CATEGORY_ORDER.filter((cat) => grouped[cat]).map((cat) => (
-            <div key={cat}>
-              <div className="flex items-center gap-2 mb-2 px-1">
-                <StatusBadge value={cat} variant="category" />
-                <span className="text-white/30 text-xs">{grouped[cat].length}</span>
-              </div>
-              <div className="space-y-1">
-                {grouped[cat].map((change) => {
-                  const approval = getApprovalStatus(change);
-                  const isSelected = selectedChangeId === change.id;
-                  const changeType = change.fields.type || change.fields.change_type;
-                  return (
-                    <button
-                      data-change-id={change.id}
-                      key={change.id}
-                      onClick={() => {
-                        setSelectedChangeId(change.id);
-                        setFeedback(null);
-                        setShowQuestion(false);
-                        setQuestionText("");
-                        setShowTechnical(false);
-                      }}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
-                        isSelected
-                          ? "border-l-2 border-violet-500 bg-white/5"
-                          : "border-l-2 border-transparent hover:bg-white/[0.02]"
-                      }`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm text-white/80 truncate">
-                            {getListItemTitle(changeType, change.fields.page_url, 30)}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            {change.fields.confidence && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                change.fields.confidence === "High"
-                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
-                                  : change.fields.confidence === "Medium"
-                                  ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                                  : "bg-red-500/10 text-red-400 border-red-400/15"
-                              }`}>
-                                {change.fields.confidence}
-                              </span>
-                            )}
-                            {change.fields.implementation_tier === "tier_1" && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
-                                Quick win
-                              </span>
-                            )}
-                            {change.fields.is_nav_page && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-400/20">
-                                Nav page
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-
-          {/* Non-standard categories */}
-          {Object.entries(grouped)
-            .filter(([cat]) => !CATEGORY_ORDER.includes(cat))
-            .map(([cat, catChanges]) => (
+          <div className="space-y-6">
+            {CATEGORY_ORDER.filter((cat) => grouped[cat]).map((cat) => (
               <div key={cat}>
-                <div className="flex items-center gap-2 mb-2 px-1">
+                {/* Sticky category header */}
+                <div className="flex items-center gap-2 mb-3 px-1 sticky top-0 z-10 bg-[#08080f]/80 backdrop-blur-sm py-2 border-b border-white/[0.06]">
                   <StatusBadge value={cat} variant="category" />
-                  <span className="text-white/30 text-xs">{catChanges.length}</span>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-white/30">
+                    ({grouped[cat].length})
+                  </span>
                 </div>
-                <div className="space-y-1">
-                  {catChanges.map((change) => {
-                    const approval = getApprovalStatus(change);
-                    const isSelected = selectedChangeId === change.id;
-                    const changeType = change.fields.type || change.fields.change_type;
-                    return (
-                      <button
-                        key={change.id}
-                        data-change-id={change.id}
-                        onClick={() => {
-                          setSelectedChangeId(change.id);
-                          setFeedback(null);
-                          setShowQuestion(false);
-                          setQuestionText("");
-                          setShowTechnical(false);
-                        }}
-                        className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
-                          isSelected
-                            ? "border-l-2 border-violet-500 bg-white/5"
-                            : "border-l-2 border-transparent hover:bg-white/[0.02]"
-                        }`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm text-white/80 truncate">
-                              {getListItemTitle(changeType, change.fields.page_url, 30)}
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {change.fields.confidence && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                  change.fields.confidence === "High"
-                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
-                                    : change.fields.confidence === "Medium"
-                                    ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                                    : "bg-red-500/10 text-red-400 border-red-400/15"
-                                }`}>
-                                  {change.fields.confidence}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-1 mt-3">
+                  {renderListItems(grouped[cat])}
                 </div>
               </div>
             ))}
+
+            {/* Non-standard categories */}
+            {Object.entries(grouped)
+              .filter(([cat]) => !CATEGORY_ORDER.includes(cat))
+              .map(([cat, catChanges]) => (
+                <div key={cat}>
+                  <div className="flex items-center gap-2 mb-3 px-1 sticky top-0 z-10 bg-[#08080f]/80 backdrop-blur-sm py-2 border-b border-white/[0.06]">
+                    <StatusBadge value={cat} variant="category" />
+                    <span className="text-xs font-semibold uppercase tracking-widest text-white/30">
+                      ({catChanges.length})
+                    </span>
+                  </div>
+                  <div className="space-y-1 mt-3">
+                    {renderListItems(catChanges)}
+                  </div>
+                </div>
+              ))}
+          </div>
         </div>
       </div>
 
-      {/* ── Right Panel ── */}
-      <div className="w-[60%] flex flex-col min-w-0">
+      {/* ── Right Panel (Detail) ── */}
+      <div className="w-[60%] flex flex-col min-w-0 bg-white/[0.03] border-l border-white/[0.06]">
         {!effectiveSelected ? (
-          <div className="flex-1 flex items-center justify-center text-white/30 text-sm">
-            Select a recommendation on the left to review its details and take action.
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-2xl text-white/10 mb-2">◇</div>
+              <div className="text-sm text-white/20">Select a recommendation</div>
+            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto pb-24">
-              {/* Header */}
-              <div className="mb-6">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <StatusBadge value={effectiveSelected.fields.cat || effectiveSelected.fields.category || "Other"} variant="category" />
-                  {effectiveSelected.fields.type && (
-                    <StatusBadge value={effectiveSelected.fields.type} variant="category" />
-                  )}
-                  {effectiveSelected.fields.confidence && (
-                    <StatusBadge value={effectiveSelected.fields.confidence} variant="confidence" />
-                  )}
-                  {effectiveSelected.fields.implementation_tier === "tier_1" && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
-                      Quick win
-                    </span>
-                  )}
+            <div className="flex-1 overflow-y-auto p-8 pb-24">
+              {/* Badges row */}
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <StatusBadge value={effectiveSelected.fields.cat || effectiveSelected.fields.category || "Other"} variant="category" />
+                {effectiveSelected.fields.type && (
+                  <StatusBadge value={effectiveSelected.fields.type} variant="category" />
+                )}
+                {effectiveSelected.fields.confidence && (
+                  <StatusBadge value={effectiveSelected.fields.confidence} variant="confidence" />
+                )}
+                {effectiveSelected.fields.implementation_tier === "tier_1" && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
+                    Quick win
+                  </span>
+                )}
+              </div>
+
+              {/* Title */}
+              <h2 className="text-xl font-semibold text-white/90 mb-1">
+                {getListItemTitle(
+                  effectiveSelected.fields.type || effectiveSelected.fields.change_type,
+                  effectiveSelected.fields.page_url
+                )}
+              </h2>
+              <a
+                href={effectiveSelected.fields.page_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-violet-400/60 hover:text-violet-400 transition-colors block truncate mb-8"
+              >
+                {effectiveSelected.fields.page_url}
+              </a>
+
+              <div className="space-y-6">
+                {/* What We Recommend */}
+                <div>
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">
+                    What We Recommend
+                  </h3>
+                  <p className="text-sm text-white/70 leading-relaxed">
+                    {effectiveSelected.fields.proposed_value || "We'll make an optimization to improve this page's search visibility."}
+                  </p>
                 </div>
-                <h2 className="text-xl font-semibold text-white/90">
-                  {getListItemTitle(
-                    effectiveSelected.fields.type || effectiveSelected.fields.change_type,
-                    effectiveSelected.fields.page_url
-                  )}
-                </h2>
-                <a
-                  href={effectiveSelected.fields.page_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm text-violet-400 hover:text-violet-300 transition-colors mt-1 block truncate"
-                >
-                  {effectiveSelected.fields.page_url}
-                </a>
-              </div>
 
-              {/* What We Recommend */}
-              <div className="mb-6">
-                <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2">
-                  What We Recommend
-                </h3>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  {effectiveSelected.fields.proposed_value || "We'll make an optimization to improve this page's search visibility."}
-                </p>
-              </div>
-
-              {/* Why It Matters */}
-              <div className="mb-6">
-                <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2">
-                  Why It Matters
-                </h3>
-                <p className="text-sm text-white/60 leading-relaxed">
-                  {effectiveSelected.fields.reasoning ||
-                    CATEGORY_EXPLANATIONS[effectiveSelected.fields.cat || effectiveSelected.fields.category || ""] ||
-                    "This change helps improve your site's search visibility."}
-                </p>
-              </div>
-
-              {/* Technical Details — collapsed */}
-              {(effectiveSelected.fields.current_value || effectiveSelected.fields.proposed_value) && (
-                <div className="mb-6">
-                  <button
-                    onClick={() => setShowTechnical(!showTechnical)}
-                    className="flex items-center gap-2 text-xs font-medium text-white/50 uppercase tracking-wider hover:text-white/70 transition-colors"
-                  >
-                    <span className={`transition-transform ${showTechnical ? "rotate-90" : ""}`}>▶</span>
-                    Technical Details
-                  </button>
-                  {showTechnical && (
-                    <div className="mt-3 space-y-3">
-                      {effectiveSelected.fields.current_value && (
-                        <div>
-                          <div className="text-xs text-white/40 mb-1">Current value</div>
-                          <pre className="text-xs text-white/60 bg-white/5 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-all font-mono">
-                            {effectiveSelected.fields.current_value}
-                          </pre>
-                        </div>
-                      )}
-                      {effectiveSelected.fields.proposed_value && (
-                        <div>
-                          <div className="text-xs text-white/40 mb-1">Proposed value</div>
-                          <pre className="text-xs text-emerald-300/70 bg-emerald-500/5 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-all font-mono">
-                            {effectiveSelected.fields.proposed_value}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                {/* Why It Matters */}
+                <div>
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">
+                    Why It Matters
+                  </h3>
+                  <p className="text-sm text-white/50 leading-relaxed italic">
+                    {effectiveSelected.fields.reasoning ||
+                      CATEGORY_EXPLANATIONS[effectiveSelected.fields.cat || effectiveSelected.fields.category || ""] ||
+                      "This change helps improve your site's search visibility."}
+                  </p>
                 </div>
-              )}
+
+                {/* Technical Details — collapsed */}
+                {(effectiveSelected.fields.current_value || effectiveSelected.fields.proposed_value) && (
+                  <div>
+                    <button
+                      onClick={() => setShowTechnical(!showTechnical)}
+                      className="flex items-center gap-2 text-xs text-white/20 hover:text-white/40 transition-colors duration-150"
+                    >
+                      <span className={`transition-transform duration-150 ${showTechnical ? "rotate-90" : ""}`}>▶</span>
+                      Technical Details
+                    </button>
+                    {showTechnical && (
+                      <div className="mt-3 space-y-3">
+                        {effectiveSelected.fields.current_value && (
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current</div>
+                            <pre className="text-xs font-mono text-white/60 bg-red-500/5 border border-red-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
+                              {effectiveSelected.fields.current_value}
+                            </pre>
+                          </div>
+                        )}
+                        {effectiveSelected.fields.proposed_value && (
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed</div>
+                            <pre className="text-xs font-mono text-emerald-300/70 bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
+                              {effectiveSelected.fields.proposed_value}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Question textarea */}
               {showQuestion && (
-                <div className="mb-6">
-                  <label className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2 block">
+                <div className="mt-6">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2 block">
                     What would you like to know?
                   </label>
                   <textarea
@@ -482,7 +468,7 @@ function ApprovalMasterDetailInner({
                   <div className="flex justify-end gap-2 mt-2">
                     <button
                       onClick={() => { setShowQuestion(false); setQuestionText(""); }}
-                      className="px-3 py-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"
+                      className="px-3 py-1.5 text-xs text-white/40 hover:text-white/60 transition-colors duration-150"
                     >
                       Cancel
                     </button>
@@ -493,7 +479,7 @@ function ApprovalMasterDetailInner({
                         }
                       }}
                       disabled={!questionText.trim() || submitting}
-                      className="px-4 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/30 text-xs text-blue-300 hover:bg-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/30 text-xs text-blue-300 hover:bg-blue-500/30 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Submit question
                     </button>
@@ -502,13 +488,12 @@ function ApprovalMasterDetailInner({
               )}
             </div>
 
-            {/* Sticky action bar */}
-            <div className="border-t border-white/5 bg-[#08080f]/90 backdrop-blur-sm pt-4 pb-1 px-1">
+            {/* Sticky action bar with gradient fade */}
+            <div className="sticky bottom-0 pt-4 pb-2 px-8 bg-gradient-to-t from-[#08080f] via-[#08080f]/95 to-transparent">
               {(() => {
                 const approval = getApprovalStatus(effectiveSelected);
                 const isLocal = localChanges.has(effectiveSelected.id);
 
-                // Feedback message
                 if (feedback) {
                   return (
                     <div className="text-sm text-emerald-300 py-2 text-center">
@@ -517,7 +502,6 @@ function ApprovalMasterDetailInner({
                   );
                 }
 
-                // Already decided (not locally modified)
                 if (!isLocal && approval !== "pending") {
                   if (approval === "approved") {
                     return (
@@ -542,7 +526,6 @@ function ApprovalMasterDetailInner({
                   }
                 }
 
-                // Pending — show action buttons
                 return (
                   <div className="flex items-center gap-2">
                     <button
@@ -550,23 +533,23 @@ function ApprovalMasterDetailInner({
                         if (effectiveSelected) applyDecision(effectiveSelected.id, "approved");
                       }}
                       disabled={submitting}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 hover:bg-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-[2] py-3 rounded-xl text-sm font-semibold bg-emerald-500/20 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-500/30 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <span>✓</span> Approve
+                      ✓ Approve
                     </button>
                     <button
                       onClick={() => {
                         if (effectiveSelected) applyDecision(effectiveSelected.id, "skipped");
                       }}
                       disabled={submitting}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-[2] py-3 rounded-xl text-sm font-medium bg-white/[0.04] border border-white/[0.08] text-white/40 hover:bg-white/[0.08] hover:text-white/60 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <span>—</span> Skip
+                      — Skip
                     </button>
                     <button
                       onClick={() => setShowQuestion(true)}
                       disabled={submitting}
-                      className="px-3 py-2.5 rounded-xl text-sm bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-12 py-3 rounded-xl text-sm bg-white/[0.04] border border-white/[0.08] text-white/40 hover:bg-blue-500/15 hover:text-blue-300 hover:border-blue-400/20 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       ?
                     </button>

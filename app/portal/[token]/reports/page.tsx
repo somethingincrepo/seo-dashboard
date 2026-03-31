@@ -29,10 +29,10 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
   const isOnboarding = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"].includes(status);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
-        <h1 className="text-2xl font-semibold">Reports</h1>
-        <p className="text-white/40 text-sm mt-1">Monthly performance summaries</p>
+        <h1 className="text-3xl font-bold tracking-tight text-white/90">Reports</h1>
+        <p className="text-base text-white/40 mt-1">Monthly performance summaries</p>
       </div>
 
       {reports.length === 0 && (
@@ -55,9 +55,9 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
 
           return (
             <GlassCard key={report.id} className="overflow-hidden">
-              <div className="p-5 border-b border-white/8 flex items-center justify-between">
+              <div className="p-5 border-b border-white/[0.08] flex items-center justify-between">
                 <div>
-                  <div className="font-semibold">Month {report.fields.month}</div>
+                  <div className="text-lg font-semibold text-white/90">Month {report.fields.month}</div>
                   {report.fields.sent_at && (
                     <div className="text-white/30 text-xs mt-0.5">
                       {new Date(report.fields.sent_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
@@ -70,7 +70,7 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
                   )}
                   {report.fields.pdf_url && (
                     <a href={report.fields.pdf_url} target="_blank" rel="noreferrer"
-                      className="text-xs px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/20 text-violet-300 hover:bg-violet-500/30 transition-all">
+                      className="text-xs px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/20 text-violet-300 hover:bg-violet-500/30 transition-all duration-150">
                       PDF ↗
                     </a>
                   )}
@@ -88,7 +88,7 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
 
               {priorities.length > 0 && (
                 <div className="px-5 pb-5">
-                  <div className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Next month</div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Next month</div>
                   <ul className="space-y-1">
                     {priorities.map((p, i) => (
                       <li key={i} className="text-sm text-white/60 flex items-start gap-2">

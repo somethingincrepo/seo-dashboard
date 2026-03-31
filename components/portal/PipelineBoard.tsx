@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { GlassCard } from "@/components/ui/GlassCard";
 import { getListItemTitle } from "@/lib/portal-labels";
 import type { Change } from "@/lib/changes";
 
@@ -97,102 +96,92 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
         const overflow = col.items.length - MAX_VISIBLE;
 
         return (
-          <div key={col.key} className="flex flex-col">
-            <GlassCard className={`border-t-2 ${col.borderColor} p-4 flex-1 flex flex-col`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
-                  {col.label}
-                </span>
-                <span className={`text-xs font-semibold ${col.color}`}>
-                  {col.items.length}
-                </span>
+          <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor} min-h-[320px]`}>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/40">
+                {col.label}
+              </span>
+              <span className={`text-xs font-bold ${col.color}`}>
+                {col.items.length}
+              </span>
+            </div>
+
+            {col.items.length === 0 ? (
+              <div className="text-xs text-white/20 py-8 text-center flex-1">
+                Nothing here yet
               </div>
+            ) : (
+              <div className="space-y-2 flex-1">
+                {visible.map((change) => {
+                  const changeType = change.fields.type || change.fields.change_type;
+                  const cat = change.fields.cat || change.fields.category || "";
+                  const path = extractPath(change.fields.page_url);
+                  const isPending = col.key === "pending";
 
-              {col.items.length === 0 ? (
-                <div className="text-xs text-white/20 py-8 text-center flex-1">
-                  Nothing here yet
-                </div>
-              ) : (
-                <div className="space-y-2 flex-1">
-                  {visible.map((change) => {
-                    const changeType = change.fields.type || change.fields.change_type;
-                    const cat = change.fields.cat || change.fields.category || "";
-                    const path = extractPath(change.fields.page_url);
-                    const isPending = col.key === "pending";
-
-                    return (
-                      <div key={change.id}>
-                        {isPending ? (
-                          <Link
-                            href={`/portal/${token}/approvals?selected=${change.id}`}
-                            className="block rounded-xl bg-white/[0.03] border border-white/5 px-3 py-2.5 hover:bg-white/[0.06] hover:border-white/10 transition-all"
-                          >
-                            <div className="text-xs font-medium text-white/70 truncate mb-0.5">
-                              {getListItemTitle(changeType, change.fields.page_url, 28)}
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-[10px] text-white/30">
-                                {cat && <span>{cat}</span>}
-                                {cat && change.fields.confidence && <span>·</span>}
-                                {change.fields.confidence && (
-                                  <span>{change.fields.confidence}</span>
-                                )}
-                              </div>
-                              <span className="text-[10px] text-violet-400/60">→</span>
-                            </div>
-                          </Link>
-                        ) : (
-                          <div
-                            className="rounded-xl bg-white/[0.03] border border-white/5 px-3 py-2.5 hover:bg-white/[0.06] hover:border-white/10 transition-all"
-                            title={
-                              col.key === "approved" && change.fields.approved_at
-                                ? `Approved on ${formatDate(change.fields.approved_at)}`
-                                : undefined
-                            }
-                          >
-                            <div className="text-xs font-medium text-white/70 truncate mb-0.5">
-                              {getListItemTitle(changeType, change.fields.page_url, 28)}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-white/30">
-                              {cat && <span>{cat}</span>}
-                              {cat && change.fields.confidence && <span>·</span>}
-                              {change.fields.confidence && (
-                                <span>{change.fields.confidence}</span>
-                              )}
-                            </div>
+                  return (
+                    <div key={change.id}>
+                      {isPending ? (
+                        <Link
+                          href={`/portal/${token}/approvals?selected=${change.id}`}
+                          className="block bg-white/[0.05] hover:bg-white/[0.08] rounded-xl px-3 py-2.5 cursor-pointer transition-all duration-150 group hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+                        >
+                          <div className="text-xs font-medium text-white/70 group-hover:text-white/90 truncate">
+                            {getListItemTitle(changeType, change.fields.page_url, 28)}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {overflow > 0 && (
-                    <Link
-                      href={col.key === "pending" ? `/portal/${token}/approvals` : `/portal/${token}/activity`}
-                      className="block text-[10px] text-white/30 hover:text-white/50 px-3 py-1 transition-colors"
-                    >
-                      +{overflow} more
-                    </Link>
-                  )}
-                </div>
-              )}
+                          <div className="text-[11px] text-white/25 mt-0.5 truncate">
+                            {path}
+                          </div>
+                        </Link>
+                      ) : (
+                        <div
+                          className="bg-white/[0.05] hover:bg-white/[0.08] rounded-xl px-3 py-2.5 cursor-pointer transition-all duration-150 group hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+                          title={
+                            col.key === "approved" && change.fields.approved_at
+                              ? `Approved on ${formatDate(change.fields.approved_at)}`
+                              : undefined
+                          }
+                        >
+                          <div className="text-xs font-medium text-white/70 group-hover:text-white/90 truncate">
+                            {getListItemTitle(changeType, change.fields.page_url, 28)}
+                          </div>
+                          <div className="text-[11px] text-white/25 mt-0.5 truncate">
+                            {path}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {overflow > 0 && (
+                  <Link
+                    href={col.key === "pending" ? `/portal/${token}/approvals` : `/portal/${token}/activity`}
+                    className="block text-xs text-white/20 hover:text-white/40 px-3 py-1 mt-2 transition-colors duration-150"
+                  >
+                    +{overflow} more
+                  </Link>
+                )}
+              </div>
+            )}
 
-              {/* Footer: Review All + Quick Wins for pending column */}
-              {col.key === "pending" && col.items.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
+            {/* Footer: Review All + Quick Wins for pending column */}
+            {col.key === "pending" && col.items.length > 0 && (
+              <div className="mt-auto pt-3 border-t border-white/[0.06] space-y-2">
+                {tier1Pending.length > 0 && (
                   <Link
                     href={`/portal/${token}/approvals`}
-                    className="block text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                    className="block text-xs py-2 px-3 rounded-lg bg-emerald-500/15 border border-emerald-400/15 text-emerald-300/70 hover:bg-emerald-500/25 hover:text-emerald-300 transition-all duration-150 w-full text-center"
                   >
-                    Review All →
+                    Approve {tier1Pending.length} Quick Win{tier1Pending.length !== 1 ? "s" : ""}
                   </Link>
-                  {tier1Pending.length > 0 && (
-                    <div className="text-[10px] text-white/30">
-                      {tier1Pending.length} quick win{tier1Pending.length !== 1 ? "s" : ""} available
-                    </div>
-                  )}
-                </div>
-              )}
-            </GlassCard>
+                )}
+                <Link
+                  href={`/portal/${token}/approvals`}
+                  className="block text-xs text-violet-400/70 hover:text-violet-400 transition-colors duration-150"
+                >
+                  Review All →
+                </Link>
+              </div>
+            )}
           </div>
         );
       })}
