@@ -5,9 +5,8 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { BatchApproveButton } from "@/components/portal/BatchApproveButton";
 import {
   getChangeTitle,
-  getRecommendationSummary,
+  getListItemTitle,
   CATEGORY_EXPLANATIONS,
-  getConfidenceLabel,
 } from "@/lib/portal-labels";
 import { updateApproval } from "@/lib/changes";
 import type { Change } from "@/lib/changes";
@@ -247,13 +246,21 @@ export function ApprovalMasterDetail({
                         <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
                         <div className="min-w-0 flex-1">
                           <div className="text-sm text-white/80 truncate">
-                            {getChangeTitle(changeType, change.fields.page_url)}
+                            {getListItemTitle(changeType, change.fields.page_url, 30)}
                           </div>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span className="text-xs text-white/30 truncate max-w-[180px]">
-                              {truncateUrl(change.fields.page_url)}
-                            </span>
-                            {change.fields.confidence === "High" && change.fields.implementation_tier === "tier_1" && (
+                            {change.fields.confidence && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                change.fields.confidence === "High"
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
+                                  : change.fields.confidence === "Medium"
+                                  ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                                  : "bg-red-500/10 text-red-400 border-red-400/15"
+                              }`}>
+                                {change.fields.confidence}
+                              </span>
+                            )}
+                            {change.fields.implementation_tier === "tier_1" && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
                                 Quick win
                               </span>
@@ -307,12 +314,20 @@ export function ApprovalMasterDetail({
                           <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
                           <div className="min-w-0 flex-1">
                             <div className="text-sm text-white/80 truncate">
-                              {getChangeTitle(changeType, change.fields.page_url)}
+                              {getListItemTitle(changeType, change.fields.page_url, 30)}
                             </div>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <span className="text-xs text-white/30 truncate max-w-[180px]">
-                                {truncateUrl(change.fields.page_url)}
-                              </span>
+                              {change.fields.confidence && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                  change.fields.confidence === "High"
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
+                                    : change.fields.confidence === "Medium"
+                                    ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                                    : "bg-red-500/10 text-red-400 border-red-400/15"
+                                }`}>
+                                  {change.fields.confidence}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -338,6 +353,9 @@ export function ApprovalMasterDetail({
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <StatusBadge value={effectiveSelected.fields.cat || effectiveSelected.fields.category || "Other"} variant="category" />
+                  {effectiveSelected.fields.type && (
+                    <StatusBadge value={effectiveSelected.fields.type} variant="category" />
+                  )}
                   {effectiveSelected.fields.confidence && (
                     <StatusBadge value={effectiveSelected.fields.confidence} variant="confidence" />
                   )}
@@ -348,7 +366,7 @@ export function ApprovalMasterDetail({
                   )}
                 </div>
                 <h2 className="text-xl font-semibold text-white/90">
-                  {getChangeTitle(
+                  {getListItemTitle(
                     effectiveSelected.fields.type || effectiveSelected.fields.change_type,
                     effectiveSelected.fields.page_url
                   )}
@@ -369,11 +387,7 @@ export function ApprovalMasterDetail({
                   What We Recommend
                 </h3>
                 <p className="text-sm text-white/70 leading-relaxed">
-                  {getRecommendationSummary(
-                    effectiveSelected.fields.type || effectiveSelected.fields.change_type,
-                    effectiveSelected.fields.proposed_value,
-                    effectiveSelected.fields.page_url
-                  )}
+                  {effectiveSelected.fields.proposed_value || "We'll make an optimization to improve this page's search visibility."}
                 </p>
               </div>
 

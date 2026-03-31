@@ -16,6 +16,41 @@ export function getChangeTitle(type: string, pageUrl: string): string {
   return CHANGE_TITLES[type] || type || "SEO improvement";
 }
 
+const ACTION_VERBS: Record<string, string> = {
+  "Metadata": "Update meta tags",
+  "Heading": "Fix headings",
+  "Schema": "Add schema markup",
+  "Content": "Update content",
+  "FAQ": "Add FAQ section",
+  "Redirect": "Fix redirect",
+  "Internal Link": "Fix internal links",
+  "Canonical": "Fix canonical",
+  "GEO": "Optimize for AI search",
+  "Alt Text": "Add image alt text",
+  "Removal": "Remove content",
+};
+
+function extractPath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url || "/";
+  }
+}
+
+export function getListItemTitle(
+  type: string,
+  pageUrl: string,
+  truncateAt?: number
+): string {
+  const action = ACTION_VERBS[type] || `Update ${type.toLowerCase()}`;
+  let path = extractPath(pageUrl);
+  if (truncateAt && path.length > truncateAt) {
+    path = path.slice(0, truncateAt - 3) + "...";
+  }
+  return `${action} on ${path}`;
+}
+
 const CHANGE_DESCRIPTIONS: Record<string, string> = {
   "Metadata": "We'll update the page title and description that appear in Google search results to better match what people are searching for.",
   "Heading": "We'll improve the headings on this page to make them clearer for both search engines and visitors.",

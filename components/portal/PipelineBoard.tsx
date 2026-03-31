@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { getChangeTitle } from "@/lib/portal-labels";
+import { getListItemTitle } from "@/lib/portal-labels";
 import type { Change } from "@/lib/changes";
 
 const MAX_VISIBLE = 5;
@@ -87,7 +87,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                         key={change.id}
                         className="text-xs text-white/60 truncate py-1 px-1.5 rounded-lg hover:bg-white/[0.03] transition-colors"
                       >
-                        {getChangeTitle(changeType, change.fields.page_url)}
+                        {getListItemTitle(changeType, change.fields.page_url, 30)}
                       </div>
                     );
                   })}
