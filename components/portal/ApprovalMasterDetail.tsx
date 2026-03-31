@@ -8,7 +8,6 @@ import {
   getWhatWeRecommend,
   getWhyItMatters,
   getDocUrl,
-  getImpactLabel,
 } from "@/lib/portal-labels";
 import type { Change } from "@/lib/changes";
 
@@ -497,12 +496,23 @@ function ApprovalMasterDetailInner({
                 const isTechnicalType = technicalTypes.has(type);
 
                 return <>
+              {/* Badges — max 3: category, type (if different from cat), nav page */}
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <StatusBadge value={cat || "Other"} variant="category" />
+                {type && type !== cat && (
+                  <StatusBadge value={type} variant="category" />
+                )}
+                {fields.is_nav_page && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-400/15">Nav page</span>
+                )}
+              </div>
+
               {/* Title */}
               <h2 className="text-xl font-semibold text-white/90 mb-3">
                 {getListItemTitle(type, page_url, undefined, fields.change_title)}
               </h2>
 
-              {/* URL pill — shows domain + path, not just "/" */}
+              {/* URL pill — shows domain + path */}
               <a
                 href={page_url}
                 target="_blank"
@@ -520,55 +530,13 @@ function ApprovalMasterDetailInner({
                 <span className="flex-shrink-0">↗</span>
               </a>
 
-              {/* Metadata chips row */}
-              <div className="flex items-center gap-2 py-3 border-y border-white/[0.06] mb-5 flex-wrap">
-                {cat && (
-                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50">{cat}</span>
-                )}
-                {type && (
-                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50">{type}</span>
-                )}
-                {priority && (
-                  <span className={`text-[11px] px-2.5 py-1 rounded-full border ${
-                    priority === "Critical"
-                      ? "bg-red-500/15 text-red-400 border-red-400/20"
-                      : priority === "High"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                      : priority === "Medium"
-                      ? "bg-white/[0.05] text-white/40 border-white/[0.08]"
-                      : "bg-white/[0.03] text-white/30 border-white/[0.06]"
-                  }`}>{priority} Priority</span>
-                )}
-                {(() => {
-                  const impact = getImpactLabel(type);
-                  const impactColor = impact.startsWith("No visual")
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
-                    : impact.startsWith("Visible")
-                    ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                    : impact.startsWith("Search")
-                    ? "bg-blue-500/10 text-blue-400 border-blue-400/15"
-                    : impact.startsWith("Redirect")
-                    ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                    : impact.startsWith("AI")
-                    ? "bg-blue-500/10 text-blue-400 border-blue-400/15"
-                    : "bg-white/[0.05] text-white/40 border-white/[0.08]";
-                  return <span className={`text-[11px] px-2.5 py-1 rounded-full border ${impactColor}`}>{impact}</span>;
-                })()}
-                {fields.implementation_tier === "tier_1" && (
-                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">Quick win</span>
-                )}
-                {fields.is_nav_page && (
-                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-400/15">Nav page</span>
-                )}
-                {fields.confidence && (
-                  <span className={`text-[11px] px-2.5 py-1 rounded-full border ${
-                    fields.confidence === "High"
-                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
-                      : fields.confidence === "Medium"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                      : "bg-red-500/10 text-red-400 border-red-400/15"
-                  }`}>{fields.confidence} Confidence</span>
-                )}
+              {/* Metadata line — plain text with dot separators */}
+              <div className="text-xs text-white/40 mb-5">
+                {[
+                  cat,
+                  type !== cat ? type : null,
+                  fields.is_nav_page ? 'Nav page' : null,
+                ].filter(Boolean).join(' · ')}
               </div>
 
               <div className="space-y-5">
@@ -576,11 +544,6 @@ function ApprovalMasterDetailInner({
                 <div>
                   <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">What We Recommend</h3>
                   <p className="text-sm text-white/70 leading-relaxed">{getWhatWeRecommend(fields)}</p>
-
-                  {/* Merge short "Why It Matters" here */}
-                  {whyText.length < 50 && whyText.length > 0 && (
-                    <p className="text-sm text-white/60 leading-relaxed mt-2">{whyText}</p>
-                  )}
 
                   {/* Current → Proposed comparison — full width, proper wrapping */}
                   {(fields.current_value?.trim() || fields.proposed_value?.trim()) && (
@@ -613,17 +576,12 @@ function ApprovalMasterDetailInner({
                   </a>
                 )}
 
-                {/* Why It Matters — separate section only if 50+ chars */}
-                {whyText.length >= 50 && (
+                {/* Why It Matters — single text block, no italic, hidden if empty */}
+                {whyText && (
                   <div>
                     <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">Why It Matters</h3>
                     <p className="text-sm text-white/60 leading-relaxed">{whyText}</p>
                   </div>
-                )}
-
-                {/* Our Analysis — reasoning field shown as muted italic line, only if it adds info */}
-                {fields.reasoning?.trim() && fields.reasoning !== whyText && (
-                  <p className="text-xs text-white/30 leading-relaxed italic">{fields.reasoning}</p>
                 )}
 
                 {/* What happens next? */}
@@ -673,7 +631,7 @@ function ApprovalMasterDetailInner({
             </div>
 
             {/* Sticky action bar with gradient fade */}
-            <div className="sticky bottom-0 pt-4 pb-2 px-8 bg-gradient-to-t from-[#08080f] via-[#08080f]/95 to-transparent">
+            <div className="sticky bottom-0 pt-6 pb-4 px-8 bg-gradient-to-t from-[#0a0a12] via-[#0a0a12]/95 to-transparent">
               {(() => {
                 const approval = getApprovalStatus(effectiveSelected);
                 const isLocal = localChanges.has(effectiveSelected.id);

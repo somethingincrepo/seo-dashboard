@@ -135,9 +135,8 @@ export function getWhyItMatters(fields: ChangeFields): string {
       return r;
     }
   }
-  // 3. Fallback: category-level explanation
-  const cat = fields.cat || fields.category;
-  return CATEGORY_EXPLANATIONS[cat || ""] || "This change helps improve your site's search visibility.";
+  // 3. No generic fallback — return empty so section hides when no real data exists
+  return "";
 }
 
 /**
