@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { ChangeCard } from "@/components/ui/ChangeCard";
-import { useApprovalProgress } from "./ApprovalProgress";
 import type { Change } from "@/lib/changes";
 
 interface CollapsiblePageGroupProps {
@@ -13,7 +12,6 @@ interface CollapsiblePageGroupProps {
 
 export function CollapsiblePageGroup({ page, changes, token, defaultOpen = true }: CollapsiblePageGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
-  const { markReviewed } = useApprovalProgress();
 
   let displayPage = page;
   try {
@@ -41,7 +39,7 @@ export function CollapsiblePageGroup({ page, changes, token, defaultOpen = true 
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-white/8 pt-4">
           {changes.map((change) => (
-            <ChangeCard key={change.id} change={change} token={token} onDecision={markReviewed} />
+            <ChangeCard key={change.id} change={change} token={token} />
           ))}
         </div>
       )}

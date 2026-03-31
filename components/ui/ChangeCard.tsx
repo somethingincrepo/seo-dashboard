@@ -7,12 +7,11 @@ import type { Change } from "@/lib/changes";
 interface ChangeCardProps {
   change: Change;
   token: string;
-  onDecision?: () => void;
 }
 
 type Decision = "approved" | "skipped" | "question" | null;
 
-export function ChangeCard({ change: initialChange, token, onDecision }: ChangeCardProps) {
+export function ChangeCard({ change: initialChange, token }: ChangeCardProps) {
   const f = initialChange.fields;
   const [decision, setDecision] = useState<Decision>(null);
   const [showReasoning, setShowReasoning] = useState(false);
@@ -36,7 +35,6 @@ export function ChangeCard({ change: initialChange, token, onDecision }: ChangeC
         }),
       });
       setSubmitted(true);
-      onDecision?.();
     } catch {
       setDecision(null);
     } finally {
