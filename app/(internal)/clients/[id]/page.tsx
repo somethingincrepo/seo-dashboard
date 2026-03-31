@@ -27,7 +27,7 @@ const CHANGE_TYPE_ICONS: Record<string, string> = {
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://seo-dashboard-1gdt74e5t-reporting-9449s-projects.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://seo-dashboard-teal-phi.vercel.app";
 
   const [client, jobs, changes, reports] = await Promise.all([
     getClient(id),
