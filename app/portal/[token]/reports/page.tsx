@@ -24,7 +24,7 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
 
   const reports = await getClientReports(client.id);
   const isOnboarding = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"]
-    .includes(client.fields.plan_status);
+    .includes(client.fields.status || client.fields.plan_status);
 
   return (
     <div className="space-y-8">

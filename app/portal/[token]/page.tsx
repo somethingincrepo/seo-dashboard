@@ -20,7 +20,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
     getClientReports(client.id),
   ]);
 
-  const planStatus = client.fields.plan_status || "form_submitted";
+  const planStatus = client.fields.status || client.fields.plan_status || "form_submitted";
   const isOnboarding = ONBOARDING_STATUSES.has(planStatus);
   const latestReport = reports[0];
 
