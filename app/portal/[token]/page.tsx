@@ -7,14 +7,16 @@ import { MetricTile } from "@/components/ui/MetricTile";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { OnboardingTracker } from "@/components/portal/OnboardingTracker";
 import { PipelineBoard } from "@/components/portal/PipelineBoard";
+import { PriorityFilterWrapper } from "@/components/portal/PriorityFilter";
 
 export const revalidate = 0;
 
 const ONBOARDING_STATUSES = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"];
 const ACTIVE_STATUSES = ["active"];
 
-export default async function PortalDashboard({ params }: { params: Promise<{ token: string }> }) {
+export default async function PortalDashboard({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ priority?: string }> }) {
   const { token } = await params;
+  const { priority } = await searchParams;
   const client = await getClientByToken(token);
   if (!client) notFound();
 
@@ -25,6 +27,10 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
     getClientReports(clientId),
     getClientChanges(clientId),
   ]);
+
+  const filteredChanges = priority
+    ? allChanges.filter((c) => c.fields.priority === priority)
+    : allChanges;
 
   const status = client.fields.status || client.fields.plan_status || "form_submitted";
   const latestReport = reports[0];
@@ -93,10 +99,13 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
       {/* ─── Pipeline Board ─── */}
       {allChanges.length > 0 && (
         <section>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
-            Pipeline
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25">
+              Pipeline
+            </div>
+            <PriorityFilterWrapper /> {/* needs Suspense wrapper in client usage */}
           </div>
-          <PipelineBoard changes={allChanges} token={token} />
+          <PipelineBoard changes={filteredChanges} token={token} />
         </section>
       )}
 

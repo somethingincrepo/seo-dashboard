@@ -55,6 +55,7 @@ function ApprovalMasterDetailInner({
   const [questionText, setQuestionText] = useState("");
   const [showTechnical, setShowTechnical] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [priorityFilter, setPriorityFilter] = useState<string>("All");
   const listRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
@@ -87,12 +88,19 @@ function ApprovalMasterDetailInner({
     [localChanges]
   );
 
+  const pendingByPriority = priorityFilter === "All"
+    ? changes
+    : changes.filter((c) => c.fields.priority === priorityFilter);
+  const decidedByPriority = priorityFilter === "All"
+    ? decidedChanges
+    : decidedChanges.filter((c) => c.fields.priority === priorityFilter);
+
   const effectivePending = categoryFilter
-    ? changes.filter((c) => (c.fields.cat || c.fields.category) === categoryFilter)
-    : changes;
+    ? pendingByPriority.filter((c) => (c.fields.cat || c.fields.category) === categoryFilter)
+    : pendingByPriority;
   const effectiveDecided = categoryFilter
-    ? decidedChanges.filter((c) => (c.fields.cat || c.fields.category) === categoryFilter)
-    : decidedChanges;
+    ? decidedByPriority.filter((c) => (c.fields.cat || c.fields.category) === categoryFilter)
+    : decidedByPriority;
 
   const activeChanges = activeTab === "pending" ? effectivePending : effectiveDecided;
 
@@ -298,10 +306,25 @@ function ApprovalMasterDetailInner({
 
         {/* Overview bar — pending only */}
         {activeTab === "pending" && effectivePending.length > 0 && (
-          <div className="flex items-center justify-between gap-3 mb-3 px-1">
+          <div className="flex items-center justify-between gap-3 mb-3 px-1 flex-wrap">
             <span className="text-sm text-white/60">
               <span className="text-white/90 font-semibold">{effectivePending.length}</span> pending
             </span>
+            <div className="flex items-center gap-1.5">
+              {(["All", "Critical", "High", "Medium", "Low"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPriorityFilter(p)}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all duration-150 ${
+                    priorityFilter === p
+                      ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
+                      : "bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
             {tier1Ids.length > 0 && (
               <BatchApproveButton recordIds={tier1Ids} token={token} />
             )}
