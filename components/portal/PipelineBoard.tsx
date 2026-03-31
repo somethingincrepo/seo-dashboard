@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getListItemTitle, CATEGORY_EXPLANATIONS } from "@/lib/portal-labels";
+import { getListItemTitle, CATEGORY_EXPLANATIONS, getWhatWeRecommend, getWhyItMatters, getTechnicalCurrent, getTechnicalProposed, hasTechnicalDetails, getDocUrl } from "@/lib/portal-labels";
 import { updateApproval } from "@/lib/changes";
 import type { Change } from "@/lib/changes";
 
@@ -289,9 +289,23 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                     What We Recommend
                   </h3>
                   <p className="text-sm text-white/70 leading-relaxed">
-                    {selectedChange.fields.proposed_value || "We'll make an optimization to improve this page's search visibility."}
+                    {getWhatWeRecommend(selectedChange.fields)}
                   </p>
                 </div>
+
+                {/* View the Draft */}
+                {getDocUrl(selectedChange.fields) && (
+                  <div>
+                    <a
+                      href={getDocUrl(selectedChange.fields)!}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-violet-400/80 hover:text-violet-400 transition-colors duration-150 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-400/15 hover:bg-violet-500/15"
+                    >
+                      View the Draft ↗
+                    </a>
+                  </div>
+                )}
 
                 {/* Why It Matters */}
                 <div>
@@ -299,14 +313,12 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                     Why It Matters
                   </h3>
                   <p className="text-sm text-white/50 leading-relaxed italic">
-                    {selectedChange.fields.reasoning ||
-                      CATEGORY_EXPLANATIONS[selectedChange.fields.cat || selectedChange.fields.category || ""] ||
-                      "This change helps improve your site's search visibility."}
+                    {getWhyItMatters(selectedChange.fields)}
                   </p>
                 </div>
 
                 {/* Technical Details — collapsible */}
-                {(selectedChange.fields.current_value || selectedChange.fields.proposed_value) && (
+                {hasTechnicalDetails(selectedChange.fields, getWhatWeRecommend(selectedChange.fields)) && (
                   <div>
                     <button
                       onClick={() => setShowTechnical(!showTechnical)}
@@ -315,26 +327,30 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                       <span className={`transition-transform duration-150 ${showTechnical ? "rotate-90" : ""}`}>▶</span>
                       Technical Details
                     </button>
-                    {showTechnical && (
-                      <div className="mt-3 space-y-3">
-                        {selectedChange.fields.current_value && (
-                          <div>
-                            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current</div>
-                            <pre className="text-xs font-mono text-white/60 bg-red-500/5 border border-red-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
-                              {selectedChange.fields.current_value}
-                            </pre>
-                          </div>
-                        )}
-                        {selectedChange.fields.proposed_value && (
-                          <div>
-                            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed</div>
-                            <pre className="text-xs font-mono text-emerald-300/70 bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
-                              {selectedChange.fields.proposed_value}
-                            </pre>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {showTechnical && (() => {
+                      const techCurrent = getTechnicalCurrent(selectedChange.fields);
+                      const techProposed = getTechnicalProposed(selectedChange.fields, getWhatWeRecommend(selectedChange.fields));
+                      return (
+                        <div className="mt-3 space-y-3">
+                          {techCurrent && (
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current</div>
+                              <pre className="text-xs font-mono text-white/60 bg-red-500/5 border border-red-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
+                                {techCurrent}
+                              </pre>
+                            </div>
+                          )}
+                          {techProposed && (
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed</div>
+                              <pre className="text-xs font-mono text-emerald-300/70 bg-emerald-500/5 border border-emerald-400/10 rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">
+                                {techProposed}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

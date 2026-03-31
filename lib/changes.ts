@@ -2,29 +2,37 @@ import { airtableFetch, airtablePatch } from "./airtable";
 import type { AirtableRecord } from "./clients";
 
 export type ChangeFields = {
+  // Primary fields (new names — always prefer these)
   change_id: string;
   client_id: string;
-  change_type: string;  // old field name
-  type: string;         // new field name
-  category: string;     // old field name
-  cat: string;          // new field name
+  type: string;              // Metadata, Heading, Schema, Content, FAQ, Redirect, etc.
+  cat: string;               // Technical, On-Page, Content, AI-GEO
   page_url: string;
-  current_value: string;
-  proposed_value: string;
-  approval_status: string;  // old field name
-  approval: string;         // new field name
-  execution_status: string;
-  implementation_tier: string;
-  confidence: string;
-  priority: string;
-  reasoning: string;
+  current_value: string;     // Verbatim current state on the live page
+  proposed_value: string;    // Recommended fix (can be technical or readable)
+  approval: string;          // pending, approved, skipped, question, backlog
+  execution_status: string;  // queued, implementing, complete, failed
+  implementation_tier: string; // tier_1, tier_2
+  confidence: string;        // High, Medium, Low
+  priority: string;          // Critical, High, Medium, Low
+  reasoning: string;         // Agent reasoning (internal — data source, why flagged)
   is_nav_page: boolean;
-  doc_url: string;
-  client_notes: string;
+  doc_url: string;           // Google Doc draft link (content changes)
+  client_notes: string;      // Client's question/notes from approval
   identified_at: string;
   approved_at: string;
   implemented_at: string;
   job_id: string;
+  month: number;
+
+  // Client-facing fields (populated by audit agent for portal display)
+  plain_english_explanation: string;    // "What We Recommend" — client-friendly summary
+  business_impact_explanation: string;  // "Why It Matters" — business value, not agent logic
+
+  // Legacy field aliases (for backward compat — never write to these)
+  change_type: string;
+  category: string;
+  approval_status: string;
 };
 
 export type Change = AirtableRecord<ChangeFields>;
