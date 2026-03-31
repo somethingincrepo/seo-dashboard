@@ -235,6 +235,19 @@ function ApprovalMasterDetailInner({
                 {truncateUrl(change.fields.page_url || "")}
               </div>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {change.fields.priority && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                    change.fields.priority === "Critical"
+                      ? "bg-red-500/15 text-red-400 border-red-400/20"
+                      : change.fields.priority === "High"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                      : change.fields.priority === "Medium"
+                      ? "bg-white/[0.05] text-white/40 border-white/[0.08]"
+                      : "bg-white/[0.03] text-white/25 border-white/[0.06]"
+                  }`}>
+                    {change.fields.priority}
+                  </span>
+                )}
                 {change.fields.confidence && (
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
                     change.fields.confidence === "High"
