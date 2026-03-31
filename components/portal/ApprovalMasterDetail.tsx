@@ -304,11 +304,14 @@ function ApprovalMasterDetailInner({
           })}
         </div>
 
-        {/* Overview bar — pending only */}
-        {activeTab === "pending" && effectivePending.length > 0 && (
+        {/* Overview bar — always shown on pending tab */}
+        {activeTab === "pending" && (
           <div className="flex items-center justify-between gap-3 mb-3 px-1 flex-wrap">
             <span className="text-sm text-white/60">
               <span className="text-white/90 font-semibold">{effectivePending.length}</span> pending
+              {priorityFilter !== "All" && (
+                <span className="text-white/30 ml-1">({priorityFilter})</span>
+              )}
             </span>
             <div className="flex items-center gap-1.5">
               {(["All", "Critical", "High", "Medium", "Low"] as const).map((p) => (
