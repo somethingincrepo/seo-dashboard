@@ -248,14 +248,8 @@ function ApprovalMasterDetailInner({
                     {change.fields.priority}
                   </span>
                 )}
-                {change.fields.confidence && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                    change.fields.confidence === "High"
-                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
-                      : change.fields.confidence === "Medium"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                      : "bg-red-500/10 text-red-400 border-red-400/15"
-                  }`}>
+                {change.fields.confidence && change.fields.confidence !== change.fields.priority && (
+                  <span className="text-[10px] text-white/20">
                     {change.fields.confidence}
                   </span>
                 )}
