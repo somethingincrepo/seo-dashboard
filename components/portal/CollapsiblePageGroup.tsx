@@ -27,7 +27,7 @@ export function CollapsiblePageGroup({ page, changes, token, defaultOpen = true 
         className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/4 transition-colors text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-white/30 text-xs">{open ? "\u25BC" : "\u25B6"}</span>
+          <span className="text-white/30 text-xs">{open ? "▼" : "▶"}</span>
           <span className="text-xs font-mono text-white/60 truncate">{displayPage}</span>
         </div>
         <span className="text-xs text-white/30 flex-shrink-0 ml-3">

@@ -1,0 +1,135 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+
+interface PortalSidebarProps {
+  children: React.ReactNode;
+  companyName: string;
+  token: string;
+  pendingCount: number;
+  categoryBreakdown: Record<string, number>;
+  monthNumber: number;
+  clientStatus: string;
+}
+
+const CATEGORY_ROUTES: Record<string, string> = {
+  Technical: "technical",
+  "On-Page": "on-page",
+  Content: "content",
+  "AI-GEO": "ai-geo",
+};
+
+const NAV_ITEMS = [
+  { suffix: "", label: "Dashboard", icon: "⬡" },
+  { suffix: "/approvals", label: "Approvals", icon: "✦" },
+  { suffix: "/reports", label: "Reports", icon: "◈" },
+  { suffix: "/activity", label: "Activity", icon: "⚙" },
+] as const;
+
+export function PortalSidebar({
+  children,
+  companyName,
+  token,
+  pendingCount,
+  categoryBreakdown,
+  monthNumber,
+  clientStatus,
+}: PortalSidebarProps) {
+  const pathname = usePathname();
+  const base = `/portal/${token}`;
+
+  const approvalsExpanded = pathname.startsWith(`${base}/approvals`);
+  const hasCategoryItems = Object.values(categoryBreakdown).some((n) => n > 0);
+
+  return (
+    <div className="flex min-h-screen">
+      <aside className="glass fixed left-0 top-0 h-full w-56 z-20 flex flex-col py-6 px-4">
+        {/* Brand */}
+        <div className="mb-8 px-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-violet-600/40 border border-violet-400/30 flex items-center justify-center text-xs font-bold text-violet-300">
+              {companyName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white/80 tracking-tight leading-none">{companyName}</div>
+              <div className="text-[10px] text-white/30 mt-0.5">Client Portal</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 space-y-1">
+          {NAV_ITEMS.map((item) => {
+            const href = `${base}${item.suffix}`;
+            const isActive =
+              item.suffix === ""
+                ? pathname === base
+                : pathname.startsWith(href);
+
+            return (
+              <div key={item.suffix}>
+                <Link
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all",
+                    isActive
+                      ? "bg-white/8 text-white font-medium"
+                      : "text-white/60 hover:text-white hover:bg-white/8"
+                  )}
+                >
+                  <span className="text-base">{item.icon}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {item.suffix === "/approvals" && pendingCount > 0 && (
+                    <span className="bg-amber-500/30 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                      {pendingCount}
+                    </span>
+                  )}
+                </Link>
+
+                {/* Nested category items under Approvals */}
+                {item.suffix === "/approvals" && (approvalsExpanded || hasCategoryItems) && (
+                  <div className="ml-5 mt-0.5 space-y-0.5">
+                    {Object.entries(CATEGORY_ROUTES).map(([cat, slug]) => {
+                      const count = categoryBreakdown[cat] || 0;
+                      const catHref = `${base}/approvals/${slug}`;
+                      const catActive = pathname === catHref;
+                      if (count === 0 && !catActive) return null;
+                      return (
+                        <Link
+                          key={slug}
+                          href={catHref}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all",
+                            catActive
+                              ? "text-white/90 bg-white/6 font-medium"
+                              : "text-white/40 hover:text-white/60 hover:bg-white/4"
+                          )}
+                        >
+                          <span className="flex-1">{cat}</span>
+                          <span className="text-white/25">{count}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Bottom — month + status */}
+        <div className="border-t border-white/8 pt-4 px-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-white/30">Month {monthNumber || "—"}</span>
+            <StatusBadge value={clientStatus} variant="plan_status" />
+          </div>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 ml-56 p-8">{children}</main>
+    </div>
+  );
+}

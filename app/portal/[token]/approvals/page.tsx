@@ -3,10 +3,11 @@ import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals } from "@/lib/changes";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { BatchApproveButton } from "@/components/portal/BatchApproveButton";
-import { ApprovalProgress } from "@/components/portal/ApprovalProgress";
-import { CollapsiblePageGroup } from "@/components/portal/CollapsiblePageGroup";
+import { CategorySection } from "@/components/portal/CategorySection";
 
 export const revalidate = 0;
+
+const CATEGORY_ORDER = ["Technical", "On-Page", "Content", "AI-GEO"];
 
 export default async function ApprovalsPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -15,33 +16,28 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
 
   const pending = await getPendingApprovals(client.id);
 
-  const tier1 = pending.filter((c) => c.fields.implementation_tier === "tier_1");
-  const tier2 = pending.filter((c) => c.fields.implementation_tier !== "tier_1");
-
-  function groupByPage(changes: typeof pending): Record<string, typeof pending> {
-    const groups: Record<string, typeof pending> = {};
-    for (const c of changes) {
-      const page = c.fields.page_url || "Site-wide";
-      if (!groups[page]) groups[page] = [];
-      groups[page].push(c);
-    }
-    return groups;
+  // Group by category
+  const groups: Record<string, typeof pending> = {};
+  for (const c of pending) {
+    const cat = c.fields.cat || c.fields.category || "Other";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(c);
   }
 
-  const tier1Groups = groupByPage(tier1);
-  const tier2Groups = groupByPage(tier2);
-  const tier1Ids = tier1.map((c) => c.id);
+  const tier1Ids = pending.filter((c) => c.fields.implementation_tier === "tier_1").map((c) => c.id);
+  const tier1Count = tier1Ids.length;
 
+  // Empty state
   if (pending.length === 0) {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold">Approvals</h1>
+          <h1 className="text-2xl font-semibold text-white/90">Approvals</h1>
           <p className="text-white/40 text-sm mt-1">Review and approve your SEO recommendations</p>
         </div>
         <GlassCard className="p-14 text-center">
-          <div className="text-3xl mb-4 text-white/20">\u2726</div>
-          <div className="font-medium text-white/70 mb-2">All caught up</div>
+          <div className="text-3xl mb-4 text-white/20">✦</div>
+          <div className="font-medium text-white/70 mb-2">All caught up!</div>
           <div className="text-sm text-white/40 max-w-sm mx-auto">
             No pending recommendations right now. We&apos;ll let you know when new ones are ready.
           </div>
@@ -50,77 +46,63 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
     );
   }
 
+  // Category breakdown string
+  const breakdownParts = CATEGORY_ORDER
+    .filter((cat) => groups[cat])
+    .map((cat) => `${cat}: ${groups[cat].length}`)
+    .join(" · ");
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold">Approvals</h1>
-          <p className="text-white/40 text-sm mt-1">Review and approve your SEO recommendations</p>
-        </div>
-        <ApprovalProgress total={pending.length} />
+      <div>
+        <h1 className="text-2xl font-semibold text-white/90">Approvals</h1>
+        <p className="text-white/40 text-sm mt-1">Review and approve your SEO recommendations</p>
       </div>
 
-      {/* Tier 1 — Quick Wins */}
-      {tier1.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <h2 className="text-sm font-medium text-white/70 uppercase tracking-wider">
-                Quick Wins
-                <span className="ml-2 text-white/30 normal-case font-normal tracking-normal">
-                  {tier1.length} change{tier1.length !== 1 ? "s" : ""} · no visual impact
-                </span>
-              </h2>
-              <p className="text-xs text-white/40 mt-1">
-                Safe, technical improvements — metadata, schema, alt text, headings. We can implement these immediately once approved.
-              </p>
-            </div>
-            <BatchApproveButton recordIds={tier1Ids} token={token} />
-          </div>
+      {/* Overview bar */}
+      <GlassCard className="p-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
+          <span className="text-sm text-white/60">
+            <span className="text-white/90 font-semibold">{pending.length}</span> pending
+          </span>
+          <span className="text-white/15">|</span>
+          <span className="text-xs text-white/40">{breakdownParts}</span>
+          {tier1Count > 0 && (
+            <>
+              <span className="text-white/15">|</span>
+              <span className="text-xs text-emerald-400/60">{tier1Count} quick wins</span>
+            </>
+          )}
+        </div>
+        {tier1Count > 0 && (
+          <BatchApproveButton recordIds={tier1Ids} token={token} />
+        )}
+      </GlassCard>
 
-          <div className="space-y-3">
-            {Object.entries(tier1Groups).map(([page, changes], i) => (
-              <CollapsiblePageGroup
-                key={page}
-                page={page}
-                changes={changes}
-                token={token}
-                defaultOpen={i === 0}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Category sections */}
+      <div className="space-y-10">
+        {CATEGORY_ORDER.filter((cat) => groups[cat]).map((cat) => (
+          <CategorySection
+            key={cat}
+            category={cat}
+            changes={groups[cat]}
+            token={token}
+          />
+        ))}
 
-      {/* Tier 2 — Content & Structural */}
-      {tier2.length > 0 && (
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-sm font-medium text-white/70 uppercase tracking-wider">
-              Content & Structural
-              <span className="ml-2 text-white/30 normal-case font-normal tracking-normal">
-                {tier2.length} change{tier2.length !== 1 ? "s" : ""} · may affect page layout or copy
-              </span>
-            </h2>
-            <p className="text-xs text-white/40 mt-1">
-              These involve rewriting content, adding new sections, or structural adjustments. Review each carefully before approving.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {Object.entries(tier2Groups).map(([page, changes], i) => (
-              <CollapsiblePageGroup
-                key={page}
-                page={page}
-                changes={changes}
-                token={token}
-                defaultOpen={i === 0}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        {/* Any categories not in the standard order */}
+        {Object.entries(groups)
+          .filter(([cat]) => !CATEGORY_ORDER.includes(cat))
+          .map(([cat, changes]) => (
+            <CategorySection
+              key={cat}
+              category={cat}
+              changes={changes}
+              token={token}
+            />
+          ))}
+      </div>
     </div>
   );
 }

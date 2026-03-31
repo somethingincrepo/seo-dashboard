@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals } from "@/lib/changes";
-import { PortalShell } from "@/components/portal/PortalShell";
+import { PortalSidebar } from "@/components/portal/PortalSidebar";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function PortalLayout({
   children,
@@ -17,14 +17,25 @@ export default async function PortalLayout({
   if (!client) notFound();
 
   const pending = await getPendingApprovals(client.id);
+  const status = client.fields.status || client.fields.plan_status || "form_submitted";
+
+  // Build category breakdown
+  const categoryBreakdown: Record<string, number> = {};
+  for (const c of pending) {
+    const cat = c.fields.cat || c.fields.category || "Other";
+    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
+  }
 
   return (
-    <PortalShell
+    <PortalSidebar
       companyName={client.fields.company_name || "Your Portal"}
       token={token}
       pendingCount={pending.length}
+      categoryBreakdown={categoryBreakdown}
+      monthNumber={client.fields.month_number || 0}
+      clientStatus={status}
     >
       {children}
-    </PortalShell>
+    </PortalSidebar>
   );
 }

@@ -3,19 +3,11 @@ import Link from "next/link";
 import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals, getClientChanges } from "@/lib/changes";
 import { getClientReports } from "@/lib/reports";
+import { MetricTile } from "@/components/ui/MetricTile";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { OnboardingTracker } from "@/components/portal/OnboardingTracker";
 
 export const revalidate = 0;
-
-// Anything before "active" shows the onboarding tracker
-const ONBOARDING_STATUSES = new Set([
-  "form_submitted",
-  "onboarding_setup",
-  "month1_audit",
-  "awaiting_approval",
-  "month1_implementing",
-]);
 
 export default async function PortalDashboard({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -29,8 +21,6 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   ]);
 
   const status = client.fields.status || client.fields.plan_status || "form_submitted";
-  const isOnboarding = ONBOARDING_STATUSES.has(status);
-  const isActive = status === "active";
   const latestReport = reports[0];
 
   const implementedCount = allChanges.filter(
@@ -42,92 +32,107 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
       {/* Greeting */}
       <div>
         <h1 className="text-2xl font-semibold text-white/90">
-          {isOnboarding ? "Welcome aboard" : "Your SEO Overview"}
+          {status === "form_submitted" || status === "onboarding_setup" || status === "month1_audit"
+            ? "Welcome aboard"
+            : "Your SEO Overview"}
         </h1>
         <p className="text-white/40 text-sm mt-1">
-          {isOnboarding
+          {status === "form_submitted" || status === "onboarding_setup" || status === "month1_audit"
             ? "Here's where things stand as we get your program set up."
             : "Here's what's happening with your SEO program."}
         </p>
       </div>
 
-      {/* ─── Onboarding path ─── */}
-      {isOnboarding && (
+      {/* ─── Metric Tiles (always shown) ─── */}
+      <div className="grid grid-cols-3 gap-4">
+        <MetricTile
+          label="Pending Approvals"
+          value={pending.length}
+          sub={pending.length === 0 ? "Nothing to review" : undefined}
+          accent={pending.length > 0 ? "amber" : "emerald"}
+        />
+        <MetricTile
+          label="Total Implemented"
+          value={implementedCount}
+          sub={implementedCount === 0 ? "Starting soon" : undefined}
+          accent="violet"
+        />
+        <MetricTile
+          label="Latest Report"
+          value={latestReport ? `Month ${latestReport.fields.month}` : "Coming soon"}
+          sub={latestReport?.fields.sent_at
+            ? new Date(latestReport.fields.sent_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+            : undefined}
+          accent="blue"
+        />
+      </div>
+
+      {/* ─── Status-aware content ─── */}
+
+      {/* Onboarding statuses */}
+      {(status === "form_submitted" || status === "onboarding_setup" || status === "month1_audit") && (
         <>
           <OnboardingTracker planStatus={status} />
-
-          {/* CTA: pending approvals */}
-          {pending.length > 0 ? (
-            <GlassCard className="p-5 border border-violet-400/20">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <div className="font-semibold text-white/90 mb-1">
-                    {pending.length} recommendation{pending.length !== 1 ? "s" : ""} ready for your review
-                  </div>
-                  <div className="text-sm text-white/50">
-                    Your initial audit is complete. Review and approve changes to kick off implementation.
-                  </div>
-                </div>
-                <Link
-                  href={`/portal/${token}/approvals`}
-                  className="flex-shrink-0 px-5 py-2.5 rounded-xl bg-violet-600/40 border border-violet-400/30 text-sm font-medium text-white hover:bg-violet-500/50 transition-all"
-                >
-                  Review now →
-                </Link>
-              </div>
-            </GlassCard>
-          ) : status === "awaiting_approval" ? (
-            <GlassCard className="p-5 border border-amber-400/15">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-sm text-amber-300">◎</div>
-                <div>
-                  <div className="font-medium text-white/80">Preparing your recommendations</div>
-                  <div className="text-sm text-white/40">
-                    Your initial audit is in progress. We'll notify you as soon as recommendations are ready for review.
-                  </div>
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center text-sm text-blue-300">◎</div>
+              <div>
+                <div className="font-medium text-white/80">Your program is being set up</div>
+                <div className="text-sm text-white/40">
+                  We'll notify you when recommendations are ready.
                 </div>
               </div>
-            </GlassCard>
-          ) : null}
+            </div>
+          </GlassCard>
         </>
       )}
 
-      {/* ─── Active client path ─── */}
-      {isActive && (
+      {/* Awaiting approval — no pending */}
+      {status === "awaiting_approval" && pending.length === 0 && (
         <>
-          {/* Metrics row */}
-          <div className="grid grid-cols-3 gap-4">
-            <GlassCard className="p-5">
-              <div className="text-white/40 text-xs font-medium uppercase tracking-wider mb-2">Pending Approvals</div>
-              <div className={`text-3xl font-bold ${pending.length > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                {pending.length}
-              </div>
-              {pending.length === 0 && (
-                <div className="text-white/25 text-xs mt-1">Nothing to review</div>
-              )}
-            </GlassCard>
-
-            <GlassCard className="p-5">
-              <div className="text-white/40 text-xs font-medium uppercase tracking-wider mb-2">Changes Implemented</div>
-              <div className="text-3xl font-bold text-violet-400">{implementedCount}</div>
-              {implementedCount === 0 && (
-                <div className="text-white/25 text-xs mt-1">Starting soon</div>
-              )}
-            </GlassCard>
-
-            <GlassCard className="p-5">
-              <div className="text-white/40 text-xs font-medium uppercase tracking-wider mb-2">Latest Report</div>
-              <div className="text-3xl font-bold text-blue-400">
-                {latestReport ? `Month ${latestReport.fields.month}` : "Coming soon"}
-              </div>
-              {latestReport?.fields.sent_at && (
-                <div className="text-white/25 text-xs mt-1">
-                  {new Date(latestReport.fields.sent_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          <GlassCard className="p-5 border border-amber-400/15">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-sm text-amber-300">◎</div>
+              <div>
+                <div className="font-medium text-white/80">Your audit is complete</div>
+                <div className="text-sm text-white/40">
+                  Preparing recommendations for your review.
                 </div>
-              )}
-            </GlassCard>
-          </div>
+              </div>
+            </div>
+          </GlassCard>
+          <OnboardingTracker planStatus="awaiting_approval" />
+        </>
+      )}
 
+      {/* Awaiting approval — has pending */}
+      {status === "awaiting_approval" && pending.length > 0 && (
+        <>
+          <GlassCard className="p-5 border border-violet-400/20">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div className="font-semibold text-white/90 mb-1">
+                  {pending.length} recommendation{pending.length !== 1 ? "s" : ""} ready for your review
+                </div>
+                <div className="text-sm text-white/50">
+                  Your initial audit is complete. Review and approve changes to kick off implementation.
+                </div>
+              </div>
+              <Link
+                href={`/portal/${token}/approvals`}
+                className="flex-shrink-0 px-5 py-2.5 rounded-xl bg-violet-600/40 border border-violet-400/30 text-sm font-medium text-white hover:bg-violet-500/50 transition-all"
+              >
+                Review now →
+              </Link>
+            </div>
+          </GlassCard>
+          <OnboardingTracker planStatus="awaiting_approval" />
+        </>
+      )}
+
+      {/* Month1 implementing or active */}
+      {(status === "month1_implementing" || status === "active") && (
+        <>
           {/* Pending CTA */}
           {pending.length > 0 && (
             <GlassCard className="p-5 border border-violet-400/20">
@@ -189,7 +194,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
             </section>
           )}
 
-          {/* All caught up (only when no pending AND no reports) */}
+          {/* All caught up */}
           {pending.length === 0 && !latestReport && (
             <GlassCard className="p-8 text-center">
               <div className="text-2xl mb-3 text-violet-400/40">✦</div>
@@ -202,12 +207,19 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
         </>
       )}
 
-      {/* ─── Paused / Failed ─── */}
-      {!isOnboarding && !isActive && (
+      {/* Paused */}
+      {status === "paused" && (
         <GlassCard className="p-8 text-center">
-          <div className="text-sm text-white/40">
-            Your program is currently paused. Contact your account manager for details.
-          </div>
+          <div className="font-medium text-white/80 mb-1">Your program is paused</div>
+          <div className="text-sm text-white/40">Contact us for details.</div>
+        </GlassCard>
+      )}
+
+      {/* Failed */}
+      {status === "failed" && (
+        <GlassCard className="p-8 text-center">
+          <div className="font-medium text-white/80 mb-1">Something went wrong</div>
+          <div className="text-sm text-white/40">Contact us for details.</div>
         </GlassCard>
       )}
     </div>

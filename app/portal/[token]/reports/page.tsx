@@ -23,8 +23,8 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
   if (!client) notFound();
 
   const reports = await getClientReports(client.id);
-  const isOnboarding = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"]
-    .includes(client.fields.status || client.fields.plan_status);
+  const status = client.fields.status || client.fields.plan_status;
+  const isOnboarding = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"].includes(status);
 
   return (
     <div className="space-y-8">
@@ -53,7 +53,6 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
 
           return (
             <GlassCard key={report.id} className="overflow-hidden">
-              {/* Report header */}
               <div className="p-5 border-b border-white/8 flex items-center justify-between">
                 <div>
                   <div className="font-semibold">Month {report.fields.month}</div>
@@ -76,7 +75,6 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
                 </div>
               </div>
 
-              {/* Metrics */}
               <div className="p-5 grid grid-cols-3 gap-6">
                 <Delta value={report.fields.gsc_clicks_delta} label="Clicks" />
                 <Delta value={report.fields.gsc_impressions_delta} label="Impressions" />
@@ -86,7 +84,6 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
                 </div>
               </div>
 
-              {/* Next month priorities */}
               {priorities.length > 0 && (
                 <div className="px-5 pb-5">
                   <div className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Next month</div>
