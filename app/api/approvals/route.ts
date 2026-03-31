@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateApproval } from "@/lib/changes";
+import { updateApproval, undoApproval } from "@/lib/changes";
 import { getClientByToken } from "@/lib/clients";
 
 export async function POST(request: NextRequest) {
@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    if (!["approved", "skipped", "question"].includes(decision)) {
+    const validDecisions = ["approved", "skipped", "question", "undo"];
+    if (!validDecisions.includes(decision)) {
       return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
     }
 
@@ -19,6 +20,14 @@ export async function POST(request: NextRequest) {
     const client = await getClientByToken(token);
     if (!client) {
       return NextResponse.json({ error: "Invalid token" }, { status: 403 });
+    }
+
+    if (decision === "undo") {
+      const result = await undoApproval(recordId);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 409 });
+      }
+      return NextResponse.json({ ok: true });
     }
 
     await updateApproval(recordId, decision, notes);

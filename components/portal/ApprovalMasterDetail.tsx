@@ -63,6 +63,9 @@ function ApprovalMasterDetailInner({
   const [submitting, setSubmitting] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<string>("All");
   const [error, setError] = useState<string | null>(null);
+  const [confirmApprove, setConfirmApprove] = useState(false);
+  const [undoTarget, setUndoTarget] = useState<{ changeId: string; remaining: number } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
@@ -76,6 +79,61 @@ function ApprovalMasterDetailInner({
       }, 100);
     }
   }, [initialSelected]);
+
+  // Undo countdown timer
+  useEffect(() => {
+    if (undoTarget && undoTarget.remaining > 0) {
+      undoTimerRef.current = setInterval(() => {
+        setUndoTarget((prev) => {
+          if (!prev || prev.remaining <= 1) {
+            if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+            return null;
+          }
+          return { ...prev, remaining: prev.remaining - 1 };
+        });
+      }, 1000);
+    }
+    return () => {
+      if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+    };
+  }, [undoTarget?.changeId]); // restart timer when changeId changes
+
+  const startUndoCountdown = useCallback((changeId: string) => {
+    if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+    setUndoTarget({ changeId, remaining: 30 });
+  }, []);
+
+  const handleUndo = useCallback(async (changeId: string) => {
+    if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+    setUndoTarget(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: changeId, decision: "undo", token }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        setError(errBody.error || `Undo failed (${res.status})`);
+        return;
+      }
+      setLocalChanges((prev) => {
+        const next = new Map(prev);
+        next.set(changeId, { approval: "pending", client_notes: "" });
+        return next;
+      });
+      setFeedback("Approval undone — change is back in your queue.");
+      router.refresh();
+      // Switch to pending tab if not already there
+      setActiveTab("pending");
+      setTimeout(() => setFeedback(null), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [token, router]);
 
   const getEffectiveChange = useCallback(
     (change: Change): Change => {
@@ -148,7 +206,10 @@ function ApprovalMasterDetailInner({
       });
 
       if (decision === "approved") {
-        setFeedback("Got it \u2014 we\u2019ll implement this within 24 hours.");
+        setFeedback("Approved — we'll implement this within 24 hours.");
+        setConfirmApprove(false);
+        startUndoCountdown(changeId);
+        router.refresh();
       } else if (decision === "skipped") {
         setFeedback("No problem. You can always revisit this later.");
       } else {
@@ -161,20 +222,23 @@ function ApprovalMasterDetailInner({
         setShowQuestion(false);
         setQuestionText("");
         setShowTechnical(false);
-        const currentIdx = effectivePending.findIndex((c) => c.id === changeId);
-        const nextPending = effectivePending.find((c, i) => i > currentIdx && !localChanges.has(c.id));
-        if (nextPending) {
-          setSelectedChangeId(nextPending.id);
-        } else {
-          const firstPending = effectivePending.find((c) => !localChanges.has(c.id));
-          if (firstPending) {
-            setSelectedChangeId(firstPending.id);
+        if (decision !== "approved") {
+          // Only auto-advance for skip/question, not approve (undo window active)
+          const currentIdx = effectivePending.findIndex((c) => c.id === changeId);
+          const nextPending = effectivePending.find((c, i) => i > currentIdx && !localChanges.has(c.id));
+          if (nextPending) {
+            setSelectedChangeId(nextPending.id);
           } else {
-            setSelectedChangeId(null);
+            const firstPending = effectivePending.find((c) => !localChanges.has(c.id));
+            if (firstPending) {
+              setSelectedChangeId(firstPending.id);
+            } else {
+              setSelectedChangeId(null);
+            }
           }
+          router.refresh();
         }
-        router.refresh();
-      }, 1500);
+      }, decision === "skipped" ? 1500 : 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -236,6 +300,7 @@ function ApprovalMasterDetailInner({
             setShowQuestion(false);
             setQuestionText("");
             setShowTechnical(false);
+            setConfirmApprove(false);
           }}
           className={`w-full text-left px-4 py-3 cursor-pointer transition-all duration-150 border-l-2 ${
             isSelected
@@ -279,7 +344,21 @@ function ApprovalMasterDetailInner({
                   </span>
                 )}
                 {isDecided && approval === "approved" && (
-                  <span className="text-[10px] text-emerald-400">✓</span>
+                  <>
+                    <span className="text-[10px] text-emerald-400">✓</span>
+                    {!change.fields.implemented_at && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUndo(change.id);
+                        }}
+                        disabled={submitting}
+                        className="text-[10px] text-white/25 hover:text-red-300 underline underline-offset-2 transition-colors ml-0.5 disabled:opacity-50"
+                      >
+                        Undo
+                      </button>
+                    )}
+                  </>
                 )}
                 {isDecided && approval === "question" && (
                   <span className="text-[10px] text-blue-400">?</span>
@@ -557,6 +636,33 @@ function ApprovalMasterDetailInner({
               {(() => {
                 const approval = getApprovalStatus(effectiveSelected);
                 const isLocal = localChanges.has(effectiveSelected.id);
+                const canUndo = undoTarget && undoTarget.changeId === effectiveSelected.id && undoTarget.remaining > 0;
+
+                // Undo countdown active
+                if (canUndo) {
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-emerald-300">Approved — we&apos;ll implement this within 24 hours.</span>
+                        <button
+                          onClick={() => handleUndo(effectiveSelected.id)}
+                          disabled={submitting}
+                          className="text-xs text-white/50 hover:text-white/80 underline underline-offset-2 transition-colors disabled:opacity-50"
+                        >
+                          Undo
+                        </button>
+                      </div>
+                      {/* Countdown bar */}
+                      <div className="w-full h-0.5 bg-white/[0.06] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-400/40 rounded-full transition-all duration-1000 ease-linear"
+                          style={{ width: `${(undoTarget.remaining / 30) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-white/20">{undoTarget.remaining}s</span>
+                    </div>
+                  );
+                }
 
                 if (feedback) {
                   return (
@@ -574,6 +680,7 @@ function ApprovalMasterDetailInner({
                   );
                 }
 
+                // Already decided (no undo window)
                 if (!isLocal && approval !== "pending") {
                   if (approval === "approved") {
                     return (
@@ -598,12 +705,40 @@ function ApprovalMasterDetailInner({
                   }
                 }
 
+                // Approve confirmation
+                if (confirmApprove) {
+                  return (
+                    <div className="space-y-2">
+                      <p className="text-sm text-white/60 text-center">
+                        Are you sure you want to approve this change?
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            if (effectiveSelected) applyDecision(effectiveSelected.id, "approved");
+                          }}
+                          disabled={submitting}
+                          className="flex-[2] py-3 rounded-xl text-sm font-semibold bg-emerald-500/20 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-500/30 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Yes, approve
+                        </button>
+                        <button
+                          onClick={() => setConfirmApprove(false)}
+                          disabled={submitting}
+                          className="flex-[2] py-3 rounded-xl text-sm font-medium bg-white/[0.04] border border-white/[0.08] text-white/40 hover:bg-white/[0.08] hover:text-white/60 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Normal action buttons
                 return (
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => {
-                        if (effectiveSelected) applyDecision(effectiveSelected.id, "approved");
-                      }}
+                      onClick={() => setConfirmApprove(true)}
                       disabled={submitting}
                       className="flex-[2] py-3 rounded-xl text-sm font-semibold bg-emerald-500/20 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-500/30 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                     >

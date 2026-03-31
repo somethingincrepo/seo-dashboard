@@ -68,3 +68,35 @@ export async function updateApproval(
   if (decision === "approved") fields.approved_at = new Date().toISOString();
   await airtablePatch(TABLE, recordId, fields);
 }
+
+export async function getChangeById(recordId: string): Promise<Change | null> {
+  const records = await airtableFetch<Change>(TABLE, {
+    filterByFormula: `RECORD_ID()="${recordId}"`,
+    maxRecords: 1,
+  });
+  return records[0] ?? null;
+}
+
+export async function undoApproval(recordId: string): Promise<{ ok: boolean; error?: string }> {
+  const change = await getChangeById(recordId);
+  if (!change) return { ok: false, error: "Change not found" };
+
+  // Reject if already implemented
+  const implStatus = change.fields.execution_status;
+  const implAt = change.fields.implemented_at;
+  if (implStatus === "complete" || implAt) {
+    return {
+      ok: false,
+      error: "This change has already been implemented and can't be undone from here. Contact us if you need to revert it.",
+    };
+  }
+
+  await airtablePatch(TABLE, recordId, {
+    approval: "pending",
+    approval_status: "pending",
+    approved_at: null,
+    client_notes: change.fields.client_notes, // preserve notes
+  });
+
+  return { ok: true };
+}

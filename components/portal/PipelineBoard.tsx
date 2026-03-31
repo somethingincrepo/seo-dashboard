@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -33,6 +33,9 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
   const [showTechnical, setShowTechnical] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmApprove, setConfirmApprove] = useState(false);
+  const [undoTarget, setUndoTarget] = useState<{ changeId: string; remaining: number } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const filteredChanges = changes.filter((c) => !removedIds.has(c.id));
 
@@ -75,6 +78,52 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
     (c) => c.fields.implementation_tier === "tier_1"
   );
 
+  // Undo countdown timer
+  useEffect(() => {
+    if (undoTarget && undoTarget.remaining > 0) {
+      undoTimerRef.current = setInterval(() => {
+        setUndoTarget((prev) => {
+          if (!prev || prev.remaining <= 1) {
+            if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+            return null;
+          }
+          return { ...prev, remaining: prev.remaining - 1 };
+        });
+      }, 1000);
+    }
+    return () => {
+      if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+    };
+  }, [undoTarget?.changeId]);
+
+  const handleUndo = useCallback(async (changeId: string) => {
+    if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+    setUndoTarget(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: changeId, decision: "undo", token }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        setError(errBody.error || `Undo failed (${res.status})`);
+        return;
+      }
+      setFeedback("Approval undone — change is back in your queue.");
+      router.refresh();
+      setTimeout(() => {
+        setFeedback(null);
+        setSelectedChange(null);
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [token, router]);
+
   const applyDecision = useCallback(async (change: Change, decision: "approved" | "skipped" | "question", notes?: string) => {
     setSubmitting(true);
     setError(null);
@@ -89,7 +138,11 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
         throw new Error(errBody.error || `Server error ${res.status}`);
       }
       if (decision === "approved") {
-        setFeedback("Got it — we'll implement this within 24 hours.");
+        setFeedback("Approved — we'll implement this within 24 hours.");
+        setConfirmApprove(false);
+        if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+        setUndoTarget({ changeId: change.id, remaining: 30 });
+        router.refresh();
       } else if (decision === "skipped") {
         setFeedback("No problem. You can always revisit this later.");
       } else {
@@ -233,6 +286,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
             setShowQuestion(false);
             setQuestionText("");
             setShowTechnical(false);
+            setConfirmApprove(false);
           }}
         >
           {/* Backdrop */}
@@ -261,6 +315,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                   setShowQuestion(false);
                   setQuestionText("");
                   setShowTechnical(false);
+                  setConfirmApprove(false);
                 }}
                 className="text-white/30 hover:text-white/60 transition-colors text-lg leading-none ml-3 mt-0.5"
               >
@@ -406,7 +461,27 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
 
             {/* Sticky action bar */}
             <div className="absolute bottom-0 left-0 right-0 pt-4 pb-4 px-6 bg-gradient-to-t from-[#0a0a14] via-[#0a0a14]/95 to-transparent">
-              {feedback ? (
+              {undoTarget && undoTarget.changeId === selectedChange.id && undoTarget.remaining > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-emerald-300">Approved — we&apos;ll implement this within 24 hours.</span>
+                    <button
+                      onClick={() => handleUndo(selectedChange.id)}
+                      disabled={submitting}
+                      className="text-xs text-white/50 hover:text-white/80 underline underline-offset-2 transition-colors disabled:opacity-50"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                  <div className="w-full h-0.5 bg-white/[0.06] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400/40 rounded-full transition-all duration-1000 ease-linear"
+                      style={{ width: `${(undoTarget.remaining / 30) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-white/20">{undoTarget.remaining}s</span>
+                </div>
+              ) : feedback ? (
                 <div className="text-sm text-emerald-300 py-2 text-center">
                   {feedback}
                 </div>
@@ -424,10 +499,32 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                     ? "Question pending."
                     : null}
                 </div>
+              ) : confirmApprove ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-white/60 text-center">
+                    Are you sure you want to approve this change?
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => applyDecision(selectedChange, "approved")}
+                      disabled={submitting}
+                      className="flex-[2] py-3 rounded-xl text-sm font-semibold bg-emerald-500/20 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-500/30 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Yes, approve
+                    </button>
+                    <button
+                      onClick={() => setConfirmApprove(false)}
+                      disabled={submitting}
+                      className="flex-[2] py-3 rounded-xl text-sm font-medium bg-white/[0.04] border border-white/[0.08] text-white/40 hover:bg-white/[0.08] hover:text-white/60 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => applyDecision(selectedChange, "approved")}
+                    onClick={() => setConfirmApprove(true)}
                     disabled={submitting}
                     className="flex-[2] py-3 rounded-xl text-sm font-semibold bg-emerald-500/20 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-500/30 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
