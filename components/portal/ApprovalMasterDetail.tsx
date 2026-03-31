@@ -248,11 +248,6 @@ function ApprovalMasterDetailInner({
                     {change.fields.priority}
                   </span>
                 )}
-                {change.fields.confidence && change.fields.confidence !== change.fields.priority && (
-                  <span className="text-[10px] text-white/20">
-                    {change.fields.confidence}
-                  </span>
-                )}
                 {change.fields.implementation_tier === "tier_1" && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
                     Quick win
