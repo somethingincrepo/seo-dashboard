@@ -4,7 +4,7 @@ import type { AirtableRecord } from "./clients";
 export type ReportFields = {
   report_id: string;
   client_id: string;
-  month: string;
+  month: number;
   pdf_url: string;
   sent_at: string;
   changes_made: number;
