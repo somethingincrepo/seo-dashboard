@@ -16,9 +16,11 @@ export default async function ActivityPage({ params }: { params: Promise<{ token
   const client = await getClientByToken(token);
   if (!client) notFound();
 
+  const clientId = client.fields.client_id || client.id;
+
   const [changes, reports] = await Promise.all([
-    getClientChanges(client.id),
-    getClientReports(client.id),
+    getClientChanges(clientId),
+    getClientReports(clientId),
   ]);
 
   // Build a unified activity feed

@@ -16,7 +16,8 @@ export default async function PortalLayout({
   const client = await getClientByToken(token);
   if (!client) notFound();
 
-  const pending = await getPendingApprovals(client.id);
+  const clientId = client.fields.client_id || client.id;
+  const pending = await getPendingApprovals(clientId);
   const status = client.fields.status || client.fields.plan_status || "form_submitted";
 
   // Build category breakdown

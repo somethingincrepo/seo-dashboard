@@ -22,7 +22,9 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
   const client = await getClientByToken(token);
   if (!client) notFound();
 
-  const reports = await getClientReports(client.id);
+  const clientId = client.fields.client_id || client.id;
+
+  const reports = await getClientReports(clientId);
   const status = client.fields.status || client.fields.plan_status;
   const isOnboarding = ["form_submitted", "onboarding_setup", "month1_audit", "awaiting_approval", "month1_implementing"].includes(status);
 

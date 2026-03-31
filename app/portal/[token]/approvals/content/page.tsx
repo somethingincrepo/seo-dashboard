@@ -11,7 +11,9 @@ export default async function ContentApprovalsPage({ params }: { params: Promise
   const client = await getClientByToken(token);
   if (!client) notFound();
 
-  const pending = await getPendingApprovals(client.id);
+  const clientId = client.fields.client_id || client.id;
+
+  const pending = await getPendingApprovals(clientId);
   const changes = pending.filter((c) => (c.fields.cat || c.fields.category) === "Content");
 
   if (changes.length === 0) {

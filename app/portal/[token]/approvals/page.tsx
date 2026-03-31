@@ -14,7 +14,9 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
   const client = await getClientByToken(token);
   if (!client) notFound();
 
-  const pending = await getPendingApprovals(client.id);
+  const clientId = client.fields.client_id || client.id;
+
+  const pending = await getPendingApprovals(clientId);
 
   // Group by category
   const groups: Record<string, typeof pending> = {};
