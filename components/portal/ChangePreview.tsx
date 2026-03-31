@@ -234,16 +234,21 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
   const currentTitleDimmed = !currentMeta.title; // dimmed if generated from URL
   const currentDesc = currentMeta.description;
 
-  const proposedHasContent = proposedMeta.title || proposedMeta.description;
+  const proposedHasRealContent = proposedMeta.title || proposedMeta.description;
 
   // Proposed card: show new fields at full brightness, carry forward unchanged fields dimmed
-  // If proposed doesn't have a title, carry forward from current (or URL-generated)
   const proposedTitle = proposedMeta.title || currentTitle;
   const proposedTitleDimmed = !proposedMeta.title; // dimmed if unchanged/generated
 
+  // Proposed description: if real content exists use it, otherwise carry forward or show placeholder
+  const proposedDesc = proposedMeta.description;
+  const proposedDescCarryForward = !proposedMeta.description && currentDesc ? currentDesc : null;
+  // "pending" = no real proposed content at all (empty, flag, or unparseable)
+  const isPending = !proposedHasRealContent;
+
   return (
     <div className="mt-4 space-y-3">
-      {/* ALWAYS show current card — even if current_value is empty/unparseable */}
+      {/* ALWAYS show current card */}
       <div>
         <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current Search Appearance</div>
         <SearchResultCard
@@ -254,18 +259,19 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
           variant="current"
         />
       </div>
-      {proposed && proposedHasContent && (
-        <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Search Appearance</div>
-          <SearchResultCard
-            title={proposedTitle}
-            titleDimmed={proposedTitleDimmed}
-            description={proposedMeta.description}
-            breadcrumb={breadcrumb}
-            variant="proposed"
-          />
-        </div>
-      )}
+      {/* ALWAYS show proposed card — real content or pending placeholder */}
+      <div>
+        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Search Appearance</div>
+        <SearchResultCard
+          title={proposedTitle}
+          titleDimmed={proposedTitleDimmed}
+          description={proposedDesc}
+          descriptionCarryForward={proposedDescCarryForward}
+          breadcrumb={breadcrumb}
+          variant="proposed"
+          pending={isPending}
+        />
+      </div>
     </div>
   );
 }
@@ -274,19 +280,26 @@ function SearchResultCard({
   title,
   titleDimmed,
   description,
+  descriptionCarryForward,
   breadcrumb,
   variant,
+  pending,
 }: {
   title: string;
   titleDimmed: boolean;
   description: string | null;
+  descriptionCarryForward?: string | null;
   breadcrumb: string;
   variant: "current" | "proposed";
+  pending?: boolean;
 }) {
-  const borderColor = variant === "current" ? "border-l-red-400/30" : "border-l-emerald-400/30";
+  const isCurrent = variant === "current";
+  const borderColor = isCurrent ? "border-l-red-400/30" : "border-l-emerald-400/30";
+  // Pending proposed cards get dashed border to indicate work-in-progress
+  const borderStyle = pending ? "border-dashed border-white/10" : `border-white/[0.06]`;
 
   return (
-    <div className={`bg-white/[0.03] rounded-xl p-4 border border-white/[0.06] border-l-2 ${borderColor}`}>
+    <div className={`bg-white/[0.03] rounded-xl p-4 border border-l-2 ${borderColor} ${borderStyle}`}>
       {/* Title — always rendered, never truncated, wraps naturally */}
       <div
         className={`text-blue-400 text-base font-medium break-words whitespace-normal ${titleDimmed ? "opacity-30" : ""}`}
@@ -294,18 +307,32 @@ function SearchResultCard({
         {title}
       </div>
       <div className="text-emerald-400/60 text-xs mt-1">{breadcrumb}</div>
-      {/* Description handling differs by card variant */}
+      {/* Description — context-dependent rendering */}
       {description ? (
+        /* Real description content */
         <div
           className="text-sm text-white/60 mt-1.5 leading-relaxed"
           style={{ overflowWrap: "anywhere" }}
         >
           {description}
         </div>
-      ) : variant === "current" ? (
-        /* Current card: show explicit "not set" message */
+      ) : descriptionCarryForward ? (
+        /* Proposed card: carry forward current description dimmed (unchanged) */
+        <div
+          className="text-sm text-white/20 mt-1.5 leading-relaxed"
+          style={{ overflowWrap: "anywhere" }}
+        >
+          {descriptionCarryForward}
+        </div>
+      ) : isCurrent ? (
+        /* Current card: explicit "not set" */
         <div className="text-white/20 text-xs mt-1.5 italic">No meta description currently set</div>
-      ) : null /* Proposed card: if no new description, show nothing */}
+      ) : pending ? (
+        /* Proposed card with no content at all: placeholder */
+        <div className="text-white/30 text-sm mt-1.5 italic">
+          We&apos;ll draft an optimized description for this page.
+        </div>
+      ) : null}
     </div>
   );
 }
