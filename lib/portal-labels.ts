@@ -43,14 +43,43 @@ function extractPath(url: string): string {
   }
 }
 
+/**
+ * Extract a readable page name from a URL slug.
+ * "/managed-services-provider-chicago/agent-core-two-factor-authentication/"
+ * → "Two Factor Authentication"
+ * Falls back to cleaned-up last segment or "Homepage" for "/".
+ */
+function extractPageName(url: string): string {
+  try {
+    const pathname = new URL(url).pathname.replace(/\/+$/, '');
+    if (!pathname || pathname === '') return 'Homepage';
+    const segments = pathname.split('/').filter(Boolean);
+    const last = segments[segments.length - 1] || '';
+    // Remove common prefixes/noise words in slugs
+    const cleaned = last
+      .replace(/^(agent-core-|page-|post-)/i, '')
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+    return cleaned || 'Homepage';
+  } catch {
+    return url || 'Page';
+  }
+}
+
 export function getListItemTitle(
   type: string,
   pageUrl: string,
   truncateAt?: number,
-  changeTitle?: string
+  changeTitle?: string,
+  /** If true, return short title with readable page name instead of full path */
+  shortTitle?: boolean
 ): string {
   if (changeTitle?.trim()) return changeTitle.trim();
   const action = ACTION_VERBS[type] || `Update ${type.toLowerCase()}`;
+  if (shortTitle) {
+    const pageName = extractPageName(pageUrl);
+    return `${action} — ${pageName}`;
+  }
   let path = extractPath(pageUrl);
   if (truncateAt && path.length > truncateAt) {
     path = path.slice(0, truncateAt - 3) + "...";

@@ -9,6 +9,7 @@ import {
   getWhyItMatters,
   getDocUrl,
 } from "@/lib/portal-labels";
+import { ChangePreview } from "@/components/portal/ChangePreview";
 import type { Change } from "@/lib/changes";
 
 const CATEGORY_ORDER = ["Technical", "On-Page", "Content", "AI-GEO"];
@@ -492,9 +493,6 @@ function ApprovalMasterDetailInner({
                 const priority = fields.priority;
                 const page_url = fields.page_url;
                 const whyText = getWhyItMatters(fields);
-                const technicalTypes = new Set(['Schema', 'Canonical', 'Alt Text', 'Redirect', 'GEO']);
-                const isTechnicalType = technicalTypes.has(type);
-
                 return <>
               {/* Badges — max 3: category, type (if different from cat), nav page */}
               <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -507,9 +505,9 @@ function ApprovalMasterDetailInner({
                 )}
               </div>
 
-              {/* Title */}
+              {/* Title — short, readable page name */}
               <h2 className="text-xl font-semibold text-white/90 mb-3">
-                {getListItemTitle(type, page_url, undefined, fields.change_title)}
+                {getListItemTitle(type, page_url, undefined, fields.change_title, true)}
               </h2>
 
               {/* URL pill — shows domain + path */}
@@ -517,7 +515,7 @@ function ApprovalMasterDetailInner({
                 href={page_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-400/15 text-violet-300 text-xs font-mono hover:bg-violet-500/15 transition-colors mb-4 max-w-full"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-400/15 text-violet-300 text-xs font-mono hover:bg-violet-500/15 transition-colors mb-5 max-w-full"
               >
                 <span className="truncate">{(() => {
                   try {
@@ -530,42 +528,14 @@ function ApprovalMasterDetailInner({
                 <span className="flex-shrink-0">↗</span>
               </a>
 
-              {/* Metadata line — plain text with dot separators */}
-              <div className="text-xs text-white/40 mb-5">
-                {[
-                  cat,
-                  type !== cat ? type : null,
-                  fields.is_nav_page ? 'Nav page' : null,
-                ].filter(Boolean).join(' · ')}
-              </div>
-
               <div className="space-y-5">
                 {/* What We Recommend */}
                 <div>
                   <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">What We Recommend</h3>
                   <p className="text-sm text-white/70 leading-relaxed">{getWhatWeRecommend(fields)}</p>
 
-                  {/* Current → Proposed comparison — full width, proper wrapping */}
-                  {(fields.current_value?.trim() || fields.proposed_value?.trim()) && (
-                    <div className="mt-4 space-y-3">
-                      {fields.current_value?.trim() && (
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current</div>
-                          <div className={`w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 ${isTechnicalType ? 'font-mono text-white/60 text-xs' : 'text-sm text-white/60'}`} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                            {fields.current_value}
-                          </div>
-                        </div>
-                      )}
-                      {fields.proposed_value?.trim() && (
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed</div>
-                          <div className={`w-full bg-emerald-500/5 border border-emerald-400/10 rounded-xl px-4 py-3 ${isTechnicalType ? 'font-mono text-emerald-300/70 text-xs' : 'text-sm text-emerald-300/80'}`} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                            {fields.proposed_value}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Type-specific visual preview */}
+                  <ChangePreview fields={fields} cat={cat} type={type} />
                 </div>
 
                 {/* View the Draft */}
@@ -576,7 +546,7 @@ function ApprovalMasterDetailInner({
                   </a>
                 )}
 
-                {/* Why It Matters — single text block, no italic, hidden if empty */}
+                {/* Why It Matters — single text block, hidden if empty */}
                 {whyText && (
                   <div>
                     <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">Why It Matters</h3>
