@@ -131,19 +131,38 @@ export function getConfidenceLabel(confidence: string): string {
  * "What We Recommend" — the client-friendly description.
  * Priority: plain_english_explanation > proposed_value (if readable) > type-based fallback
  */
+/**
+ * Detect if a proposed_value is just a flag/awareness note rather than a real rewrite.
+ */
+export function isAwarenessFlag(val: string): boolean {
+  const lower = val.toLowerCase();
+  return (
+    lower.includes("flagged for awareness") ||
+    lower.includes("no rewrite") ||
+    lower.includes("flagged for review") ||
+    lower.includes("no change proposed") ||
+    lower.includes("awareness only") ||
+    lower.includes("no fix proposed")
+  );
+}
+
 export function getWhatWeRecommend(fields: ChangeFields): string {
   // 1. Best: dedicated client-facing field populated by audit agent
   if (fields.plain_english_explanation?.trim()) {
     return fields.plain_english_explanation;
   }
-  // 2. Good: proposed_value if it looks human-readable (not raw HTML/JSON)
+  // 2. Good: proposed_value if it looks human-readable and is a real recommendation (not a flag)
   if (fields.proposed_value?.trim()) {
     const val = fields.proposed_value.trim();
-    if (!val.startsWith("<") && !val.startsWith("{") && val.length > 20) {
+    if (!val.startsWith("<") && !val.startsWith("{") && val.length > 20 && !isAwarenessFlag(val)) {
       return val;
     }
   }
-  // 3. Fallback: type-based generic description
+  // 3. Fallback: if proposed_value is a flag/awareness item, say so honestly
+  if (fields.proposed_value?.trim() && isAwarenessFlag(fields.proposed_value)) {
+    return getAwarenessDescription(fields.type);
+  }
+  // 4. Generic fallback
   return getGenericDescription(fields.type);
 }
 
@@ -225,4 +244,22 @@ const GENERIC_DESCRIPTIONS: Record<string, string> = {
 
 function getGenericDescription(type: string): string {
   return GENERIC_DESCRIPTIONS[type] || "We'll make an optimization to this page to improve its search visibility.";
+}
+
+const AWARENESS_DESCRIPTIONS: Record<string, string> = {
+  "Metadata": "We've identified that this page's metadata could be stronger. We'll prepare an optimized title and description for you to review.",
+  "Heading": "We've flagged a heading issue on this page. We'll prepare a recommended fix for you to review.",
+  "Schema": "We've identified a structured data opportunity on this page. We'll prepare the implementation for you to review.",
+  "Content": "We've flagged content on this page that could be improved. We'll prepare recommendations for you to review.",
+  "FAQ": "We've identified an opportunity to add FAQ content to this page. We'll prepare a draft for you to review.",
+  "Redirect": "We've flagged a URL issue that needs attention. We'll prepare a recommended fix for you to review.",
+  "Internal Link": "We've flagged an internal linking issue on this page. We'll prepare a fix for you to review.",
+  "Canonical": "We've flagged a duplicate page signal that needs attention. We'll prepare a recommended fix for you to review.",
+  "GEO": "We've identified an AI search visibility opportunity on this page. We'll prepare recommendations for you to review.",
+  "Alt Text": "We've flagged images on this page that need descriptive text. We'll prepare alt text for you to review.",
+  "Removal": "We've flagged content that may be hurting your search rankings. We'll prepare a recommendation for you to review.",
+};
+
+function getAwarenessDescription(type: string): string {
+  return AWARENESS_DESCRIPTIONS[type] || "We've identified an issue on this page and will prepare a recommendation for you to review.";
 }

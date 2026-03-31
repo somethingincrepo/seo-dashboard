@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChangeFields } from "@/lib/changes";
+import { isAwarenessFlag } from "@/lib/portal-labels";
 
 /**
  * ChangePreview — renders type-appropriate visual previews for the detail panel.
@@ -31,18 +32,21 @@ export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
 
   if (!current && !proposed) return null;
 
+  // Filter out awareness flags from proposed — they aren't real rewrites
+  const effectiveProposed = proposed && !isAwarenessFlag(proposed) ? proposed : "";
+
   // Route to the correct preview renderer
   if (cat === "On-Page" && type === "Metadata") {
-    return <MetadataPreview current={current} proposed={proposed} pageUrl={fields.page_url} />;
+    return <MetadataPreview current={current} proposed={effectiveProposed} pageUrl={fields.page_url} />;
   }
   if (cat === "Technical") {
-    return <TechnicalPreview current={current} proposed={proposed} />;
+    return <TechnicalPreview current={current} proposed={effectiveProposed} />;
   }
   if (cat === "AI-GEO") {
-    return <GeoPreview current={current} proposed={proposed} />;
+    return <GeoPreview current={current} proposed={effectiveProposed} />;
   }
   // On-Page (non-metadata) and Content both use element comparison
-  return <ElementPreview current={current} proposed={proposed} type={type} />;
+  return <ElementPreview current={current} proposed={effectiveProposed} type={type} />;
 }
 
 // ─── Metadata: Google Search Result Preview ────────────────────
@@ -100,6 +104,8 @@ function MetadataPreview({
   const currentMeta = parseMetadataFields(current);
   const proposedMeta = parseMetadataFields(proposed);
   const breadcrumb = buildBreadcrumb(pageUrl);
+  const proposedIsFlag = proposed ? isAwarenessFlag(proposed) : false;
+  const proposedHasContent = proposedMeta.title || proposedMeta.description;
 
   return (
     <div className="mt-4 space-y-3">
@@ -116,7 +122,7 @@ function MetadataPreview({
           />
         </div>
       )}
-      {proposed && (
+      {proposed && !proposedIsFlag && proposedHasContent && (
         <div>
           <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">
             Proposed Search Appearance
