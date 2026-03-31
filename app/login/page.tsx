@@ -1,6 +1,12 @@
 import { login } from "@/app/actions/auth";
 
-export default function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="glass rounded-2xl p-10 w-full max-w-sm text-center">
@@ -26,15 +32,10 @@ export default function LoginPage({ searchParams }: { searchParams: Promise<{ er
           </button>
         </form>
 
-        {/* Error shown via React Suspense to read searchParams */}
-        <ErrorMessage searchParams={searchParams} />
+        {error && (
+          <p className="mt-4 text-red-400 text-sm">Incorrect password.</p>
+        )}
       </div>
     </div>
   );
-}
-
-async function ErrorMessage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const params = await searchParams;
-  if (!params.error) return null;
-  return <p className="mt-4 text-red-400 text-sm">Incorrect password.</p>;
 }
