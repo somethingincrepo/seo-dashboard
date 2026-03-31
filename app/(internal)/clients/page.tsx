@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getClients } from "@/lib/clients";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { CopyButton } from "@/components/ui/CopyButton";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,6 @@ function PipelineBar({ status }: { status: string }) {
   const pct = idx < 0 ? 0 : Math.round(((idx + 1) / PIPELINE_STAGES.length) * 100);
   return (
     <div className="mt-3">
-      <div className="flex justify-between text-xs text-white/30 mb-1">
-        <span>Pipeline</span>
-        <span>{pct}%</span>
-      </div>
       <div className="h-1 rounded-full bg-white/10 overflow-hidden">
         <div
           className="h-full rounded-full bg-gradient-to-r from-violet-500 to-teal-500 transition-all"
@@ -35,38 +32,67 @@ function PipelineBar({ status }: { status: string }) {
 
 export default async function ClientsPage() {
   const clients = await getClients();
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://seo-dashboard-1gdt74e5t-reporting-9449s-projects.vercel.app";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Clients</h1>
-        <p className="text-white/40 text-sm mt-1">{clients.length} clients total</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Clients</h1>
+          <p className="text-white/40 text-sm mt-1">{clients.length} clients</p>
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {clients.map((client) => (
-          <Link key={client.id} href={`/clients/${client.id}`}>
-            <GlassCard hover className="p-5 h-full">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="font-semibold text-sm leading-tight">{client.fields.company_name}</div>
-                <StatusBadge value={client.fields.plan_status || "form_submitted"} variant="plan_status" />
-              </div>
-              <div className="text-white/35 text-xs truncate">{client.fields.site_url}</div>
-              <div className="text-white/25 text-xs mt-1">{client.fields.cms}</div>
-              <PipelineBar status={client.fields.plan_status} />
-              {client.fields.portal_token && (
-                <div className="mt-3 text-xs text-white/20">
-                  Portal: /portal/{client.fields.portal_token.slice(0, 8)}…
-                </div>
-              )}
-            </GlassCard>
-          </Link>
-        ))}
-        {clients.length === 0 && (
-          <div className="col-span-3 text-center py-16 text-white/30 text-sm">
-            No clients yet. Add clients to Airtable to get started.
+      {clients.length === 0 && (
+        <GlassCard className="p-12 text-center">
+          <div className="text-white/30 text-sm">
+            No clients yet. Add clients to your Airtable Clients table to get started.
           </div>
-        )}
+        </GlassCard>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {clients.map((client) => {
+          const portalUrl = client.fields.portal_token
+            ? `${baseUrl}/portal/${client.fields.portal_token}`
+            : null;
+
+          return (
+            <GlassCard key={client.id} className="p-5">
+              {/* Header row */}
+              <Link href={`/clients/${client.id}`} className="block mb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-semibold text-sm leading-tight hover:text-violet-300 transition-colors">
+                    {client.fields.company_name}
+                  </div>
+                  <StatusBadge value={client.fields.plan_status || "form_submitted"} variant="plan_status" />
+                </div>
+                <div className="text-white/35 text-xs mt-1 truncate">{client.fields.site_url}</div>
+                <div className="text-white/25 text-xs">{client.fields.cms}</div>
+                <PipelineBar status={client.fields.plan_status} />
+              </Link>
+
+              {/* Portal link row */}
+              <div className="pt-3 border-t border-white/8">
+                {portalUrl ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/30 flex-1 truncate font-mono">
+                      /portal/{client.fields.portal_token?.slice(0, 12)}…
+                    </span>
+                    <CopyButton value={portalUrl} label="Copy portal link" />
+                  </div>
+                ) : (
+                  <Link
+                    href={`/clients/${client.id}`}
+                    className="text-xs text-amber-400/70 hover:text-amber-300 transition-colors"
+                  >
+                    ⚠ No portal token — click to generate
+                  </Link>
+                )}
+              </div>
+            </GlassCard>
+          );
+        })}
       </div>
     </div>
   );
