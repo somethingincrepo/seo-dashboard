@@ -29,17 +29,20 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://seo-dashboard-teal-phi.vercel.app";
 
-  const [client, jobs, changes, reports] = await Promise.all([
-    getClient(id),
-    getClientJobs(id),
-    getClientChanges(id),
-    getClientReports(id),
-  ]);
-
+  // Fetch client first to get client_id slug
+  const client = await getClient(id);
   if (!client) notFound();
 
   const f = client.fields;
+  const clientId = f.client_id || id;
   const portalUrl = f.portal_token ? `${baseUrl}/portal/${f.portal_token}` : null;
+
+  // Fetch data using client_id slug
+  const [changes, reports, jobs] = await Promise.all([
+    getClientChanges(clientId),
+    getClientReports(clientId),
+    getClientJobs(clientId),
+  ]);
 
   // Split changes by approval state
   const pending = changes.filter((c) => c.fields.approval === "pending" || c.fields.approval_status === "pending");

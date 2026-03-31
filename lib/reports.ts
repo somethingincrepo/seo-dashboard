@@ -22,9 +22,9 @@ export type Report = AirtableRecord<ReportFields>;
 
 const TABLE = "Reports";
 
-export async function getClientReports(clientRecordId: string): Promise<Report[]> {
+export async function getClientReports(clientId: string): Promise<Report[]> {
   return airtableFetch<Report>(TABLE, {
-    filterByFormula: `FIND("${clientRecordId}",ARRAYJOIN({client_id}))`,
+    filterByFormula: `FIND("${clientId}",ARRAYJOIN({client_id}))`,
     sort: [{ field: "sent_at", direction: "desc" }],
   });
 }

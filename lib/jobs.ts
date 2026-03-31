@@ -28,9 +28,9 @@ export async function getJobs(limit = 50): Promise<Job[]> {
   });
 }
 
-export async function getClientJobs(clientRecordId: string): Promise<Job[]> {
+export async function getClientJobs(clientId: string): Promise<Job[]> {
   return airtableFetch<Job>(TABLE, {
-    filterByFormula: `FIND("${clientRecordId}", ARRAYJOIN({client_id}))`,
+    filterByFormula: `FIND("${clientId}", ARRAYJOIN({client_id}))`,
     sort: [{ field: "started_at", direction: "desc" }],
   });
 }

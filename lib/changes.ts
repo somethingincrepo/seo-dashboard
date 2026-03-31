@@ -31,10 +31,9 @@ export type Change = AirtableRecord<ChangeFields>;
 
 const TABLE = "Changes";
 
-export async function getPendingApprovals(clientRecordId?: string): Promise<Change[]> {
-  // Try both old (approval_status) and new (approval) field names
-  const filter = clientRecordId
-    ? `AND(OR({approval}="pending",{approval_status}="pending"),FIND("${clientRecordId}",ARRAYJOIN({client_id})))`
+export async function getPendingApprovals(clientId?: string): Promise<Change[]> {
+  const filter = clientId
+    ? `AND(OR({approval}="pending",{approval_status}="pending"),FIND("${clientId}",ARRAYJOIN({client_id})))`
     : `OR({approval}="pending",{approval_status}="pending")`;
   return airtableFetch<Change>(TABLE, {
     filterByFormula: filter,
@@ -42,9 +41,9 @@ export async function getPendingApprovals(clientRecordId?: string): Promise<Chan
   });
 }
 
-export async function getClientChanges(clientRecordId: string): Promise<Change[]> {
+export async function getClientChanges(clientId: string): Promise<Change[]> {
   return airtableFetch<Change>(TABLE, {
-    filterByFormula: `FIND("${clientRecordId}",ARRAYJOIN({client_id}))`,
+    filterByFormula: `FIND("${clientId}",ARRAYJOIN({client_id}))`,
   });
 }
 
@@ -55,7 +54,7 @@ export async function updateApproval(
 ): Promise<void> {
   const fields: Record<string, unknown> = {
     approval: decision,
-    approval_status: decision,  // update both fields
+    approval_status: decision,  // update both fields for compatibility
   };
   if (notes) fields.client_notes = notes;
   if (decision === "approved") fields.approved_at = new Date().toISOString();
