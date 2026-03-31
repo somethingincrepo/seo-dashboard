@@ -1,5 +1,14 @@
 const BASE_URL = "https://api.airtable.com/v0";
 
+type SortItem = { field: string; direction?: "asc" | "desc" };
+
+export type AirtableParams = {
+  filterByFormula?: string;
+  maxRecords?: number;
+  sort?: SortItem[];
+  view?: string;
+};
+
 function getHeaders() {
   if (!process.env.AIRTABLE_API_KEY) {
     throw new Error("AIRTABLE_API_KEY is not set");
@@ -10,28 +19,46 @@ function getHeaders() {
   };
 }
 
-export async function airtableFetch<T>(
-  tableId: string,
-  params?: Record<string, string>
-): Promise<T[]> {
+function buildUrl(tableId: string, params?: AirtableParams, offset?: string): string {
   const baseId = process.env.AIRTABLE_BASE_ID;
   const url = new URL(`${BASE_URL}/${baseId}/${tableId}`);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  }
 
+  if (params?.filterByFormula) {
+    url.searchParams.set("filterByFormula", params.filterByFormula);
+  }
+  if (params?.maxRecords) {
+    url.searchParams.set("maxRecords", String(params.maxRecords));
+  }
+  if (params?.view) {
+    url.searchParams.set("view", params.view);
+  }
+  if (params?.sort) {
+    params.sort.forEach((s, i) => {
+      url.searchParams.set(`sort[${i}][field]`, s.field);
+      url.searchParams.set(`sort[${i}][direction]`, s.direction ?? "asc");
+    });
+  }
+  if (offset) {
+    url.searchParams.set("offset", offset);
+  }
+  return url.toString();
+}
+
+export async function airtableFetch<T>(
+  tableId: string,
+  params?: AirtableParams
+): Promise<T[]> {
   const records: T[] = [];
   let offset: string | undefined;
 
   do {
-    if (offset) url.searchParams.set("offset", offset);
-    const res = await fetch(url.toString(), {
+    const res = await fetch(buildUrl(tableId, params, offset), {
       headers: getHeaders(),
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
     if (!res.ok) {
       const err = await res.text();
-      throw new Error(`Airtable error ${res.status}: ${err}`);
+      throw new Error(`Airtable ${res.status}: ${err}`);
     }
     const data = await res.json();
     records.push(...(data.records as T[]));

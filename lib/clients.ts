@@ -7,7 +7,8 @@ export type ClientFields = {
   company_name: string;
   site_url: string;
   cms: string;
-  plan_status: string;
+  plan_status: string;   // pipeline status field
+  status: string;        // also present, may overlap
   contact_name: string;
   contact_email: string;
   sheet_id: string;
@@ -23,11 +24,11 @@ export type ClientFields = {
 
 export type Client = AirtableRecord<ClientFields>;
 
-const TABLE = process.env.AIRTABLE_CLIENTS_TABLE || "Clients";
+const TABLE = "Clients";
 
 export async function getClients(): Promise<Client[]> {
   return airtableFetch<Client>(TABLE, {
-    sort: JSON.stringify([{ field: "company_name", direction: "asc" }]),
+    sort: [{ field: "company_name", direction: "asc" }],
   });
 }
 
@@ -41,13 +42,6 @@ export async function getClient(recordId: string): Promise<Client | null> {
 export async function getClientByToken(token: string): Promise<Client | null> {
   const clients = await airtableFetch<Client>(TABLE, {
     filterByFormula: `{portal_token}="${token}"`,
-  });
-  return clients[0] ?? null;
-}
-
-export async function getClientByClientId(clientId: string): Promise<Client | null> {
-  const clients = await airtableFetch<Client>(TABLE, {
-    filterByFormula: `{client_id}="${clientId}"`,
   });
   return clients[0] ?? null;
 }

@@ -2,9 +2,9 @@ import { airtableFetch } from "./airtable";
 import type { AirtableRecord } from "./clients";
 
 export type ReportFields = {
-  report_id: number;
-  client_id: string[];
-  month: number;
+  report_id: string;
+  client_id: string;
+  month: string;
   pdf_url: string;
   sent_at: string;
   changes_made: number;
@@ -20,18 +20,18 @@ export type ReportFields = {
 
 export type Report = AirtableRecord<ReportFields>;
 
-const TABLE = process.env.AIRTABLE_REPORTS_TABLE || "Reports";
+const TABLE = "Reports";
 
 export async function getClientReports(clientRecordId: string): Promise<Report[]> {
   return airtableFetch<Report>(TABLE, {
     filterByFormula: `FIND("${clientRecordId}",ARRAYJOIN({client_id}))`,
-    sort: JSON.stringify([{ field: "month", direction: "desc" }]),
+    sort: [{ field: "sent_at", direction: "desc" }],
   });
 }
 
 export async function getAllReports(): Promise<Report[]> {
   return airtableFetch<Report>(TABLE, {
-    sort: JSON.stringify([{ field: "sent_at", direction: "desc" }]),
-    maxRecords: "100",
+    sort: [{ field: "sent_at", direction: "desc" }],
+    maxRecords: 100,
   });
 }

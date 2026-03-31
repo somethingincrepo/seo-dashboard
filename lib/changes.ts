@@ -2,18 +2,21 @@ import { airtableFetch, airtablePatch } from "./airtable";
 import type { AirtableRecord } from "./clients";
 
 export type ChangeFields = {
-  change_id: number;
-  client_id: string[];
-  type: string;
-  cat: string;
+  change_id: string;
+  client_id: string;
+  change_type: string;  // old field name
+  type: string;         // new field name
+  category: string;     // old field name
+  cat: string;          // new field name
   page_url: string;
   current_value: string;
   proposed_value: string;
-  approval: string;
+  approval_status: string;  // old field name
+  approval: string;         // new field name
   execution_status: string;
   implementation_tier: string;
   confidence: string;
-  priority: number;
+  priority: string;
   reasoning: string;
   is_nav_page: boolean;
   doc_url: string;
@@ -21,27 +24,27 @@ export type ChangeFields = {
   identified_at: string;
   approved_at: string;
   implemented_at: string;
-  job_id: string[];
+  job_id: string;
 };
 
 export type Change = AirtableRecord<ChangeFields>;
 
-const TABLE = process.env.AIRTABLE_CHANGES_TABLE || "Changes";
+const TABLE = "Changes";
 
 export async function getPendingApprovals(clientRecordId?: string): Promise<Change[]> {
+  // Try both old (approval_status) and new (approval) field names
   const filter = clientRecordId
-    ? `AND({approval}="pending",FIND("${clientRecordId}",ARRAYJOIN({client_id})))`
-    : `{approval}="pending"`;
+    ? `AND(OR({approval}="pending",{approval_status}="pending"),FIND("${clientRecordId}",ARRAYJOIN({client_id})))`
+    : `OR({approval}="pending",{approval_status}="pending")`;
   return airtableFetch<Change>(TABLE, {
     filterByFormula: filter,
-    sort: JSON.stringify([{ field: "priority", direction: "desc" }]),
+    sort: [{ field: "confidence", direction: "desc" }],
   });
 }
 
 export async function getClientChanges(clientRecordId: string): Promise<Change[]> {
   return airtableFetch<Change>(TABLE, {
     filterByFormula: `FIND("${clientRecordId}",ARRAYJOIN({client_id}))`,
-    sort: JSON.stringify([{ field: "priority", direction: "desc" }]),
   });
 }
 
@@ -50,7 +53,10 @@ export async function updateApproval(
   decision: "approved" | "skipped" | "question",
   notes?: string
 ): Promise<void> {
-  const fields: Record<string, unknown> = { approval: decision };
+  const fields: Record<string, unknown> = {
+    approval: decision,
+    approval_status: decision,  // update both fields
+  };
   if (notes) fields.client_notes = notes;
   if (decision === "approved") fields.approved_at = new Date().toISOString();
   await airtablePatch(TABLE, recordId, fields);

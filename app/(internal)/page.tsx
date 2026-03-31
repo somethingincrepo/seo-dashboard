@@ -70,7 +70,7 @@ export default async function HomePage() {
               <div key={job.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">
-                    {job.fields.type?.replace(/_/g, " ")}
+                    {(job.fields.job_type || job.fields.type)?.replace(/_/g, " ")}
                   </div>
                   <div className="text-white/30 text-xs mt-0.5">
                     {job.fields.started_at
@@ -78,7 +78,7 @@ export default async function HomePage() {
                       : "Queued"}
                   </div>
                 </div>
-                <StatusBadge value={job.fields.job_status} variant="job_status" />
+                <StatusBadge value={job.fields.job_status || job.fields.status || "queued"} variant="job_status" />
               </div>
             ))}
           </div>
