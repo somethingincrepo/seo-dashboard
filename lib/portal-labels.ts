@@ -15,6 +15,7 @@ const CHANGE_TITLES: Record<string, string> = {
   "GEO": "Optimize for AI search engines",
   "Alt Text": "Add image descriptions",
   "Removal": "Remove outdated content",
+  "Technical": "Fix technical SEO issue",
 };
 
 export function getChangeTitle(type: string, pageUrl: string): string {
@@ -33,6 +34,7 @@ const ACTION_VERBS: Record<string, string> = {
   "GEO": "Optimize for AI search",
   "Alt Text": "Add image alt text",
   "Removal": "Remove content",
+  "Technical": "Fix technical issue",
 };
 
 function extractPath(url: string): string {
@@ -133,6 +135,7 @@ export function getImpactLabel(type: string): string {
     "Heading": "Visible content change",
     "FAQ": "Visible content change",
     "Internal Link": "Visible content change",
+    "Technical": "No visual change",
   };
   return map[type] || "SEO improvement";
 }
@@ -172,6 +175,9 @@ export function getConfidenceLabel(confidence: string): string {
  */
 export function isInstruction(type: string, value: string): boolean {
   if (!value) return false;
+  // llms.txt and robots.txt proposed values are full file contents, not instructions
+  if (value.trim().startsWith('#') && (value.includes('llms.txt') || value.includes('User-agent'))) return false;
+  if (value.trim().startsWith('User-agent:')) return false;
   return /^(update|add|fix|change|replace|remove|complete|rewrite|optimize|include)\b/i.test(
     value.trim()
   );
@@ -204,6 +210,17 @@ export function getWhatWeRecommend(fields: ChangeFields): string {
   // 2. For metadata: generate a specific description based on what's changing
   if (type === "Metadata") {
     return getMetadataRecommendation(fields.current_value, fields.proposed_value);
+  }
+  // 2b. For GEO/Technical: detect llms.txt and robots.txt findings
+  if (type === "GEO" || type === "Technical") {
+    const pageUrl = (fields as unknown as Record<string, string>).page_url || "";
+    const currentVal = fields.current_value || "";
+    if (pageUrl.includes("llms.txt") || currentVal.includes("llms.txt")) {
+      return getLlmsTxtRecommendation(currentVal);
+    }
+    if (pageUrl.includes("robots.txt") || currentVal.includes("robots.txt")) {
+      return getRobotsTxtRecommendation(currentVal, fields.proposed_value);
+    }
   }
   // 3. For content: check if the plain_english is a generic template and override
   if (type === "Content" && isGenericPlainEnglish(fields.plain_english_explanation)) {
@@ -383,6 +400,8 @@ function getSpecificWhyItMatters(type: string, fields: ChangeFields): string {
       return "Duplicate page signals confuse search engines about which version of a page to rank. Fixing canonicals consolidates your search authority onto the right URLs.";
     case "Internal Link":
       return "Internal links help search engines discover your important pages and understand how your content is organized. Better linking spreads ranking authority to the pages that matter most.";
+    case "Technical":
+      return "Technical SEO issues can quietly hold back your entire site. Fixing these ensures search engines can properly crawl, index, and rank all your important pages.";
     default:
       return "";
   }
@@ -441,6 +460,7 @@ const GENERIC_DESCRIPTIONS: Record<string, string> = {
   "GEO": "We'll optimize this page so your brand appears when people use AI assistants like ChatGPT or Perplexity to research solutions.",
   "Alt Text": "We'll add descriptive text to images on this page, improving accessibility and helping search engines understand your visuals.",
   "Removal": "We'll remove outdated content that may be hurting your search rankings.",
+  "Technical": "We'll fix a technical issue that's preventing search engines from properly crawling or indexing this part of your site.",
 };
 
 function getGenericDescription(type: string): string {
@@ -459,8 +479,32 @@ const AWARENESS_DESCRIPTIONS: Record<string, string> = {
   "GEO": "We've identified an AI search visibility opportunity on this page. We'll prepare recommendations for you to review.",
   "Alt Text": "We've flagged images on this page that need descriptive text. We'll prepare alt text for you to review.",
   "Removal": "We've flagged content that may be hurting your search rankings. We'll prepare a recommendation for you to review.",
+  "Technical": "We've flagged a technical issue that may be affecting how search engines access your site. We'll prepare a recommended fix for you to review.",
 };
 
 function getAwarenessDescription(type: string): string {
   return AWARENESS_DESCRIPTIONS[type] || "We've identified an issue on this page and will prepare a recommendation for you to review.";
+}
+
+// ─── llms.txt & robots.txt Helpers ─────────────────────────────
+
+function getLlmsTxtRecommendation(currentValue: string): string {
+  if (currentValue.includes("404") || currentValue.includes("does not exist")) {
+    return "Your site doesn't have an llms.txt file — this is a simple text file that helps AI assistants like ChatGPT, Perplexity, and Google's AI Overviews understand what your business does and which pages are most important. We'll create one using your actual services and key pages so AI tools can recommend you more accurately.";
+  }
+  return "Your llms.txt file exists but needs updating — it's missing key services or pages that AI assistants should know about. We'll update it to accurately reflect your full business so AI tools have the best possible picture of what you offer.";
+}
+
+function getRobotsTxtRecommendation(currentValue: string, proposedValue?: string): string {
+  if (currentValue.includes("404") || currentValue.includes("does not exist")) {
+    return "Your site is missing a robots.txt file — this tells search engines which parts of your site to crawl and where to find your sitemap. Without it, search engines have to guess. We'll create one with the right rules for your site.";
+  }
+  const proposed = proposedValue?.toLowerCase() || "";
+  if (proposed.includes("sitemap")) {
+    return "Your robots.txt file doesn't include a link to your sitemap. Adding a Sitemap directive helps Google discover all your pages faster — it's like handing Google a map instead of making it find everything on its own.";
+  }
+  if (currentValue.toLowerCase().includes("disallow") && proposed.includes("allow")) {
+    return "Your robots.txt file is currently blocking search engines from crawling some of your important pages. We'll update the rules so Google can access and index all the pages that should be appearing in search results.";
+  }
+  return "Your robots.txt file needs adjustments to make sure search engines are crawling your site correctly. We'll update the rules to match your current site structure.";
 }
