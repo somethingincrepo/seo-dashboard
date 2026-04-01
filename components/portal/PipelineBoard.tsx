@@ -97,10 +97,6 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
     },
   ];
 
-  const tier1Pending = columns[0].items.filter(
-    (c) => c.fields.implementation_tier === "tier_1"
-  );
-
   function extractPath(url: string): string {
     try {
       return new URL(url).pathname;
@@ -179,15 +175,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
               )}
 
               {col.key === "pending" && col.items.length > 0 && (
-                <div className="mt-auto pt-3 border-t border-white/[0.06] space-y-2">
-                  {tier1Pending.length > 0 && (
-                    <Link
-                      href={`/portal/${token}/approvals`}
-                      className="block text-xs py-2 px-3 rounded-lg bg-emerald-500/15 border border-emerald-400/15 text-emerald-300/70 hover:bg-emerald-500/25 hover:text-emerald-300 transition-all duration-150 w-full text-center"
-                    >
-                      Approve {tier1Pending.length} Quick Win{tier1Pending.length !== 1 ? "s" : ""}
-                    </Link>
-                  )}
+                <div className="mt-auto pt-3 border-t border-white/[0.06]">
                   <Link
                     href={`/portal/${token}/approvals`}
                     className="block text-xs text-violet-400/70 hover:text-violet-400 transition-colors duration-150"

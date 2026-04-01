@@ -35,10 +35,6 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   const implementedCount = allChanges.filter(
     (c) => c.fields.execution_status === "complete" || !!c.fields.implemented_at
   ).length;
-  const tier1Ids = pending
-    .filter((c) => c.fields.implementation_tier === "tier_1")
-    .map((c) => c.id);
-  const tier1Count = tier1Ids.length;
 
   return (
     <div className="space-y-10">
@@ -57,8 +53,6 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
         pendingCount={pendingCount}
         approvedCount={approvedCount}
         implementedCount={implementedCount}
-        tier1Count={tier1Count}
-        tier1Ids={tier1Ids}
         token={token}
         contactName={contactName}
         status={status}

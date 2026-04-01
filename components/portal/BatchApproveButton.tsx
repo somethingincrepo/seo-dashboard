@@ -14,7 +14,7 @@ export function BatchApproveButton({ recordIds, token, label }: BatchApproveButt
   const router = useRouter();
 
   async function handleApproveAll() {
-    if (!confirm(`Approve all ${recordIds.length} quick wins? These are safe, no-design-impact changes.`)) return;
+    if (!confirm(`Approve all ${recordIds.length} changes?`)) return;
     setState("running");
     setProgress(0);
     for (let i = 0; i < recordIds.length; i++) {
@@ -40,7 +40,7 @@ export function BatchApproveButton({ recordIds, token, label }: BatchApproveButt
       {state === "idle" && (
         <>
           <span>✓</span>
-          <span>{label ?? `Approve all ${recordIds.length} quick wins`}</span>
+          <span>{label ?? `Approve all ${recordIds.length}`}</span>
         </>
       )}
       {state === "running" && (

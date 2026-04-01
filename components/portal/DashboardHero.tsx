@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { BatchApproveButton } from "./BatchApproveButton";
 import type { Report } from "@/lib/reports";
 
 interface DashboardHeroProps {
   pendingCount: number;
   approvedCount: number;
   implementedCount: number;
-  tier1Count: number;
-  tier1Ids: string[];
   token: string;
   contactName: string;
   status: string;
@@ -20,8 +17,6 @@ export function DashboardHero({
   pendingCount,
   approvedCount,
   implementedCount,
-  tier1Count,
-  tier1Ids,
   token,
   contactName,
   status,
@@ -39,7 +34,7 @@ export function DashboardHero({
         </h2>
         <p className="text-sm text-white/50 leading-relaxed mt-2 max-w-xl">
           We've completed your site audit and found {pendingCount + approvedCount + implementedCount} opportunities
-          to improve your search visibility. {tier1Count > 0 ? `${tier1Count} of these are quick wins that won't change anything visible on your site.` : ""}
+          to improve your search visibility.
         </p>
         <div className="flex items-center gap-3 mt-6">
           <Link
@@ -48,13 +43,6 @@ export function DashboardHero({
           >
             Review Recommendations →
           </Link>
-          {tier1Count > 0 && (
-            <BatchApproveButton
-              recordIds={tier1Ids}
-              token={token}
-              label={`Approve ${tier1Count} Quick Win${tier1Count !== 1 ? "s" : ""}`}
-            />
-          )}
         </div>
         {latestReport && (
           <p className="text-xs text-white/25 mt-4">

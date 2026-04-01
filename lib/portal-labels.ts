@@ -150,7 +150,7 @@ export const CATEGORY_EXPLANATIONS: Record<string, string> = {
   "AI-GEO": "AI search optimization helps your brand appear when people use AI assistants like ChatGPT, Perplexity, or Google AI Overviews to research solutions.",
 };
 
-export const QUICK_WIN_EXPLANATION = "Quick wins are safe changes with no visual impact on your site. They improve technical SEO signals without changing anything your visitors see.";
+// Tier 1 explanation for clients
 
 export function getConfidenceLabel(confidence: string): string {
   const map: Record<string, string> = { "High": "High confidence", "Medium": "Medium confidence", "Low": "Lower confidence" };
