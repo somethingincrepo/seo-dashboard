@@ -134,15 +134,32 @@ export function getConfidenceLabel(confidence: string): string {
 /**
  * Detect if a proposed_value is just a flag/awareness note rather than a real rewrite.
  */
+/**
+ * Detect if a proposed_value is a direction/instruction rather than final copy.
+ * Used for labeling ("Proposed Direction" vs "Proposed Search Appearance"),
+ * NOT for hiding content.
+ */
+export function isInstruction(type: string, value: string): boolean {
+  if (!value) return false;
+  return /^(update|add|fix|change|replace|remove|complete|rewrite|optimize|include)\b/i.test(
+    value.trim()
+  );
+}
+
 export function isAwarenessFlag(val: string): boolean {
-  const lower = val.toLowerCase();
+  if (!val || val.trim().length === 0) return true;
+  const lower = val.trim().toLowerCase();
   return (
-    lower.includes("flagged for awareness") ||
-    lower.includes("no rewrite") ||
-    lower.includes("flagged for review") ||
-    lower.includes("no change proposed") ||
-    lower.includes("awareness only") ||
-    lower.includes("no fix proposed")
+    lower.startsWith("(no rewrite") ||
+    lower.startsWith("no rewrite") ||
+    lower.startsWith("flagged for") ||
+    lower === "tbd" ||
+    lower === "n/a" ||
+    lower === "none" ||
+    lower.startsWith("review needed") ||
+    lower.startsWith("no change proposed") ||
+    lower.startsWith("no fix proposed") ||
+    lower.startsWith("awareness only")
   );
 }
 
