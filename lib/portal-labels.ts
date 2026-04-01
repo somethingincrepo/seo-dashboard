@@ -1,5 +1,41 @@
 import type { ChangeFields } from "./changes";
 
+// ─── Case Normalization ────────────────────────────────────────
+// Agents sometimes write lowercase (e.g. "heading", "on-page", "geo").
+// Normalize to canonical Title Case before any lookup so nothing breaks.
+
+const TYPE_CASE_MAP: Record<string, string> = {
+  "metadata": "Metadata",
+  "heading": "Heading",
+  "schema": "Schema",
+  "content": "Content",
+  "faq": "FAQ",
+  "redirect": "Redirect",
+  "internal link": "Internal Link",
+  "canonical": "Canonical",
+  "geo": "GEO",
+  "alt text": "Alt Text",
+  "removal": "Removal",
+  "technical": "Technical",
+};
+
+const CAT_CASE_MAP: Record<string, string> = {
+  "technical": "Technical",
+  "on-page": "On-Page",
+  "content": "Content",
+  "ai-geo": "AI-GEO",
+};
+
+export function normalizeType(raw?: string): string {
+  if (!raw) return "";
+  return TYPE_CASE_MAP[raw.toLowerCase()] ?? raw;
+}
+
+export function normalizeCat(raw?: string): string {
+  if (!raw) return "";
+  return CAT_CASE_MAP[raw.toLowerCase()] ?? raw;
+}
+
 // ─── Change Type Display ───────────────────────────────────────
 // Maps Airtable `type` field to human-readable UI strings
 
@@ -104,9 +140,10 @@ export function getListItemTitle(
   fields?: { current_value?: string; proposed_value?: string }
 ): string {
   if (changeTitle?.trim()) return changeTitle.trim();
-  let action = ACTION_VERBS[type] || `Update ${type.toLowerCase()}`;
+  const normalizedType = normalizeType(type);
+  let action = ACTION_VERBS[normalizedType] || `Update ${normalizedType.toLowerCase()}`;
   // For metadata, detect title vs description vs both
-  if (type === "Metadata" && fields) {
+  if (normalizedType === "Metadata" && fields) {
     action = getMetadataAction(fields.current_value, fields.proposed_value);
   }
   if (shortTitle) {
@@ -205,7 +242,7 @@ export function getWhatWeRecommend(fields: ChangeFields): string {
   if (fields.plain_english_explanation?.trim()) {
     return fields.plain_english_explanation;
   }
-  const type = fields.type || fields.change_type;
+  const type = normalizeType(fields.type || fields.change_type);
 
   // 2. For metadata: generate a specific description based on what's changing
   if (type === "Metadata") {
@@ -346,7 +383,7 @@ function isGenericWhyItMatters(text: string): boolean {
 }
 
 export function getWhyItMatters(fields: ChangeFields): string {
-  const type = fields.type || fields.change_type;
+  const type = normalizeType(fields.type || fields.change_type);
 
   // 1. Best: dedicated business impact field — but only if it's not a generic template
   if (fields.business_impact_explanation?.trim() && !isGenericWhyItMatters(fields.business_impact_explanation)) {

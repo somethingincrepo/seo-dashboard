@@ -8,6 +8,8 @@ import {
   getWhatWeRecommend,
   getWhyItMatters,
   getDocUrl,
+  normalizeType,
+  normalizeCat,
 } from "@/lib/portal-labels";
 import { ChangePreview } from "@/components/portal/ChangePreview";
 import { useApprovalActions } from "./useApprovalActions";
@@ -143,10 +145,10 @@ function ApprovalMasterDetailInner({
     : decidedChanges.filter((c) => c.fields.priority === priorityFilter);
 
   const effectivePending = categoryFilter
-    ? pendingByPriority.filter((c) => (c.fields.cat || c.fields.category) === categoryFilter)
+    ? pendingByPriority.filter((c) => normalizeCat(c.fields.cat || c.fields.category) === categoryFilter)
     : pendingByPriority;
   const effectiveDecided = categoryFilter
-    ? decidedByPriority.filter((c) => (c.fields.cat || c.fields.category) === categoryFilter)
+    ? decidedByPriority.filter((c) => normalizeCat(c.fields.cat || c.fields.category) === categoryFilter)
     : decidedByPriority;
 
   const effectivePendingRef = useRef(effectivePending);
@@ -156,7 +158,7 @@ function ApprovalMasterDetailInner({
 
   const grouped: Record<string, Change[]> = {};
   for (const c of activeChanges) {
-    const cat = c.fields.cat || c.fields.category || "Other";
+    const cat = normalizeCat(c.fields.cat || c.fields.category) || "Other";
     const mapped = getEffectiveChange(c);
     if (!grouped[cat]) grouped[cat] = [];
     grouped[cat].push(mapped);
@@ -197,7 +199,7 @@ function ApprovalMasterDetailInner({
     catChanges.map((change) => {
       const approval = getApprovalStatus(change);
       const isSelected = selectedChangeId === change.id;
-      const changeType = change.fields.type || change.fields.change_type;
+      const changeType = normalizeType(change.fields.type || change.fields.change_type);
       const isDecided = activeTab === "decided";
       let decidedBorder = "border-l-transparent";
       if (isDecided) {
@@ -230,7 +232,7 @@ function ApprovalMasterDetailInner({
             <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-white/80 truncate">
-                {getListItemTitle(changeType, change.fields.page_url, 30, undefined, false, change.fields)}
+                {getListItemTitle(changeType, change.fields.page_url, 30, change.fields.change_title, false, change.fields)}
               </div>
               <div className="text-xs text-white/30 mt-0.5 truncate">
                 {truncateUrl(change.fields.page_url || "")}
@@ -409,8 +411,8 @@ function ApprovalMasterDetailInner({
             <div className="flex-1 overflow-y-auto p-8 pb-24">
               {(() => {
                 const fields = effectiveSelected.fields;
-                const type = fields.type || fields.change_type;
-                const cat = fields.cat || fields.category;
+                const type = normalizeType(fields.type || fields.change_type);
+                const cat = normalizeCat(fields.cat || fields.category);
                 const priority = fields.priority;
                 const page_url = fields.page_url;
                 const whyText = getWhyItMatters(fields);
