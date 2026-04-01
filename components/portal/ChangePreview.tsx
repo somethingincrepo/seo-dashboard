@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ChangeFields } from "@/lib/changes";
-import { isAwarenessFlag } from "@/lib/portal-labels";
+import { isAwarenessFlag, isInstruction } from "@/lib/portal-labels";
 
 /**
  * ChangePreview — renders type-appropriate visual previews for the detail panel.
@@ -16,26 +16,6 @@ import { isAwarenessFlag } from "@/lib/portal-labels";
  *   cat === "Content" || type === "FAQ"         → Content comparison with truncation
  *   cat === "AI-GEO"                           → Blue AI optimization card
  */
-
-function isFlag(value: string): boolean {
-  if (!value || value.trim().length === 0) return true;
-  const v = value.trim().toLowerCase();
-  return (
-    v.startsWith("(no rewrite") ||
-    v.startsWith("no rewrite") ||
-    v.startsWith("flagged for") ||
-    v === "tbd" ||
-    v === "n/a" ||
-    v === "none" ||
-    v.startsWith("review needed")
-  );
-}
-
-function isInstruction(value: string): boolean {
-  return /^(update|add|fix|change|replace|remove|complete|rewrite|optimize|include)\b/i.test(
-    value.trim()
-  );
-}
 
 interface ChangePreviewProps {
   fields: ChangeFields;
@@ -52,7 +32,7 @@ export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
 
   if (!current && !proposed) return null;
 
-  const effectiveProposed = proposed && !isFlag(proposed) ? proposed : "";
+  const effectiveProposed = proposed && !isAwarenessFlag(proposed) ? proposed : "";
 
   // Redirect gets its own special flow card regardless of category
   if (type === "Redirect") {
@@ -167,7 +147,7 @@ function parseMetadata(value: string): { title: string | null; description: stri
 
   const raw = value.trim();
 
-  if (isFlag(raw)) {
+  if (isAwarenessFlag(raw)) {
     return { title: null, description: null };
   }
 
@@ -244,15 +224,15 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
   const currentTitleDimmed = !currentMeta.title;
   const currentDesc = currentMeta.description;
 
-  const proposedFlagged = isFlag(proposed);
+  const proposedFlagged = isAwarenessFlag(proposed);
   const hasProposedContent = proposed.length > 0 && !proposedFlagged;
   const proposedHasStructured = proposedMeta.title || proposedMeta.description;
-  const proposedLabel = isInstruction(proposed) ? "Proposed Direction" : "Proposed Search Appearance";
+  const proposedLabel = isInstruction("Metadata", proposed) ? "Proposed Direction" : "Proposed Search Appearance";
 
   // eslint-disable-next-line no-console
   console.log("PROPOSED DEBUG:", {
     proposedValue: proposed,
-    isFlag: proposedFlagged,
+    isAwarenessFlag: proposedFlagged,
     parsed: proposedMeta,
     hasProposedContent,
     proposedHasStructured,
