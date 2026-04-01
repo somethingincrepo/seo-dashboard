@@ -23,6 +23,32 @@ interface ChangePreviewProps {
   type: string;
 }
 
+/**
+ * Detect if a value looks like internal agent analysis rather than actual page content.
+ * Agent notes typically contain metrics, instructions, or analytical language.
+ */
+function isAgentAnalysis(val: string): boolean {
+  if (!val) return false;
+  const lower = val.toLowerCase();
+  return (
+    /\d+\s*impressions?\/?mo/i.test(val) ||
+    /position\s+\d+/i.test(val) ||
+    /\d+\s*clicks?/i.test(val) ||
+    /\bctr\b/i.test(val) ||
+    lower.includes("content is thin") ||
+    lower.includes("crawl budget") ||
+    lower.includes("flagged for") ||
+    /^(expand|rewrite|add|remove|consolidate|update|noindex)\s+(to|the|all|sub-)/i.test(val) ||
+    /\d+-\d+\s*words/i.test(val) ||
+    lower.includes("schema markup") ||
+    lower.includes("json-ld") ||
+    lower.includes("faqpage schema") ||
+    lower.includes("missing compliance") ||
+    lower.includes("zero or near-zero") ||
+    lower.includes("internal links to")
+  );
+}
+
 export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
   const current = fields.current_value?.trim() || "";
   const proposed = fields.proposed_value?.trim() || "";
@@ -39,13 +65,26 @@ export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
     return <MetadataPreview current={current} proposed={effectiveProposed} pageUrl={fields.page_url} />;
   }
   if (cat === "Technical") {
+    // If values are agent analysis, don't show the raw technical cards
+    if (isAgentAnalysis(current) && isAgentAnalysis(effectiveProposed)) return null;
     return <TechnicalPreview current={current} proposed={effectiveProposed} />;
   }
   if (cat === "AI-GEO") {
+    if (isAgentAnalysis(current) && isAgentAnalysis(effectiveProposed)) return null;
     return <GeoPreview current={current} proposed={effectiveProposed} />;
   }
   if (cat === "Content" || type === "FAQ") {
-    return <ContentPreview current={current} proposed={effectiveProposed} type={type} />;
+    // Content changes often have agent analysis in current/proposed — don't show those
+    // Only show the preview if the values look like actual page content
+    const currentIsAnalysis = isAgentAnalysis(current);
+    const proposedIsAnalysis = isAgentAnalysis(effectiveProposed);
+    if (currentIsAnalysis && proposedIsAnalysis) return null;
+    if (currentIsAnalysis && !effectiveProposed) return null;
+    return <ContentPreview
+      current={currentIsAnalysis ? "" : current}
+      proposed={proposedIsAnalysis ? "" : effectiveProposed}
+      type={type}
+    />;
   }
   // On-Page non-metadata (Heading, Alt Text, Internal Link)
   return <ElementPreview current={current} proposed={effectiveProposed} type={type} />;
@@ -214,112 +253,110 @@ function buildBreadcrumb(pageUrl: string): string {
 function MetadataPreview({ current, proposed, pageUrl }: { current: string; proposed: string; pageUrl: string }) {
   const currentMeta = parseMetadata(current);
   const proposedMeta = parseMetadata(proposed);
-  const breadcrumb = buildBreadcrumb(pageUrl);
-  const urlTitle = titleFromUrl(pageUrl);
-
-  const currentTitle = currentMeta.title || urlTitle;
-  const currentTitleDimmed = !currentMeta.title;
-  const currentDesc = currentMeta.description;
 
   const proposedFlagged = isAwarenessFlag(proposed);
   const hasProposedContent = proposed.length > 0 && !proposedFlagged;
   const proposedHasStructured = proposedMeta.title || proposedMeta.description;
-  const proposedLabel = isInstruction("Metadata", proposed) ? "Proposed Direction" : "Proposed Search Appearance";
 
-  return (
-    <div className="mt-4 space-y-3">
-      <div>
-        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current Search Appearance</div>
-        <SearchResultCard
-          title={currentTitle}
-          titleDimmed={currentTitleDimmed}
-          description={currentDesc}
-          breadcrumb={breadcrumb}
-          variant="current"
-        />
-      </div>
-      {proposedHasStructured ? (
+  // Nothing parseable at all — hide preview entirely
+  if (!currentMeta.title && !currentMeta.description && !proposedHasStructured && !hasProposedContent) {
+    return null;
+  }
+
+  // If proposed has raw text but no structured title/description, show as direction
+  if (!proposedHasStructured && hasProposedContent) {
+    return (
+      <div className="mt-4 space-y-4">
+        {(currentMeta.title || currentMeta.description) && (
+          <>
+            {currentMeta.title && (
+              <MetadataFieldRow label="Page Title" current={currentMeta.title} proposed={null} />
+            )}
+            {currentMeta.description && (
+              <MetadataFieldRow label="Meta Description" current={currentMeta.description} proposed={null} />
+            )}
+          </>
+        )}
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
-          <SearchResultCard
-            title={proposedMeta.title || currentTitle}
-            titleDimmed={!proposedMeta.title}
-            description={proposedMeta.description}
-            breadcrumb={breadcrumb}
-            variant="proposed"
-          />
-        </div>
-      ) : hasProposedContent ? (
-        <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Direction</div>
           <div className="bg-emerald-500/[0.03] border border-emerald-400/[0.06] rounded-xl p-4">
             <div className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap break-words">
               {proposed}
             </div>
           </div>
         </div>
-      ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      {/* Page Title — current vs proposed */}
+      {(currentMeta.title || proposedMeta.title) && (
+        <MetadataFieldRow
+          label="Page Title"
+          current={currentMeta.title}
+          proposed={proposedMeta.title}
+        />
+      )}
+
+      {/* Meta Description — current vs proposed */}
+      {(currentMeta.description || proposedMeta.description) && (
+        <MetadataFieldRow
+          label="Meta Description"
+          current={currentMeta.description}
+          proposed={proposedMeta.description}
+        />
+      )}
     </div>
   );
 }
 
-function SearchResultCard({
-  title,
-  titleDimmed,
-  description,
-  descriptionCarryForward,
-  breadcrumb,
-  variant,
-  pending,
+/**
+ * MetadataFieldRow — renders one metadata field (title OR description)
+ * with clear current → proposed layout. No dimming, no ambiguity.
+ */
+function MetadataFieldRow({
+  label,
+  current,
+  proposed,
 }: {
-  title: string;
-  titleDimmed: boolean;
-  description: string | null;
-  descriptionCarryForward?: string | null;
-  breadcrumb: string;
-  variant: "current" | "proposed";
-  pending?: boolean;
+  label: string;
+  current: string | null;
+  proposed: string | null;
 }) {
-  const isCurrent = variant === "current";
-  const borderColor = isCurrent ? "border-l-red-400/30" : "border-l-emerald-400/30";
-  // Pending proposed cards get dashed border to indicate work-in-progress
-  const borderStyle = pending ? "border-dashed border-white/10" : `border-white/[0.06]`;
+  const hasChange = proposed && proposed !== current;
 
   return (
-    <div className={`bg-white/[0.03] rounded-xl p-4 border border-l-2 ${borderColor} ${borderStyle}`}>
-      {/* Title — always rendered, never truncated, wraps naturally */}
-      <div
-        className={`text-blue-400 text-base font-medium break-words whitespace-normal ${titleDimmed ? "opacity-30" : ""}`}
-      >
-        {title}
+    <div>
+      <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{label}</div>
+      <div className="space-y-2">
+        {/* Current value */}
+        <div className="bg-white/[0.03] rounded-xl px-4 py-3 border border-l-2 border-white/[0.06] border-l-red-400/30">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-red-400/50 mb-1">Current</div>
+          {current ? (
+            <div className="text-sm leading-relaxed break-words" style={{ overflowWrap: "anywhere" }}>
+              {hasChange ? (
+                <span className="text-white/30 line-through">{current}</span>
+              ) : (
+                <span className="text-white/60">{current}</span>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-white/20 italic">Not set</div>
+          )}
+        </div>
+
+        {/* Proposed value — only show if there's actually a new value */}
+        {proposed && (
+          <div className="bg-white/[0.03] rounded-xl px-4 py-3 border border-l-2 border-white/[0.06] border-l-emerald-400/30">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/50 mb-1">Proposed</div>
+            <div className="text-sm text-emerald-300/80 leading-relaxed break-words" style={{ overflowWrap: "anywhere" }}>
+              {proposed}
+            </div>
+          </div>
+        )}
       </div>
-      <div className="text-emerald-400/60 text-xs mt-1">{breadcrumb}</div>
-      {/* Description — context-dependent rendering */}
-      {description ? (
-        /* Real description content */
-        <div
-          className="text-sm text-white/60 mt-1.5 leading-relaxed"
-          style={{ overflowWrap: "anywhere" }}
-        >
-          {description}
-        </div>
-      ) : descriptionCarryForward ? (
-        /* Proposed card: carry forward current description dimmed (unchanged) */
-        <div
-          className="text-sm text-white/20 mt-1.5 leading-relaxed"
-          style={{ overflowWrap: "anywhere" }}
-        >
-          {descriptionCarryForward}
-        </div>
-      ) : isCurrent ? (
-        /* Current card: explicit "not set" */
-        <div className="text-white/20 text-xs mt-1.5 italic">No meta description currently set</div>
-      ) : pending ? (
-        /* Proposed card with no content at all: placeholder */
-        <div className="text-white/30 text-sm mt-1.5 italic">
-          We&apos;ll draft an optimized description for this page.
-        </div>
-      ) : null}
     </div>
   );
 }
