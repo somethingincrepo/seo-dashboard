@@ -267,15 +267,11 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
   if (!proposedHasStructured && hasProposedContent) {
     return (
       <div className="mt-4 space-y-4">
-        {(currentMeta.title || currentMeta.description) && (
-          <>
-            {currentMeta.title && (
-              <MetadataFieldRow label="Page Title" current={currentMeta.title} proposed={null} />
-            )}
-            {currentMeta.description && (
-              <MetadataFieldRow label="Meta Description" current={currentMeta.description} proposed={null} />
-            )}
-          </>
+        {currentMeta.title && (
+          <MetadataFieldRow label="Page Title" current={currentMeta.title} proposed={null} />
+        )}
+        {currentMeta.description && (
+          <MetadataFieldRow label="Meta Description" current={currentMeta.description} proposed={null} />
         )}
         <div>
           <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Direction</div>
@@ -289,25 +285,47 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
     );
   }
 
+  // Determine what's changing vs what's fine
+  const hasTitleData = currentMeta.title || proposedMeta.title;
+  const hasDescData = currentMeta.description || proposedMeta.description;
+  const titleChanging = !!(proposedMeta.title && proposedMeta.title !== currentMeta.title);
+  const descChanging = !!(proposedMeta.description && proposedMeta.description !== currentMeta.description);
+
   return (
     <div className="mt-4 space-y-4">
-      {/* Page Title — current vs proposed */}
-      {(currentMeta.title || proposedMeta.title) && (
+      {/* Page Title section */}
+      {hasTitleData ? (
         <MetadataFieldRow
           label="Page Title"
           current={currentMeta.title}
           proposed={proposedMeta.title}
         />
-      )}
+      ) : hasDescData && !hasTitleData ? (
+        /* Only description is in the data — show title as "no change" so client sees the full picture */
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Page Title</div>
+          <div className="bg-white/[0.02] rounded-xl px-4 py-2.5 border border-white/[0.04]">
+            <div className="text-xs text-white/20 italic">No changes needed</div>
+          </div>
+        </div>
+      ) : null}
 
-      {/* Meta Description — current vs proposed */}
-      {(currentMeta.description || proposedMeta.description) && (
+      {/* Meta Description section */}
+      {hasDescData ? (
         <MetadataFieldRow
           label="Meta Description"
           current={currentMeta.description}
           proposed={proposedMeta.description}
         />
-      )}
+      ) : hasTitleData && !hasDescData ? (
+        /* Only title is in the data — show description as "no change" so client sees the full picture */
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Meta Description</div>
+          <div className="bg-white/[0.02] rounded-xl px-4 py-2.5 border border-white/[0.04]">
+            <div className="text-xs text-white/20 italic">No changes needed</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

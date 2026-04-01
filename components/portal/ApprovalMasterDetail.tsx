@@ -230,7 +230,7 @@ function ApprovalMasterDetailInner({
             <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-white/80 truncate">
-                {getListItemTitle(changeType, change.fields.page_url, 30)}
+                {getListItemTitle(changeType, change.fields.page_url, 30, undefined, false, change.fields)}
               </div>
               <div className="text-xs text-white/30 mt-0.5 truncate">
                 {truncateUrl(change.fields.page_url || "")}
@@ -428,7 +428,7 @@ function ApprovalMasterDetailInner({
 
               {/* Title — short, readable page name */}
               <h2 className="text-xl font-semibold text-white/90 mb-3">
-                {getListItemTitle(type, page_url, undefined, fields.change_title, true)}
+                {getListItemTitle(type, page_url, undefined, fields.change_title, true, fields)}
               </h2>
 
               {/* URL pill — shows domain + path */}

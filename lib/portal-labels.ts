@@ -66,16 +66,36 @@ function extractPageName(url: string): string {
   }
 }
 
+/**
+ * For metadata changes, detect whether we're changing title, description, or both
+ * from the raw current/proposed values.
+ */
+export function getMetadataAction(currentValue?: string, proposedValue?: string): string {
+  const all = ((currentValue || "") + " " + (proposedValue || "")).toLowerCase();
+  const hasTitle = /title\s*(?:tag)?\s*[:=]/i.test(all);
+  const hasDesc = /(?:meta\s*)?desc(?:ription)?\s*[:=]/i.test(all);
+  if (hasTitle && hasDesc) return "Update search listing";
+  if (hasTitle) return "Update page title";
+  if (hasDesc) return "Update meta description";
+  return "Update search listing";
+}
+
 export function getListItemTitle(
   type: string,
   pageUrl: string,
   truncateAt?: number,
   changeTitle?: string,
   /** If true, return short title with readable page name instead of full path */
-  shortTitle?: boolean
+  shortTitle?: boolean,
+  /** Pass ChangeFields for metadata-aware titles */
+  fields?: { current_value?: string; proposed_value?: string }
 ): string {
   if (changeTitle?.trim()) return changeTitle.trim();
-  const action = ACTION_VERBS[type] || `Update ${type.toLowerCase()}`;
+  let action = ACTION_VERBS[type] || `Update ${type.toLowerCase()}`;
+  // For metadata, detect title vs description vs both
+  if (type === "Metadata" && fields) {
+    action = getMetadataAction(fields.current_value, fields.proposed_value);
+  }
   if (shortTitle) {
     const pageName = extractPageName(pageUrl);
     return `${action} — ${pageName}`;
@@ -168,19 +188,36 @@ export function getWhatWeRecommend(fields: ChangeFields): string {
   if (fields.plain_english_explanation?.trim()) {
     return fields.plain_english_explanation;
   }
-  // 2. Good: proposed_value if it looks human-readable and is a real recommendation (not a flag)
+  // 2. For metadata: generate a specific description based on what's changing
+  const type = fields.type || fields.change_type;
+  if (type === "Metadata") {
+    return getMetadataRecommendation(fields.current_value, fields.proposed_value);
+  }
+  // 3. Good: proposed_value if it looks human-readable and is a real recommendation (not a flag)
   if (fields.proposed_value?.trim()) {
     const val = fields.proposed_value.trim();
     if (!val.startsWith("<") && !val.startsWith("{") && val.length > 20 && !isAwarenessFlag(val)) {
       return val;
     }
   }
-  // 3. Fallback: if proposed_value is a flag/awareness item, say so honestly
+  // 4. Fallback: if proposed_value is a flag/awareness item, say so honestly
   if (fields.proposed_value?.trim() && isAwarenessFlag(fields.proposed_value)) {
-    return getAwarenessDescription(fields.type);
+    return getAwarenessDescription(type);
   }
-  // 4. Generic fallback
-  return getGenericDescription(fields.type);
+  // 5. Generic fallback
+  return getGenericDescription(type);
+}
+
+function getMetadataRecommendation(currentValue?: string, proposedValue?: string): string {
+  const action = getMetadataAction(currentValue, proposedValue);
+  switch (action) {
+    case "Update page title":
+      return "We'll update this page's title tag — that's the clickable headline that shows up in Google search results. A clearer, more relevant title helps the right people find and click on your page.";
+    case "Update meta description":
+      return "We'll update this page's meta description — that's the short summary that appears below your title in Google search results. A compelling description can significantly increase how often people click through to your site.";
+    default:
+      return "We'll update both the title and description for this page in Google search results. These control what people see when your page shows up in search — making them clearer and more relevant helps drive more clicks.";
+  }
 }
 
 /**

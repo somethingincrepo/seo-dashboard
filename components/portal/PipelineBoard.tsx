@@ -159,7 +159,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                         }
                       >
                         <div className="text-xs font-medium text-white/70 group-hover:text-white/90 truncate">
-                          {getListItemTitle(changeType, change.fields.page_url, 28)}
+                          {getListItemTitle(changeType, change.fields.page_url, 28, undefined, false, change.fields)}
                         </div>
                         <div className="text-[11px] text-white/25 mt-0.5 truncate">
                           {path}
@@ -264,7 +264,11 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
               <h2 className="text-lg font-semibold text-white/90 mb-1 mt-3">
                 {getListItemTitle(
                   selectedChange.fields.type || selectedChange.fields.change_type,
-                  selectedChange.fields.page_url
+                  selectedChange.fields.page_url,
+                  undefined,
+                  undefined,
+                  false,
+                  selectedChange.fields
                 )}
               </h2>
               <a
