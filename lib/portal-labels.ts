@@ -70,13 +70,24 @@ function extractPageName(url: string): string {
  * For metadata changes, detect whether we're changing title, description, or both
  * from the raw current/proposed values.
  */
+/**
+ * Determine what's being changed by looking at the PROPOSED value.
+ * If proposed mentions both title and description, it's a full listing update.
+ * If only title or only description, say that specifically.
+ */
 export function getMetadataAction(currentValue?: string, proposedValue?: string): string {
-  const all = ((currentValue || "") + " " + (proposedValue || "")).toLowerCase();
-  const hasTitle = /title\s*(?:tag)?\s*[:=]/i.test(all);
-  const hasDesc = /(?:meta\s*)?desc(?:ription)?\s*[:=]/i.test(all);
-  if (hasTitle && hasDesc) return "Update search listing";
-  if (hasTitle) return "Update page title";
-  if (hasDesc) return "Update meta description";
+  const proposed = proposedValue || "";
+  const proposedHasTitle = /title\s*(?:tag)?\s*[:=]/i.test(proposed);
+  const proposedHasDesc = /(?:meta\s*)?desc(?:ription)?\s*[:=]/i.test(proposed);
+  if (proposedHasTitle && proposedHasDesc) return "Update search listing";
+  if (proposedHasTitle) return "Update page title";
+  if (proposedHasDesc) return "Update meta description";
+  // Fallback: check current to infer context
+  const current = currentValue || "";
+  const currentHasTitle = /title\s*(?:tag)?\s*[:=]/i.test(current);
+  const currentHasDesc = /(?:meta\s*)?desc(?:ription)?\s*[:=]/i.test(current);
+  if (currentHasTitle && !currentHasDesc) return "Update page title";
+  if (currentHasDesc && !currentHasTitle) return "Update meta description";
   return "Update search listing";
 }
 
@@ -188,24 +199,100 @@ export function getWhatWeRecommend(fields: ChangeFields): string {
   if (fields.plain_english_explanation?.trim()) {
     return fields.plain_english_explanation;
   }
-  // 2. For metadata: generate a specific description based on what's changing
   const type = fields.type || fields.change_type;
+
+  // 2. For metadata: generate a specific description based on what's changing
   if (type === "Metadata") {
     return getMetadataRecommendation(fields.current_value, fields.proposed_value);
   }
-  // 3. Good: proposed_value if it looks human-readable and is a real recommendation (not a flag)
+  // 3. For content: check if the plain_english is a generic template and override
+  if (type === "Content" && isGenericPlainEnglish(fields.plain_english_explanation)) {
+    return getContentRecommendation(fields);
+  }
+  // 4. Good: proposed_value if it looks human-readable and is a real recommendation (not a flag)
   if (fields.proposed_value?.trim()) {
     const val = fields.proposed_value.trim();
     if (!val.startsWith("<") && !val.startsWith("{") && val.length > 20 && !isAwarenessFlag(val)) {
       return val;
     }
   }
-  // 4. Fallback: if proposed_value is a flag/awareness item, say so honestly
+  // 5. Fallback: if proposed_value is a flag/awareness item, say so honestly
   if (fields.proposed_value?.trim() && isAwarenessFlag(fields.proposed_value)) {
     return getAwarenessDescription(type);
   }
-  // 5. Generic fallback
+  // 6. Generic fallback
   return getGenericDescription(type);
+}
+
+const GENERIC_PLAIN_ENGLISH_PATTERNS = [
+  "to improve how it appears in search results",
+  "to improve its relevance and search performance",
+  "that tells people what the page is about and encourages",
+  "to help it rank better and attract more clicks",
+  "so Google can show rich details",
+  "so Google can display your frequently asked questions",
+  "technical configuration so search engines can find",
+  "so your brand appears when people use AI assistants",
+];
+
+function isGenericPlainEnglish(text?: string): boolean {
+  if (!text?.trim()) return true;
+  const lower = text.toLowerCase();
+  return GENERIC_PLAIN_ENGLISH_PATTERNS.some(p => lower.includes(p));
+}
+
+/**
+ * Generate a meaningful content recommendation from the proposed_value.
+ * The audit agent writes detailed plans in proposed_value even though
+ * the plain_english_explanation is generic.
+ */
+function getContentRecommendation(fields: ChangeFields): string {
+  const proposed = fields.proposed_value?.trim() || "";
+  const lower = proposed.toLowerCase();
+
+  // Detect if this is actually a redirect, not content
+  if (lower.includes("301 redirect") || lower.includes("redirect")) {
+    const pagePath = extractPathForLabel(fields.page_url);
+    return `We'll set up a redirect so visitors and search engines trying to reach ${pagePath} land on the correct, active page instead of hitting an error.`;
+  }
+  // Detect URL removal / noindex
+  if (lower.includes("url removal") || lower.includes("noindex") || lower.includes("disallow")) {
+    return "We'll remove low-value pages from Google's index that aren't serving your business — this focuses search engine attention on the pages that actually drive traffic.";
+  }
+  // Detect content consolidation
+  if (lower.includes("consolidat")) {
+    return "We've found pages with overlapping content that are competing against each other in search results. We'll merge them into one stronger page that has a better chance of ranking.";
+  }
+  // Detect content expansion
+  if (lower.includes("expand") || lower.includes("rewrite") || /\d+-\d+\s*words/.test(lower)) {
+    const pagePath = extractPathForLabel(fields.page_url);
+    return `The content on ${pagePath} needs to be more thorough to compete in search. We'll expand it with the specific details, services, and answers that searchers are looking for.`;
+  }
+  // Detect FAQ addition
+  if (lower.includes("faq")) {
+    const pagePath = extractPathForLabel(fields.page_url);
+    return `We'll add a FAQ section to ${pagePath} that answers the questions your potential customers are actually searching for — this also enables FAQ-rich results in Google.`;
+  }
+  // Fallback: show a summarized version of the proposed value
+  if (proposed.length > 30) {
+    // Truncate to first sentence or 200 chars
+    const firstSentence = proposed.split(/\.\s/)[0];
+    if (firstSentence.length < 200) {
+      return firstSentence + ".";
+    }
+    return proposed.slice(0, 197) + "...";
+  }
+  return getGenericDescription("Content");
+}
+
+function extractPathForLabel(url?: string): string {
+  if (!url) return "this page";
+  try {
+    const pathname = new URL(url).pathname;
+    return pathname === "/" ? "your homepage" : pathname;
+  } catch {
+    return "this page";
+  }
 }
 
 function getMetadataRecommendation(currentValue?: string, proposedValue?: string): string {
@@ -224,21 +311,81 @@ function getMetadataRecommendation(currentValue?: string, proposedValue?: string
  * "Why It Matters" — business value explanation.
  * Priority: business_impact_explanation > reasoning (filtered) > category fallback
  */
+// These are the generic templates the audit agent copy-pasted across dozens of records.
+// If we detect one, ignore it and generate something specific instead.
+const GENERIC_WHY_PATTERNS = [
+  "directly answers customer questions",
+  "foundation of search visibility",
+  "more people clicking on your listing when it appears",
+  "single biggest lever for increasing organic traffic",
+  "structured data makes your listings stand out",
+  "20-30% higher click-through rates",
+  "without proper crawlability",
+];
+
+function isGenericWhyItMatters(text: string): boolean {
+  const lower = text.toLowerCase();
+  return GENERIC_WHY_PATTERNS.some(p => lower.includes(p));
+}
+
 export function getWhyItMatters(fields: ChangeFields): string {
-  // 1. Best: dedicated business impact field
-  if (fields.business_impact_explanation?.trim()) {
+  const type = fields.type || fields.change_type;
+
+  // 1. Best: dedicated business impact field — but only if it's not a generic template
+  if (fields.business_impact_explanation?.trim() && !isGenericWhyItMatters(fields.business_impact_explanation)) {
     return fields.business_impact_explanation;
   }
+
   // 2. Good: reasoning if it looks client-appropriate (not agent jargon)
   if (fields.reasoning?.trim()) {
     const r = fields.reasoning.trim();
-    // Filter out obviously internal agent notes
-    if (!r.startsWith("[") && !r.startsWith("SOP") && r.length > 15) {
+    if (!r.startsWith("[") && !r.startsWith("SOP") && r.length > 15 && !isGenericWhyItMatters(r)) {
       return r;
     }
   }
-  // 3. No generic fallback — return empty so section hides when no real data exists
-  return "";
+
+  // 3. Generate specific "Why It Matters" based on change type
+  return getSpecificWhyItMatters(type, fields);
+}
+
+function getSpecificWhyItMatters(type: string, fields: ChangeFields): string {
+  const proposed = fields.proposed_value?.trim() || "";
+  const current = fields.current_value?.trim() || "";
+
+  switch (type) {
+    case "Metadata": {
+      const action = getMetadataAction(current, proposed);
+      if (action === "Update page title") {
+        return "Your page title is the first thing people see in Google search results. A clearer, more specific title helps searchers understand what your page offers — which directly translates to more clicks.";
+      }
+      if (action === "Update meta description") {
+        return "The meta description is your page's sales pitch in search results. When it clearly describes what visitors will find, click-through rates improve — meaning more traffic from the same rankings.";
+      }
+      return "The title and description control how your page appears in every Google search result. When they're clear and relevant, more people click — that's more traffic without needing higher rankings.";
+    }
+    case "Heading":
+      return "Page headings tell both visitors and search engines what each section is about. Fixing heading structure helps Google understand your content and makes the page easier for visitors to scan.";
+    case "Schema":
+      return "Structured data helps Google display enhanced search results for your page — like FAQ dropdowns, ratings, or service details. These rich results stand out and typically earn more clicks.";
+    case "Redirect":
+      return "Broken or outdated URLs mean lost visitors and wasted search authority. Fixing redirects ensures people (and search engines) reach the right page instead of hitting dead ends.";
+    case "Content":
+      return "Comprehensive, well-organized content is what earns higher rankings. When your pages thoroughly cover what people are searching for, Google treats them as more authoritative.";
+    case "FAQ":
+      return "FAQ sections serve double duty — they answer real customer questions on your page and can appear as expandable results directly in Google search, capturing more attention.";
+    case "GEO":
+      return "AI search engines like ChatGPT and Perplexity are becoming how people research services. Optimizing for AI visibility ensures your brand shows up when potential customers ask these tools for recommendations.";
+    case "Technical":
+      return "Technical SEO issues can quietly hold back your entire site. Fixing these ensures search engines can properly crawl, index, and rank all your important pages.";
+    case "Alt Text":
+      return "Image descriptions improve accessibility for screen readers and help search engines understand your visual content — both contribute to better overall SEO performance.";
+    case "Canonical":
+      return "Duplicate page signals confuse search engines about which version of a page to rank. Fixing canonicals consolidates your search authority onto the right URLs.";
+    case "Internal Link":
+      return "Internal links help search engines discover your important pages and understand how your content is organized. Better linking spreads ranking authority to the pages that matter most.";
+    default:
+      return "";
+  }
 }
 
 /**
