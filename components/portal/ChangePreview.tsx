@@ -162,23 +162,18 @@ function titleFromUrl(pageUrl: string): string {
   }
 }
 
-/**
- * Robust metadata parser — handles all real-world Airtable formats:
- *   Format 1: "Title Tag: Some Title Here"
- *   Format 2: "Meta Description: Some description here"
- *   Format 3: Raw text with no prefix labels
- *   Format 4: "Title Tag: ... Meta Description: ..." (both on one line)
- *   Format 5: Analyst shorthand like "Title: acceptable. Desc: generic boilerplate"
- *   Format 6: Flags/instructions like "(no rewrite — flagged for awareness)"
- */
 function parseMetadata(value: string): { title: string | null; description: string | null } {
   if (!value || value.trim().length === 0) return { title: null, description: null };
 
-  const v = value.trim();
+  const raw = value.trim();
 
-  if (isFlag(v)) {
+  if (isFlag(raw)) {
     return { title: null, description: null };
   }
+
+  // Normalize newlines to ". " so regexes can match across lines.
+  // "Title Tag: Foo\nMeta Description: Bar" → "Title Tag: Foo. Meta Description: Bar"
+  const v = raw.replace(/\s*\n+\s*/g, ". ").replace(/\.\s*\./g, ".");
 
   // Detect analyst shorthand (single-word assessment, not real content)
   if (v.match(/^Title:\s*(acceptable|too short|ok|good|missing|needs)\s*\.?\s*$/i)) {
@@ -194,8 +189,7 @@ function parseMetadata(value: string): { title: string | null; description: stri
   // Extract "Title Tag: ..." or "Title: ..." — everything up to the next field label or end
   const titleMatch = v.match(/Title\s*(?:Tag)?\s*[:=]\s*(.+?)(?=\.\s*(?:Meta\s*)?Desc(?:ription)?|$)/i);
   if (titleMatch) {
-    const t = titleMatch[1].trim().replace(/\.$/, '');
-    // Only use if it looks like actual title content (not analyst notes)
+    const t = titleMatch[1].trim().replace(/\.$/, "");
     if (t.length > 10 && !t.match(/^(acceptable|too short|generic|missing|ok|good|needs)/i)) {
       title = t;
     }
@@ -204,7 +198,7 @@ function parseMetadata(value: string): { title: string | null; description: stri
   // Extract "Meta Description: ..." or "Description: ..." or "Desc: ..."
   const descMatch = v.match(/(?:Meta\s*)?Desc(?:ription)?\s*[:=]\s*(.+?)$/i);
   if (descMatch) {
-    const d = descMatch[1].trim().replace(/\.$/, '');
+    const d = descMatch[1].trim().replace(/\.$/, "");
     if (d.length > 10 && !d.match(/^(acceptable|too short|generic|missing|boilerplate|ok|good|needs)/i)) {
       description = d;
     }
@@ -212,17 +206,13 @@ function parseMetadata(value: string): { title: string | null; description: stri
 
   // If no structured labels found, classify the raw text
   if (!title && !description) {
-    // Filter out things that are clearly not content
     if (v.match(/^(Nav page|Critical)/i)) return { title: null, description: null };
 
     if (v.length < 80 && !v.match(/^(Title|Desc|Meta)/i)) {
-      // Short unlabeled text → treat as title
       title = v;
     } else if (v.length >= 80 && !v.match(/[:=]/) && !v.match(/^(Title|Desc|Meta)/i)) {
-      // Long unlabeled text → treat as description
       description = v;
     } else if (v.length > 20 && !v.match(/[:=]/) && !v.match(/^(Title|Desc|Meta)/i)) {
-      // Medium unlabeled text → title
       title = v;
     }
   }
@@ -254,13 +244,20 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
   const currentTitleDimmed = !currentMeta.title;
   const currentDesc = currentMeta.description;
 
+  const proposedFlagged = isFlag(proposed);
+  const hasProposedContent = proposed.length > 0 && !proposedFlagged;
   const proposedHasStructured = proposedMeta.title || proposedMeta.description;
-
-  const proposedTitle = proposedMeta.title || currentTitle;
-  const proposedTitleDimmed = !proposedMeta.title;
-
-  const proposedIsEmpty = isFlag(proposed);
   const proposedLabel = isInstruction(proposed) ? "Proposed Direction" : "Proposed Search Appearance";
+
+  // eslint-disable-next-line no-console
+  console.log("PROPOSED DEBUG:", {
+    proposedValue: proposed,
+    isFlag: proposedFlagged,
+    parsed: proposedMeta,
+    hasProposedContent,
+    proposedHasStructured,
+    branch: proposedFlagged ? "placeholder" : proposedHasStructured ? "serp-card" : hasProposedContent ? "raw-fallback" : "hidden",
+  });
 
   return (
     <div className="mt-4 space-y-3">
@@ -274,29 +271,27 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
           variant="current"
         />
       </div>
-      {!proposedIsEmpty && (
-        proposedHasStructured ? (
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
-            <SearchResultCard
-              title={proposedTitle}
-              titleDimmed={proposedTitleDimmed}
-              description={proposedMeta.description}
-              breadcrumb={breadcrumb}
-              variant="proposed"
-            />
-          </div>
-        ) : (
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
-            <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.06] border-l-2 border-l-emerald-400/30">
-              <p className="text-sm text-white/70 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
-                {proposed}
-              </p>
+      {proposedHasStructured ? (
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
+          <SearchResultCard
+            title={proposedMeta.title || currentTitle}
+            titleDimmed={!proposedMeta.title}
+            description={proposedMeta.description}
+            breadcrumb={breadcrumb}
+            variant="proposed"
+          />
+        </div>
+      ) : hasProposedContent ? (
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{proposedLabel}</div>
+          <div className="bg-emerald-500/[0.03] border border-emerald-400/[0.06] rounded-xl p-4">
+            <div className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap break-words">
+              {proposed}
             </div>
           </div>
-        )
-      )}
+        </div>
+      ) : null}
     </div>
   );
 }
