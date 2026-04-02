@@ -1,9 +1,6 @@
 const BASE_URL = "https://api.airtable.com/v0";
 
 function getContentHeaders() {
-  if (!process.env.CONTENT_AIRTABLE_API_KEY) {
-    throw new Error("CONTENT_AIRTABLE_API_KEY is not set");
-  }
   return {
     Authorization: `Bearer ${process.env.CONTENT_AIRTABLE_API_KEY}`,
     "Content-Type": "application/json",
@@ -87,6 +84,9 @@ export type ContentResult = {
  * Case-insensitive: tries exact match first, then lowercased comparison is done client-side.
  */
 export async function getContentResultsForClient(companyName: string): Promise<ContentResult[]> {
+  if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) {
+    return [];
+  }
   // Airtable formula is case-insensitive for LOWER() comparisons
   const filter = `AND({Status}='Completed',LOWER({Client Name})='${companyName.toLowerCase().replace(/'/g, "\\'")}')`;
   return contentFetch<ContentResult>("Results", { filterByFormula: filter });
