@@ -105,7 +105,8 @@ export default async function ActivityPage({
       return new Date(dateStr).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
-        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       });
     } catch {
       return dateStr;
@@ -157,8 +158,8 @@ export default async function ActivityPage({
         <GlassCard>
           <div className="divide-y divide-white/[0.06]">
             {/* Header row */}
-            <div className="grid grid-cols-[140px_1fr_200px_120px_110px] gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white/25">
-              <span>Date</span>
+            <div className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white/25">
+              <span>Date & Time</span>
               <span>Change</span>
               <span>Page</span>
               <span>Category</span>
@@ -168,7 +169,7 @@ export default async function ActivityPage({
             {entries.map((entry, i) => {
               if (entry.kind === "report") {
                 return (
-                  <div key={i} className="grid grid-cols-[140px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">
+                  <div key={i} className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">
                     <span className="text-xs text-white/40">
                       {formatDate(entry.date)}
                     </span>
@@ -185,7 +186,7 @@ export default async function ActivityPage({
               }
 
               return (
-                <div key={i} className="grid grid-cols-[140px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">
+                <div key={i} className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">
                   <span className="text-xs text-white/40">
                     {formatDate(entry.date)}
                   </span>

@@ -121,7 +121,7 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
           const overflow = col.items.length - MAX_VISIBLE;
 
           return (
-            <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor} flex-1`}>
+            <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor} flex-1 min-h-[480px]`}>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-semibold uppercase tracking-wider text-white/40">
                   {col.label}

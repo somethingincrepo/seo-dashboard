@@ -121,7 +121,7 @@ export function PortalSidebar({
             href="https://calendly.com/somethinginc/something-inc-touchbase-1"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+            className="flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm transition-all text-white/40 hover:text-white/70 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12]"
           >
             <span className="text-base">🗓</span>
             <span>Book a meeting</span>
