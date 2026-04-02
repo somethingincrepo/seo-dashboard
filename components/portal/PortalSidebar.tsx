@@ -130,7 +130,7 @@ export function PortalSidebar({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 ml-56 p-10">{children}</main>
+      <main className="flex-1 flex flex-col ml-56 p-10">{children}</main>
     </div>
   );
 }

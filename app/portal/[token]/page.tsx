@@ -31,7 +31,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   ).length;
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-5rem)]">
+    <div className="flex flex-col h-[calc(100vh-5rem)]">
       {/* Hero Action Card */}
       <DashboardHero
         pendingCount={pendingCount}
@@ -43,7 +43,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
       />
 
       {/* Pipeline Board — fills remaining space */}
-      <section className="flex-1 mt-6">
+      <section className="flex-1 mt-4 overflow-hidden">
         <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
           Pipeline
         </div>
