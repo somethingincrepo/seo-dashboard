@@ -18,7 +18,6 @@ export default async function PortalLayout({
 
   const clientId = client.fields.client_id || client.id;
   const pending = await getPendingApprovals(clientId);
-  const status = client.fields.status || client.fields.plan_status || "form_submitted";
 
   const categoryBreakdown: Record<string, number> = {};
   for (const c of pending) {
@@ -32,8 +31,6 @@ export default async function PortalLayout({
       token={token}
       pendingCount={pending.length}
       categoryBreakdown={categoryBreakdown}
-      monthNumber={client.fields.month_number || 0}
-      clientStatus={status}
     >
       {children}
     </PortalSidebar>

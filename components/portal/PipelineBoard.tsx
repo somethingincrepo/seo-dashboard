@@ -115,13 +115,13 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
 
   return (
     <div className="relative">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4 h-full">
         {columns.map((col) => {
           const visible = col.items.slice(0, MAX_VISIBLE);
           const overflow = col.items.length - MAX_VISIBLE;
 
           return (
-            <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor} min-h-[320px]`}>
+            <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor} flex-1`}>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-semibold uppercase tracking-wider text-white/40">
                   {col.label}
@@ -154,10 +154,10 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                             : undefined
                         }
                       >
-                        <div className="text-xs font-medium text-white/70 group-hover:text-white/90 truncate">
+                        <div className="text-sm font-semibold text-white/85 group-hover:text-white/95 truncate">
                           {getListItemTitle(changeType, change.fields.page_url, 28, undefined, false, change.fields)}
                         </div>
-                        <div className="text-[11px] text-white/25 mt-0.5 truncate">
+                        <div className="text-[11px] text-white/30 mt-1 truncate">
                           {path}
                         </div>
                       </div>

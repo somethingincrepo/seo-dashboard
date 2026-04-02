@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { Report } from "@/lib/reports";
 
 interface DashboardHeroProps {
   pendingCount: number;
@@ -10,7 +9,6 @@ interface DashboardHeroProps {
   token: string;
   contactName: string;
   status: string;
-  reports: Report[];
 }
 
 export function DashboardHero({
@@ -20,11 +18,9 @@ export function DashboardHero({
   token,
   contactName,
   status,
-  reports,
 }: DashboardHeroProps) {
   const hasPending = pendingCount > 0;
   const hasChanges = pendingCount + approvedCount + implementedCount > 0;
-  const latestReport = reports[0];
 
   if (hasPending) {
     return (
@@ -44,14 +40,6 @@ export function DashboardHero({
             Review Recommendations →
           </Link>
         </div>
-        {latestReport && (
-          <p className="text-xs text-white/25 mt-4">
-            Your latest report is available —{" "}
-            <Link href={`/portal/${token}/reports`} className="text-violet-400/60 hover:text-violet-400 transition-colors">
-              Month {latestReport.fields.month}
-            </Link>
-          </p>
-        )}
       </div>
     );
   }

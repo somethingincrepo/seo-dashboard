@@ -1,8 +1,8 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 
 interface PortalSidebarProps {
   children: React.ReactNode;
@@ -10,8 +10,6 @@ interface PortalSidebarProps {
   token: string;
   pendingCount: number;
   categoryBreakdown: Record<string, number>;
-  monthNumber: number;
-  clientStatus: string;
 }
 
 const CATEGORY_ROUTES: Record<string, string> = {
@@ -34,8 +32,6 @@ export function PortalSidebar({
   token,
   pendingCount,
   categoryBreakdown,
-  monthNumber,
-  clientStatus,
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const base = `/portal/${token}`;
@@ -119,12 +115,17 @@ export function PortalSidebar({
           })}
         </nav>
 
-        {/* Bottom — month + status */}
+        {/* Bottom — Book a meeting */}
         <div className="border-t border-white/[0.08] pt-4 px-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-white/30">Month {monthNumber || "—"}</span>
-            <StatusBadge value={clientStatus} variant="plan_status" />
-          </div>
+          <a
+            href="https://calendly.com/somethinginc/something-inc-touchbase-1"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+          >
+            <span className="text-base">🗓</span>
+            <span>Book a meeting</span>
+          </a>
         </div>
       </aside>
 
