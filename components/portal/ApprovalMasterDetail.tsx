@@ -179,11 +179,11 @@ function ApprovalMasterDetailInner({
     return change.fields.approval || change.fields.approval_status;
   };
 
-  const statusDotColor = (approval: string) => {
-    if (approval === "pending") return "bg-amber-400";
-    if (approval === "approved") return "bg-emerald-400";
-    if (approval === "skipped") return "bg-slate-400";
-    if (approval === "question") return "bg-blue-400";
+  const priorityDotColor = (priority: string) => {
+    if (priority === "Critical") return "bg-red-400";
+    if (priority === "High") return "bg-emerald-400";
+    if (priority === "Medium") return "bg-amber-400";
+    if (priority === "Low") return "bg-violet-400";
     return "bg-slate-500";
   };
 
@@ -229,7 +229,7 @@ function ApprovalMasterDetailInner({
           }`}
         >
           <div className="flex items-start gap-2.5">
-            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor(approval)}`} />
+            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${priorityDotColor(change.fields.priority)}`} />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-white/80 truncate">
                 {getListItemTitle(changeType, change.fields.page_url, 30, change.fields.change_title, false, change.fields)}
