@@ -114,14 +114,14 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
   };
 
   return (
-    <div className="relative">
-      <div className="grid grid-cols-3 gap-4 h-full">
+    <div className="relative h-full">
+      <div className="grid grid-cols-3 gap-4 flex-1">
         {columns.map((col) => {
           const visible = col.items.slice(0, MAX_VISIBLE);
           const overflow = col.items.length - MAX_VISIBLE;
 
           return (
-            <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor} flex-1 min-h-[480px]`}>
+            <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor}`}>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-semibold uppercase tracking-wider text-white/40">
                   {col.label}
