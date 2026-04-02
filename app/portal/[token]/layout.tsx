@@ -22,7 +22,7 @@ export default async function PortalLayout({
 
   const [pending, contentResults] = await Promise.all([
     getPendingApprovals(clientId),
-    getContentResultsForClient(companyName),
+    getContentResultsForClient(companyName).catch(() => []),
   ]);
 
   const categoryBreakdown: Record<string, number> = {};
