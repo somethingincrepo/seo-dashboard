@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { suffix: "/approvals", label: "Approvals", icon: "✦" },
   { suffix: "/content", label: "Content", icon: "◆" },
   { suffix: "/reports", label: "Reports", icon: "◈" },
-  { suffix: "/activity", label: "Activity", icon: "⚙" },
+  { suffix: "/activity", label: "Activity", icon: "◎" },
 ] as const;
 
 export function PortalSidebar({
@@ -71,13 +71,13 @@ export function PortalSidebar({
                 <Link
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all border-l-2",
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border-l-2",
                     isActive
-                      ? "bg-white/[0.06] text-white/90 font-medium border-l-violet-400"
-                      : "border-l-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
+                      ? "bg-white/[0.06] text-white/90 border-l-violet-400"
+                      : "border-l-transparent text-white/50 hover:text-white/75 hover:bg-white/[0.04]"
                   )}
                 >
-                  <span className="text-base">{item.icon}</span>
+                  <span className="text-[15px] leading-none">{item.icon}</span>
                   <span className="flex-1">{item.label}</span>
                   {item.suffix === "/approvals" && pendingCount > 0 && (
                     <span className="text-[10px] text-amber-300 ml-auto mr-1">

@@ -33,7 +33,7 @@ export default async function ContentPage({
       {jobs.length === 0 && results.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="text-3xl mb-4 text-white/20">✍</div>
+            <div className="text-3xl mb-4 text-white/20">◆</div>
             <div className="font-medium text-white/50 mb-2">No content yet</div>
             <div className="text-sm text-white/30 max-w-xs mx-auto">
               Title proposals and articles will appear here once your content pipeline is active.
