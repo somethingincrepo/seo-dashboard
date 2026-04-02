@@ -9,8 +9,6 @@ import { useApprovalActions } from "./useApprovalActions";
 import { ApprovalActionBar } from "./ApprovalActionBar";
 import type { Change } from "@/lib/changes";
 
-const MAX_VISIBLE = 4;
-
 interface PipelineBoardProps {
   changes: Change[];
   token: string;
@@ -113,31 +111,38 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
     setShowTechnical(false);
   };
 
+  const priorityDot = (priority: string) => {
+    if (priority === "Critical") return "bg-violet-400";
+    if (priority === "High") return "bg-red-400";
+    if (priority === "Medium") return "bg-amber-400";
+    if (priority === "Low") return "bg-emerald-400";
+    return "bg-slate-500";
+  };
+
   return (
     <div className="relative h-full">
-      <div className="grid grid-cols-3 gap-4 flex-1">
-        {columns.map((col) => {
-          const visible = col.items.slice(0, MAX_VISIBLE);
-          const overflow = col.items.length - MAX_VISIBLE;
+      <div className="grid grid-cols-3 gap-4 h-full">
+        {columns.map((col) => (
+          <div key={col.key} className={`bg-white/[0.03] rounded-2xl flex flex-col border-t-2 ${col.borderColor} h-full`}>
+            {/* Column header */}
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/40">
+                {col.label}
+              </span>
+              <span className={`text-xs font-bold tabular-nums ${col.color}`}>
+                {col.items.length}
+              </span>
+            </div>
 
-          return (
-            <div key={col.key} className={`bg-white/[0.03] rounded-2xl p-4 flex flex-col border-t-2 ${col.borderColor}`}>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-white/40">
-                  {col.label}
-                </span>
-                <span className={`text-xs font-bold ${col.color}`}>
-                  {col.items.length}
-                </span>
-              </div>
-
+            {/* Scrollable card list */}
+            <div className="flex-1 overflow-y-auto px-3 pb-3 min-h-0">
               {col.items.length === 0 ? (
-                <div className="text-xs text-white/20 py-8 text-center flex-1">
+                <div className="text-xs text-white/15 py-10 text-center">
                   Nothing here yet
                 </div>
               ) : (
-                <div className="space-y-2 flex-1">
-                  {visible.map((change) => {
+                <div className="space-y-2">
+                  {col.items.map((change) => {
                     const changeType = change.fields.type || change.fields.change_type;
                     const cat = change.fields.cat || change.fields.category || "";
                     const path = extractPath(change.fields.page_url);
@@ -147,46 +152,70 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                       <div
                         key={change.id}
                         onClick={() => handleCardClick(change)}
-                        className={`bg-white/[0.05] hover:bg-white/[0.08] rounded-xl px-3 py-2.5 cursor-pointer transition-all duration-150 group hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 ${isSelected ? "ring-1 ring-violet-400/40 bg-white/[0.08]" : ""}`}
-                        title={
-                          col.key === "approved" && change.fields.approved_at
-                            ? `Approved on ${new Date(change.fields.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                            : undefined
-                        }
+                        className={`group rounded-xl p-3.5 cursor-pointer transition-all duration-150 border ${
+                          isSelected
+                            ? "bg-white/[0.08] border-violet-400/30 shadow-lg shadow-violet-900/20"
+                            : "bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.07] hover:border-white/[0.1] hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/30"
+                        }`}
                       >
-                        <div className="text-sm font-semibold text-white/85 group-hover:text-white/95 truncate">
-                          {getListItemTitle(changeType, change.fields.page_url, 28, undefined, false, change.fields)}
+                        {/* Title row */}
+                        <div className="flex items-start gap-2.5 mb-2">
+                          {change.fields.priority && (
+                            <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${priorityDot(change.fields.priority)}`} />
+                          )}
+                          <div className="text-xs font-medium text-white/70 group-hover:text-white/90 leading-snug line-clamp-2 transition-colors duration-150 flex-1">
+                            {getListItemTitle(changeType, change.fields.page_url, 40, change.fields.change_title, false, change.fields)}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-white/30 mt-1 truncate">
+
+                        {/* URL path */}
+                        <div className="text-[11px] text-white/25 truncate mb-2.5 pl-4">
                           {path}
+                        </div>
+
+                        {/* Badges */}
+                        <div className="flex items-center gap-1.5 flex-wrap pl-4">
+                          {cat && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/35">
+                              {cat}
+                            </span>
+                          )}
+                          {change.fields.implementation_tier === "tier_1" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-400/15 text-emerald-400/70">
+                              Auto
+                            </span>
+                          )}
+                          {col.key === "approved" && change.fields.approved_at && (
+                            <span className="text-[10px] text-white/20">
+                              {new Date(change.fields.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          )}
+                          {col.key === "complete" && change.fields.implemented_at && (
+                            <span className="text-[10px] text-emerald-400/50">
+                              ✓ {new Date(change.fields.implemented_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
                   })}
-                  {overflow > 0 && (
-                    <Link
-                      href={col.key === "pending" ? `/portal/${token}/approvals` : `/portal/${token}/activity`}
-                      className="block text-xs text-white/20 hover:text-white/40 px-3 py-1 mt-2 transition-colors duration-150"
-                    >
-                      +{overflow} more
-                    </Link>
-                  )}
-                </div>
-              )}
-
-              {col.key === "pending" && col.items.length > 0 && (
-                <div className="mt-auto pt-3 border-t border-white/[0.06]">
-                  <Link
-                    href={`/portal/${token}/approvals`}
-                    className="block text-xs text-violet-400/70 hover:text-violet-400 transition-colors duration-150"
-                  >
-                    Review All →
-                  </Link>
                 </div>
               )}
             </div>
-          );
-        })}
+
+            {/* Footer CTA */}
+            {col.key === "pending" && col.items.length > 0 && (
+              <div className="flex-shrink-0 px-4 pb-3 pt-2 border-t border-white/[0.06]">
+                <Link
+                  href={`/portal/${token}/approvals`}
+                  className="block text-xs text-violet-400/60 hover:text-violet-400 transition-colors duration-150"
+                >
+                  Review All →
+                </Link>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* ── Drawer Overlay ── */}

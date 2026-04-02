@@ -16,56 +16,49 @@ export function DashboardHero({
   approvedCount,
   implementedCount,
   token,
-  contactName,
-  status,
 }: DashboardHeroProps) {
   const hasPending = pendingCount > 0;
   const hasChanges = pendingCount + approvedCount + implementedCount > 0;
 
   if (hasPending) {
     return (
-      <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl p-8">
-        <h2 className="text-xl font-semibold text-white/90">
-          You have {pendingCount} recommendations to review
-        </h2>
-        <p className="text-sm text-white/50 leading-relaxed mt-2 max-w-xl">
-          We've completed your site audit and found {pendingCount + approvedCount + implementedCount} opportunities
-          to improve your search visibility.
-        </p>
-        <div className="flex items-center gap-3 mt-6">
-          <Link
-            href={`/portal/${token}/approvals`}
-            className="px-5 py-2.5 rounded-xl text-sm font-medium bg-violet-500/20 border border-violet-400/30 text-violet-300 hover:bg-violet-500/30 transition-all"
-          >
-            Review Recommendations →
-          </Link>
+      <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl px-6 py-4 flex items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+          <span className="text-sm font-medium text-white/80">
+            {pendingCount} recommendation{pendingCount !== 1 ? "s" : ""} ready for review
+          </span>
         </div>
+        <Link
+          href={`/portal/${token}/approvals`}
+          className="flex-shrink-0 px-4 py-2 rounded-xl text-xs font-medium bg-violet-500/20 border border-violet-400/30 text-violet-300 hover:bg-violet-500/30 transition-all"
+        >
+          Review →
+        </Link>
       </div>
     );
   }
 
   if (hasChanges) {
     return (
-      <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl p-8">
-        <h2 className="text-xl font-semibold text-white/90">
-          Everything is on track
-        </h2>
-        <p className="text-sm text-white/50 leading-relaxed mt-2 max-w-xl">
-          We're working on your next set of optimizations. You'll be notified when new recommendations are ready for review.
-          {implementedCount > 0 && ` ${implementedCount} change${implementedCount !== 1 ? "s" : ""} have been implemented so far.`}
-        </p>
+      <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl px-6 py-4 flex items-center gap-4">
+        <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+        <span className="text-sm text-white/60">
+          Everything is on track.{" "}
+          {implementedCount > 0 && (
+            <span className="text-white/40">
+              {implementedCount} change{implementedCount !== 1 ? "s" : ""} implemented.
+            </span>
+          )}
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl p-8">
-      <h2 className="text-xl font-semibold text-white/90">
-        We're getting started
-      </h2>
-      <p className="text-sm text-white/50 leading-relaxed mt-2 max-w-xl">
-        Your initial site audit is underway. We'll notify you as soon as your first recommendations are ready for review.
-      </p>
+    <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl px-6 py-4 flex items-center gap-4">
+      <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+      <span className="text-sm text-white/60">Your site audit is underway — recommendations coming soon.</span>
     </div>
   );
 }

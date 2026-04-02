@@ -9,19 +9,20 @@ interface PortalSidebarProps {
   companyName: string;
   token: string;
   pendingCount: number;
+  contentReviewCount: number;
   categoryBreakdown: Record<string, number>;
 }
 
 const CATEGORY_ROUTES: Record<string, string> = {
   Technical: "technical",
   "On-Page": "on-page",
-  Content: "content",
   "AI-GEO": "ai-geo",
 };
 
 const NAV_ITEMS = [
   { suffix: "", label: "Dashboard", icon: "⬡" },
   { suffix: "/approvals", label: "Approvals", icon: "✦" },
+  { suffix: "/content", label: "Content", icon: "✍" },
   { suffix: "/reports", label: "Reports", icon: "◈" },
   { suffix: "/activity", label: "Activity", icon: "⚙" },
 ] as const;
@@ -31,6 +32,7 @@ export function PortalSidebar({
   companyName,
   token,
   pendingCount,
+  contentReviewCount,
   categoryBreakdown,
 }: PortalSidebarProps) {
   const pathname = usePathname();
@@ -80,6 +82,11 @@ export function PortalSidebar({
                   {item.suffix === "/approvals" && pendingCount > 0 && (
                     <span className="text-[10px] text-amber-300 ml-auto mr-1">
                       {pendingCount} to review
+                    </span>
+                  )}
+                  {item.suffix === "/content" && contentReviewCount > 0 && (
+                    <span className="text-[10px] text-emerald-300 ml-auto mr-1">
+                      {contentReviewCount} new
                     </span>
                   )}
                 </Link>

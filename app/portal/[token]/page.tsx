@@ -31,24 +31,28 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   ).length;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)]">
-      {/* Hero Action Card */}
-      <DashboardHero
-        pendingCount={pendingCount}
-        approvedCount={approvedCount}
-        implementedCount={implementedCount}
-        token={token}
-        contactName={contactName}
-        status={status}
-      />
+    <div className="flex flex-col gap-5" style={{ height: "calc(100vh - 5rem)" }}>
+      {/* Status banner */}
+      <div className="flex-shrink-0">
+        <DashboardHero
+          pendingCount={pendingCount}
+          approvedCount={approvedCount}
+          implementedCount={implementedCount}
+          token={token}
+          contactName={contactName}
+          status={status}
+        />
+      </div>
 
-      {/* Pipeline Board — fills remaining space */}
-      <section className="flex-1 mt-4 overflow-hidden">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-4">
+      {/* Pipeline Board — fills remaining height */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3 flex-shrink-0">
           Pipeline
         </div>
-        <PipelineBoard changes={allChanges} token={token} />
-      </section>
+        <div className="flex-1 min-h-0">
+          <PipelineBoard changes={allChanges} token={token} />
+        </div>
+      </div>
     </div>
   );
 }
