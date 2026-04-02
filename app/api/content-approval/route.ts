@@ -1,51 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getClientByToken } from "@/lib/clients";
-import { updateContentApproval } from "@/lib/content";
+
+const BASE_URL = "https://api.airtable.com/v0";
+
+function getContentHeaders() {
+  const apiKey = process.env.CONTENT_AIRTABLE_API_KEY;
+  if (!apiKey) throw new Error("CONTENT_AIRTABLE_API_KEY not set");
+  return { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
+}
+
+const CONTENT_BASE_ID = process.env.CONTENT_AIRTABLE_BASE_ID;
+const JOBS_TABLE = "Content Jobs";
+const RESULTS_TABLE = "Results";
+
+/** Approve or skip a content title */
+async function handleJobTitle(recordId: string, action: string) {
+  const fields: Record<string, unknown> = { title_status: action };
+  if (action === "approved") fields.approved_at = new Date().toISOString();
+  const res = await fetch(`${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(JOBS_TABLE)}/${recordId}`, {
+    method: "PATCH",
+    headers: getContentHeaders(),
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Failed to update job: ${err}`);
+  }
+}
+
+/** Approve or skip a completed article */
+async function handleResultApproval(recordId: string, action: string) {
+  const fields: Record<string, unknown> = {
+    portal_approval: action,
+    portal_approved_at: new Date().toISOString(),
+  };
+  const res = await fetch(`${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(RESULTS_TABLE)}/${recordId}`, {
+    method: "PATCH",
+    headers: getContentHeaders(),
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Failed to update result: ${err}`);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { resultId, decision, notes, token } = body;
-
-    if (!resultId || !decision || !token) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const { recordId, action } = await request.json();
+    if (!recordId || !action) {
+      return NextResponse.json({ error: "Missing recordId or action" }, { status: 400 });
+    }
+    if (!["approved", "skipped", "needs_revision"].includes(action)) {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    }
+    if (!CONTENT_BASE_ID) {
+      return NextResponse.json({ error: "Content Airtable not configured" }, { status: 500 });
     }
 
-    const validDecisions = ["approved", "needs_revision"];
-    if (!validDecisions.includes(decision)) {
-      return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
+    // Determine if this is a Content Job or a Result based on source field
+    // We use the "type" field from the client to know which table
+    const { type } = await request.json();
+    if (type === "job") {
+      await handleJobTitle(recordId, action);
+    } else {
+      await handleResultApproval(recordId, action);
     }
 
-    const client = await getClientByToken(token);
-    if (!client) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 403 });
-    }
-
-    await updateContentApproval(resultId, decision, notes);
-
-    // Slack alert
-    const slackUrl = process.env.SLACK_WEBHOOK_URL;
-    if (slackUrl) {
-      const companyName = client.fields.company_name || "Unknown client";
-      const articleTitle = body.blogTitle || "article";
-      let text: string;
-      if (decision === "approved") {
-        text = `✅ *${companyName}* approved article for publishing: *${articleTitle}*\nReady to publish — trigger content agent in publish mode.`;
-      } else {
-        text = `📝 *${companyName}* requested revision on: *${articleTitle}*\n\n${notes || "(no notes provided)"}`;
-      }
-      await fetch(slackUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      }).catch(() => {
-        // Non-fatal: don't fail the request if Slack is down
-      });
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error("Content approval failed:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Internal error" },
+      { status: 500 }
+    );
   }
 }
