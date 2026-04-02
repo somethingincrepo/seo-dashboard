@@ -18,7 +18,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
   ]);
 
   const decided = allChanges.filter(
-    (c) => c.fields.approval !== "pending" && c.fields.approval_status !== "pending"
+    (c) => c.fields.approval !== "pending" && c.fields.approval !== undefined && c.fields.approval !== ""
   );
 
   return (
