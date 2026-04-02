@@ -180,10 +180,10 @@ function ApprovalMasterDetailInner({
   };
 
   const priorityDotColor = (priority: string) => {
-    if (priority === "Critical") return "bg-red-400";
-    if (priority === "High") return "bg-emerald-400";
+    if (priority === "Critical") return "bg-violet-400";
+    if (priority === "High") return "bg-red-400";
     if (priority === "Medium") return "bg-amber-400";
-    if (priority === "Low") return "bg-violet-400";
+    if (priority === "Low") return "bg-emerald-400";
     return "bg-slate-500";
   };
 
@@ -241,12 +241,12 @@ function ApprovalMasterDetailInner({
                 {change.fields.priority && (
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
                     change.fields.priority === "Critical"
-                      ? "bg-red-500/15 text-red-400 border-red-400/20"
+                      ? "bg-violet-500/15 text-violet-400 border-violet-400/20"
                       : change.fields.priority === "High"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                      ? "bg-red-500/15 text-red-400 border-red-400/20"
                       : change.fields.priority === "Medium"
-                      ? "bg-white/[0.05] text-white/40 border-white/[0.08]"
-                      : "bg-white/[0.03] text-white/25 border-white/[0.06]"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
+                      : "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
                   }`}>
                     {change.fields.priority}
                   </span>
