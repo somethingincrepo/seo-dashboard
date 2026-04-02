@@ -17,8 +17,8 @@ export default async function ContentPage({
   const companyName = client.fields.company_name || "Your Company";
 
   const [jobs, results] = await Promise.all([
-    getContentJobsForClient(companyName),
-    getContentResultsForClient(companyName),
+    getContentJobsForClient(companyName).catch(() => []),
+    getContentResultsForClient(companyName).catch(() => []),
   ]);
 
   return (
