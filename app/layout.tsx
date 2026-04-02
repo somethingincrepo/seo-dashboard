@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             style={{ background: "radial-gradient(ellipse, #14b4b4 0%, transparent 70%)", animation: "aurora2 18s ease-in-out infinite alternate" }}
           />
           <div
-            className="absolute top-1/2 left-1/2 w-[600px] h-[600px] rounded-full opacity-10"
+            className="absolute top-1/2 left-1/2 w-[600px] h-[600px] rounded-full opacity-[0.04]"
             style={{ background: "radial-gradient(ellipse, #c83c78 0%, transparent 70%)", animation: "aurora3 22s ease-in-out infinite alternate", transform: "translate(-50%, -50%)" }}
           />
         </div>

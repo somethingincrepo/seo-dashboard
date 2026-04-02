@@ -22,7 +22,7 @@ const CATEGORY_ROUTES: Record<string, string> = {
 const NAV_ITEMS = [
   { suffix: "", label: "Dashboard", icon: "⬡" },
   { suffix: "/approvals", label: "Approvals", icon: "✦" },
-  { suffix: "/content", label: "Content", icon: "✍" },
+  { suffix: "/content", label: "Content", icon: "◆" },
   { suffix: "/reports", label: "Reports", icon: "◈" },
   { suffix: "/activity", label: "Activity", icon: "⚙" },
 ] as const;

@@ -31,7 +31,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   ).length;
 
   return (
-    <div className="flex flex-col gap-5" style={{ height: "calc(100vh - 5rem)" }}>
+    <div className="flex flex-col gap-5 overflow-hidden" style={{ height: "calc(100vh - 5rem)" }}>
       {/* Status banner */}
       <div className="flex-shrink-0">
         <DashboardHero
