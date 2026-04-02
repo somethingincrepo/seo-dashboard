@@ -42,8 +42,8 @@ const TABLE = "Changes";
 
 export async function getPendingApprovals(clientId?: string): Promise<Change[]> {
   const filter = clientId
-    ? `AND(OR({approval}="pending",{approval_status}="pending"),FIND("${clientId}",ARRAYJOIN({client_id})))`
-    : `OR({approval}="pending",{approval_status}="pending")`;
+    ? `AND({approval}="pending",FIND("${clientId}",ARRAYJOIN({client_id})))`
+    : `{approval}="pending"`;
   return airtableFetch<Change>(TABLE, {
     filterByFormula: filter,
     sort: [{ field: "confidence", direction: "desc" }],
@@ -63,7 +63,6 @@ export async function updateApproval(
 ): Promise<void> {
   const fields: Record<string, unknown> = {
     approval: decision,
-    approval_status: decision,  // update both fields for compatibility
   };
   if (notes) fields.client_notes = notes;
   if (decision === "approved") fields.approved_at = new Date().toISOString();
@@ -98,7 +97,6 @@ export async function revertDecision(recordId: string): Promise<{ ok: boolean; e
 
   await airtablePatch(TABLE, recordId, {
     approval: "pending",
-    approval_status: "pending",
     approved_at: null,
     client_notes: change.fields.client_notes,
   });
