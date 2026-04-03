@@ -25,6 +25,58 @@ const CHANGE_TYPE_ICONS: Record<string, string> = {
   Canonical: "⊕",
 };
 
+function getPageLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.replace(/\/$/, "") || "/";
+    if (path === "/" || path === "") return "Homepage";
+    return path
+      .replace(/^\//, "")
+      .replace(/\//g, " / ");
+  } catch {
+    return url || "Unknown";
+  }
+}
+
+function isSitewide(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname === "/" || parsed.pathname === "";
+  } catch {
+    return !url || url.endsWith("/") && url.split("/").length <= 4;
+  }
+}
+
+type AirtableChange = { id: string; fields: Record<string, string | number | boolean | null | undefined> };
+
+function buildPageGroups(
+  catChanges: AirtableChange[],
+  navPages: string[]
+): Array<{ url: string; label: string; isNav: boolean; isSite: boolean; changes: AirtableChange[] }> {
+  const map = new Map<string, AirtableChange[]>();
+  for (const c of catChanges) {
+    const url = (c.fields.page_url as string) || "";
+    if (!map.has(url)) map.set(url, []);
+    map.get(url)!.push(c);
+  }
+
+  const groups = Array.from(map.entries()).map(([url, changes]) => ({
+    url,
+    label: getPageLabel(url),
+    isNav: navPages.includes(url),
+    isSite: isSitewide(url),
+    changes,
+  }));
+
+  groups.sort((a, b) => {
+    if (a.isSite !== b.isSite) return a.isSite ? -1 : 1;
+    if (a.isNav !== b.isNav) return a.isNav ? -1 : 1;
+    return b.changes.length - a.changes.length;
+  });
+
+  return groups;
+}
+
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://seo-dashboard-teal-phi.vercel.app";
@@ -52,10 +104,18 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   // Group pending changes by category
   const byCategory: Record<string, typeof changes> = {};
   pending.forEach((c) => {
-    const cat = c.fields.cat || c.fields.category || "Other";
+    const cat = (c.fields.cat || c.fields.category || "Other") as string;
     if (!byCategory[cat]) byCategory[cat] = [];
     byCategory[cat].push(c);
   });
+
+  const navPages: string[] = (() => {
+    try {
+      return JSON.parse((f.nav_pages as string) || "[]");
+    } catch {
+      return [];
+    }
+  })();
 
   return (
     <div className="space-y-8">
@@ -131,51 +191,72 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
           {Object.keys(byCategory).length > 0 ? (
             <div className="space-y-4">
-              {Object.entries(byCategory).map(([cat, catChanges]) => (
+              {Object.entries(byCategory).map(([cat, catChanges]) => {
+                const pageGroups = buildPageGroups(catChanges as AirtableChange[], navPages);
+                return (
                 <GlassCard key={cat} className="overflow-hidden">
+                  {/* Category header */}
                   <div className="px-5 py-3 border-b border-white/8 flex items-center gap-2">
                     <StatusBadge value={cat} variant="category" />
                     <span className="text-white/40 text-xs">{catChanges.length} changes</span>
+                    <span className="text-white/20 text-xs">· {pageGroups.length} pages</span>
                   </div>
-                  <div className="divide-y divide-white/5">
-                    {catChanges.map((change) => {
-                      const changeType = change.fields.type || change.fields.change_type || "";
-                      return (
-                        <div key={change.id} className="px-5 py-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-2">
-                                <span className="text-white/50">{CHANGE_TYPE_ICONS[changeType] || "·"}</span>
-                                <span className="text-sm font-medium">{changeType}</span>
-                                <StatusBadge value={change.fields.confidence || "Medium"} variant="confidence" />
-                                {(change.fields.implementation_tier) && (
-                                  <span className="text-xs text-violet-400/70 border border-violet-400/20 px-1.5 py-0.5 rounded-full">
-                                    {change.fields.implementation_tier}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-white/30 font-mono mb-2 truncate">
-                                {change.fields.page_url}
-                              </div>
-                              {change.fields.proposed_value && (
-                                <div className="text-xs text-white/60 bg-white/5 rounded-lg px-3 py-2 border border-white/8 line-clamp-2">
-                                  {change.fields.proposed_value}
+
+                  {/* Page groups */}
+                  {pageGroups.map((group) => (
+                    <div key={group.url} className="border-b border-white/5 last:border-b-0">
+                      {/* Page group header */}
+                      <div className="px-5 py-2.5 bg-white/[0.02] flex items-center gap-2">
+                        <span className="text-white/20 text-xs">▸</span>
+                        <span className="text-xs text-white/50 font-mono flex-1 truncate">
+                          {group.label}
+                        </span>
+                        {group.isNav && (
+                          <span className="text-xs text-violet-400/60 border border-violet-400/20 px-1.5 py-0 rounded-full">nav</span>
+                        )}
+                        <span className="text-xs text-white/30 tabular-nums">{group.changes.length}</span>
+                      </div>
+
+                      {/* Changes within page group */}
+                      <div className="divide-y divide-white/5">
+                        {group.changes.map((change) => {
+                          const changeType = (change.fields.type || change.fields.change_type || "") as string;
+                          return (
+                            <div key={change.id} className="px-5 py-3.5 pl-8">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                    <span className="text-white/50">{CHANGE_TYPE_ICONS[changeType] || "·"}</span>
+                                    <span className="text-sm font-medium">{changeType}</span>
+                                    <StatusBadge value={(change.fields.confidence || "Medium") as string} variant="confidence" />
+                                    {change.fields.implementation_tier && (
+                                      <span className="text-xs text-violet-400/70 border border-violet-400/20 px-1.5 py-0.5 rounded-full">
+                                        {change.fields.implementation_tier as string}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {change.fields.proposed_value && (
+                                    <div className="text-xs text-white/60 bg-white/5 rounded-lg px-3 py-2 border border-white/8 line-clamp-2">
+                                      {change.fields.proposed_value as string}
+                                    </div>
+                                  )}
+                                  {change.fields.reasoning && (
+                                    <div className="text-xs text-white/30 mt-1.5 italic line-clamp-1">
+                                      {change.fields.reasoning as string}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {change.fields.reasoning && (
-                                <div className="text-xs text-white/30 mt-1.5 italic line-clamp-1">
-                                  {change.fields.reasoning}
-                                </div>
-                              )}
+                                <StatusBadge value="pending" variant="approval" />
+                              </div>
                             </div>
-                            <StatusBadge value="pending" variant="approval" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </GlassCard>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <GlassCard>

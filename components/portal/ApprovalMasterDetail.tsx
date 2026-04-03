@@ -18,6 +18,11 @@ import type { Change } from "@/lib/changes";
 
 const CATEGORY_ORDER = ["Technical", "On-Page", "Content", "AI-GEO"];
 
+// Change types eligible for type-level batch approve (low-risk, predictable)
+const BATCH_ELIGIBLE_TYPES = ["Metadata", "Alt Text"];
+// Schema eligible only for non-Critical priority
+const BATCH_ELIGIBLE_SCHEMA = "Schema";
+
 interface ApprovalMasterDetailProps {
   changes: Change[];
   decidedChanges: Change[];
@@ -29,6 +34,31 @@ interface ApprovalMasterDetailProps {
 interface LocalDecision {
   approval: string;
   client_notes: string;
+}
+
+function getPageLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname;
+    if (!path || path === "/") return "Homepage";
+    // Remove trailing slash, split, filter empty segments
+    const segments = path.replace(/\/$/, "").split("/").filter(Boolean);
+    if (segments.length === 0) return "Homepage";
+    return segments.join(" / ");
+  } catch {
+    // Not a valid URL — return as-is, trimmed
+    if (!url || url === "/") return "Homepage";
+    return url;
+  }
+}
+
+function isSitewide(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return !u.pathname || u.pathname === "/";
+  } catch {
+    return false;
+  }
 }
 
 export function ApprovalMasterDetail(props: ApprovalMasterDetailProps) {
@@ -59,6 +89,8 @@ function ApprovalMasterDetailInner({
   const [questionText, setQuestionText] = useState("");
   const [showTechnical, setShowTechnical] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<string>("All");
+  // Track which page groups are collapsed (by "cat::pageUrl")
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
@@ -195,6 +227,31 @@ function ApprovalMasterDetailInner({
     }
   };
 
+  // When a change is selected, ensure its page group is expanded
+  useEffect(() => {
+    if (!selectedChangeId) return;
+    const change = [...effectivePending, ...effectiveDecided].find((c) => c.id === selectedChangeId);
+    if (!change) return;
+    const cat = normalizeCat(change.fields.cat || change.fields.category) || "Other";
+    const url = change.fields.page_url || "";
+    const key = `${cat}::${url}`;
+    setCollapsedGroups((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, [selectedChangeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const renderListItems = (catChanges: Change[]) =>
     catChanges.map((change) => {
       const approval = getApprovalStatus(change);
@@ -288,6 +345,174 @@ function ApprovalMasterDetailInner({
       );
     });
 
+  // Build page groups for a category's changes
+  const buildPageGroups = (catChanges: Change[], cat: string) => {
+    const pageMap = new Map<string, Change[]>();
+    for (const c of catChanges) {
+      const url = c.fields.page_url || "";
+      if (!pageMap.has(url)) pageMap.set(url, []);
+      pageMap.get(url)!.push(c);
+    }
+
+    // Sort: sitewide first, then nav pages, then by count desc
+    const entries = Array.from(pageMap.entries()).sort(([urlA, changesA], [urlB, changesB]) => {
+      const siteA = isSitewide(urlA);
+      const siteB = isSitewide(urlB);
+      if (siteA && !siteB) return -1;
+      if (!siteA && siteB) return 1;
+      const navA = changesA.some((c) => c.fields.is_nav_page);
+      const navB = changesB.some((c) => c.fields.is_nav_page);
+      if (navA && !navB) return -1;
+      if (!navA && navB) return 1;
+      return changesB.length - changesA.length;
+    });
+
+    return entries.map(([url, pageChanges]) => {
+      const key = `${cat}::${url}`;
+      const hasCritical = pageChanges.some((c) => c.fields.priority === "Critical");
+      const isNavPage = pageChanges.some((c) => c.fields.is_nav_page);
+      // Default expanded if critical, nav page, or only 1 page group in category
+      const defaultExpanded = hasCritical || isNavPage || entries.length === 1;
+      const isCollapsed = collapsedGroups.has(key) || (!defaultExpanded && !collapsedGroups.has(key + "__open"));
+      // A group is collapsed if explicitly collapsed, OR if it wasn't auto-expanded and user hasn't opened it
+      // Simpler: start expanded for critical/nav, collapsed for others
+      const collapsed = collapsedGroups.has(key) ? true : !defaultExpanded && !collapsedGroups.has(key + "__open");
+
+      const pendingIds = activeTab === "pending"
+        ? pageChanges.filter((c) => !localChanges.has(c.id)).map((c) => c.id)
+        : [];
+
+      return { url, pageChanges, key, hasCritical, isNavPage, defaultExpanded, collapsed, pendingIds };
+    });
+  };
+
+  // Type-level batch button types for a category
+  const getBatchTypeButtons = (catChanges: Change[]) => {
+    const typeCounts = new Map<string, string[]>();
+    for (const c of catChanges) {
+      const t = normalizeType(c.fields.type || c.fields.change_type) || "";
+      if (!typeCounts.has(t)) typeCounts.set(t, []);
+      typeCounts.get(t)!.push(c.id);
+    }
+    const result: { type: string; ids: string[] }[] = [];
+    for (const [t, ids] of typeCounts.entries()) {
+      if (ids.length < 5) continue;
+      if (BATCH_ELIGIBLE_TYPES.includes(t)) {
+        result.push({ type: t, ids });
+      } else if (t === BATCH_ELIGIBLE_SCHEMA) {
+        // Only non-Critical schema changes
+        const nonCritical = catChanges
+          .filter((c) => normalizeType(c.fields.type || c.fields.change_type) === BATCH_ELIGIBLE_SCHEMA && c.fields.priority !== "Critical")
+          .map((c) => c.id);
+        if (nonCritical.length >= 5) result.push({ type: t, ids: nonCritical });
+      }
+    }
+    return result;
+  };
+
+  const renderCategorySection = (cat: string, catChanges: Change[]) => {
+    const pageGroups = buildPageGroups(catChanges, cat);
+    const batchTypes = activeTab === "pending" ? getBatchTypeButtons(catChanges) : [];
+
+    return (
+      <div key={cat}>
+        {/* Sticky category header */}
+        <div className="flex items-center gap-2 mb-3 px-1 sticky top-0 z-10 bg-[#08080f]/80 backdrop-blur-sm py-2 border-b border-white/[0.06]">
+          <StatusBadge value={cat} variant="category" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-white/30">
+            ({catChanges.length})
+          </span>
+        </div>
+
+        {/* Type-level batch approve buttons */}
+        {batchTypes.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-1 mb-3">
+            {batchTypes.map(({ type, ids }) => (
+              <BatchApproveButton
+                key={type}
+                recordIds={ids}
+                token={token}
+                label={`Approve all ${type} (${ids.length})`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Page groups */}
+        <div className="space-y-1 mt-1">
+          {pageGroups.map(({ url, pageChanges, key, hasCritical, isNavPage, defaultExpanded, pendingIds }) => {
+            const collapsed = collapsedGroups.has(key)
+              ? true
+              : collapsedGroups.has(key + "__open")
+              ? false
+              : !defaultExpanded;
+
+            const label = isSitewide(url) ? "Sitewide" : getPageLabel(url);
+
+            return (
+              <div key={key} className="rounded-xl overflow-hidden">
+                {/* Page group header */}
+                <button
+                  onClick={() => {
+                    const currentlyCollapsed = collapsedGroups.has(key)
+                      ? true
+                      : collapsedGroups.has(key + "__open")
+                      ? false
+                      : !defaultExpanded;
+
+                    setCollapsedGroups((prev) => {
+                      const next = new Set(prev);
+                      if (currentlyCollapsed) {
+                        // Expanding: remove collapse marker, add open marker
+                        next.delete(key);
+                        next.add(key + "__open");
+                      } else {
+                        // Collapsing: add collapse marker, remove open marker
+                        next.add(key);
+                        next.delete(key + "__open");
+                      }
+                      return next;
+                    });
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.03] transition-colors rounded-lg group"
+                >
+                  <span className={`text-[10px] text-white/30 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}>▶</span>
+                  <span className="text-xs font-medium text-white/60 flex-1 truncate">{label}</span>
+                  {isNavPage && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400/70 border border-blue-400/15 flex-shrink-0">nav</span>
+                  )}
+                  {hasCritical && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400/70 border border-violet-400/15 flex-shrink-0">!</span>
+                  )}
+                  <span className="text-[10px] text-white/25 flex-shrink-0">{pageChanges.length}</span>
+                  {activeTab === "pending" && pendingIds.length > 1 && (
+                    <span
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-shrink-0 ml-1"
+                    >
+                      <BatchApproveButton
+                        recordIds={pendingIds}
+                        token={token}
+                        label={`Approve ${pendingIds.length}`}
+                      />
+                    </span>
+                  )}
+                </button>
+
+                {/* Page group items */}
+                {!collapsed && (
+                  <div className="ml-3 border-l border-white/[0.04] pl-1">
+                    {renderListItems(pageChanges)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex gap-0 h-[calc(100vh-12rem)]">
       {/* ── Left Panel (List) ── */}
@@ -362,37 +587,14 @@ function ApprovalMasterDetailInner({
           )}
 
           <div className="space-y-6">
-            {CATEGORY_ORDER.filter((cat) => grouped[cat]).map((cat) => (
-              <div key={cat}>
-                {/* Sticky category header */}
-                <div className="flex items-center gap-2 mb-3 px-1 sticky top-0 z-10 bg-[#08080f]/80 backdrop-blur-sm py-2 border-b border-white/[0.06]">
-                  <StatusBadge value={cat} variant="category" />
-                  <span className="text-xs font-semibold uppercase tracking-widest text-white/30">
-                    ({grouped[cat].length})
-                  </span>
-                </div>
-                <div className="space-y-1 mt-3">
-                  {renderListItems(grouped[cat])}
-                </div>
-              </div>
-            ))}
+            {CATEGORY_ORDER.filter((cat) => grouped[cat]).map((cat) =>
+              renderCategorySection(cat, grouped[cat])
+            )}
 
             {/* Non-standard categories */}
             {Object.entries(grouped)
               .filter(([cat]) => !CATEGORY_ORDER.includes(cat))
-              .map(([cat, catChanges]) => (
-                <div key={cat}>
-                  <div className="flex items-center gap-2 mb-3 px-1 sticky top-0 z-10 bg-[#08080f]/80 backdrop-blur-sm py-2 border-b border-white/[0.06]">
-                    <StatusBadge value={cat} variant="category" />
-                    <span className="text-xs font-semibold uppercase tracking-widest text-white/30">
-                      ({catChanges.length})
-                    </span>
-                  </div>
-                  <div className="space-y-1 mt-3">
-                    {renderListItems(catChanges)}
-                  </div>
-                </div>
-              ))}
+              .map(([cat, catChanges]) => renderCategorySection(cat, catChanges))}
           </div>
         </div>
       </div>
@@ -413,7 +615,6 @@ function ApprovalMasterDetailInner({
                 const fields = effectiveSelected.fields;
                 const type = normalizeType(fields.type || fields.change_type);
                 const cat = normalizeCat(fields.cat || fields.category);
-                const priority = fields.priority;
                 const page_url = fields.page_url;
                 const whyText = getWhyItMatters(fields);
                 return <>
