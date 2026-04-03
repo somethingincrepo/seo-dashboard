@@ -46,6 +46,11 @@ export type ClientFields = {
   creds_ref: string;
   portal_token: string;
 
+  // Content strategy (populated by SOP 14 after Month 1 audit)
+  keyword_groups: string; // JSON string: KeywordGroup[]
+  content_tone: string;   // B2B SaaS | B2B Services | Healthcare | E-commerce | Professional Services
+  content_audience: string;
+
   // Misc
   notes: string;
 };

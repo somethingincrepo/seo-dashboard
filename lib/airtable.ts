@@ -68,6 +68,24 @@ export async function airtableFetch<T>(
   return records;
 }
 
+export async function airtableCreate(
+  tableId: string,
+  fields: Record<string, unknown>
+): Promise<{ id: string }> {
+  const baseId = process.env.AIRTABLE_BASE_ID;
+  const res = await fetch(`${BASE_URL}/${baseId}/${tableId}`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Airtable create error ${res.status}: ${err}`);
+  }
+  const data = await res.json();
+  return { id: data.id };
+}
+
 export async function airtablePatch(
   tableId: string,
   recordId: string,

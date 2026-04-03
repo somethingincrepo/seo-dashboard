@@ -39,6 +39,7 @@ export function PortalSidebar({
   const base = `/portal/${token}`;
 
   const approvalsExpanded = pathname.startsWith(`${base}/approvals`);
+  const contentExpanded = pathname.startsWith(`${base}/content`);
   const hasCategoryItems = Object.values(categoryBreakdown).some((n) => n > 0);
 
   return (
@@ -112,6 +113,34 @@ export function PortalSidebar({
                         >
                           <span className="flex-1">{cat}</span>
                           <span className="text-white/25">{count}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Nested sub-items under Content */}
+                {item.suffix === "/content" && contentExpanded && (
+                  <div className="ml-5 mt-0.5 space-y-0.5">
+                    {[
+                      { label: "Pipeline", href: `${base}/content` },
+                      { label: "Keywords", href: `${base}/content/keywords` },
+                    ].map(({ label, href }) => {
+                      const isActive = label === "Pipeline"
+                        ? pathname === `${base}/content`
+                        : pathname.startsWith(href);
+                      return (
+                        <Link
+                          key={label}
+                          href={href}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all",
+                            isActive
+                              ? "text-white/90 bg-white/[0.06] font-medium"
+                              : "text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
+                          )}
+                        >
+                          {label}
                         </Link>
                       );
                     })}

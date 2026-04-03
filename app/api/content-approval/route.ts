@@ -15,7 +15,11 @@ const RESULTS_TABLE = "Results";
 /** Approve or skip a content title */
 async function handleJobTitle(recordId: string, action: string) {
   const fields: Record<string, unknown> = { title_status: action };
-  if (action === "approved") fields.approved_at = new Date().toISOString();
+  if (action === "approved") {
+    fields.approved_at = new Date().toISOString();
+    // Setting Status to "Queued" triggers the n8n content generation workflow
+    fields.Status = "Queued";
+  }
   const res = await fetch(`${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(JOBS_TABLE)}/${recordId}`, {
     method: "PATCH",
     headers: getContentHeaders(),
@@ -46,7 +50,7 @@ async function handleResultApproval(recordId: string, action: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { recordId, action } = await request.json();
+    const { recordId, action, type } = await request.json();
     if (!recordId || !action) {
       return NextResponse.json({ error: "Missing recordId or action" }, { status: 400 });
     }
@@ -57,9 +61,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Content Airtable not configured" }, { status: 500 });
     }
 
-    // Determine if this is a Content Job or a Result based on source field
-    // We use the "type" field from the client to know which table
-    const { type } = await request.json();
     if (type === "job") {
       await handleJobTitle(recordId, action);
     } else {

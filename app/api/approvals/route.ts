@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateApproval, revertDecision } from "@/lib/changes";
 import { getClientByToken } from "@/lib/clients";
+import { airtableCreate } from "@/lib/airtable";
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,6 +32,18 @@ export async function POST(request: NextRequest) {
     }
 
     await updateApproval(recordId, decision, notes);
+
+    // Queue an implement job immediately so the queue processor picks it up
+    if (decision === "approved") {
+      await airtableCreate("Jobs", {
+        client_id: [client.id],
+        job_type: "implement",
+        status: "queued",
+        triggered_by: "portal_approval",
+        params: JSON.stringify({ change_id: recordId }),
+      });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Approval update failed:", err);
