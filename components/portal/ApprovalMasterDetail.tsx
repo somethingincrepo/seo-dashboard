@@ -18,10 +18,10 @@ import type { Change } from "@/lib/changes";
 
 const CATEGORY_ORDER = ["Technical", "On-Page", "Content", "AI-GEO"];
 
-// Change types eligible for type-level batch approve (low-risk, predictable)
-const BATCH_ELIGIBLE_TYPES = ["Metadata", "Alt Text"];
-// Schema eligible only for non-Critical priority
-const BATCH_ELIGIBLE_SCHEMA = "Schema";
+// Change types that are safe to bulk-approve without individual review
+// (under-the-hood fixes that don't alter visible content or appearance)
+const SAFE_TYPES = ["Metadata", "Alt Text", "Canonical", "Internal Link"];
+const SAFE_TYPE_SCHEMA = "Schema"; // eligible when not Critical
 
 interface ApprovalMasterDetailProps {
   changes: Change[];
@@ -201,10 +201,6 @@ function ApprovalMasterDetailInner({
     : null;
   const effectiveSelected = selectedChange ? getEffectiveChange(selectedChange) : null;
 
-  const tier1Ids = effectivePending
-    .filter((c) => c.fields.implementation_tier === "tier_1")
-    .map((c) => c.id);
-
   const getApprovalStatus = (change: Change): string => {
     const local = localChanges.get(change.id);
     if (local) return local.approval || change.fields.approval;
@@ -354,7 +350,7 @@ function ApprovalMasterDetailInner({
       pageMap.get(url)!.push(c);
     }
 
-    // Sort: sitewide first, then nav pages, then by count desc
+    // Sort: root/homepage first, then nav pages, then by count desc
     const entries = Array.from(pageMap.entries()).sort(([urlA, changesA], [urlB, changesB]) => {
       const siteA = isSitewide(urlA);
       const siteB = isSitewide(urlB);
@@ -371,48 +367,37 @@ function ApprovalMasterDetailInner({
       const key = `${cat}::${url}`;
       const hasCritical = pageChanges.some((c) => c.fields.priority === "Critical");
       const isNavPage = pageChanges.some((c) => c.fields.is_nav_page);
-      // Default expanded if critical, nav page, or only 1 page group in category
       const defaultExpanded = hasCritical || isNavPage || entries.length === 1;
-      const isCollapsed = collapsedGroups.has(key) || (!defaultExpanded && !collapsedGroups.has(key + "__open"));
-      // A group is collapsed if explicitly collapsed, OR if it wasn't auto-expanded and user hasn't opened it
-      // Simpler: start expanded for critical/nav, collapsed for others
-      const collapsed = collapsedGroups.has(key) ? true : !defaultExpanded && !collapsedGroups.has(key + "__open");
 
-      const pendingIds = activeTab === "pending"
-        ? pageChanges.filter((c) => !localChanges.has(c.id)).map((c) => c.id)
-        : [];
-
-      return { url, pageChanges, key, hasCritical, isNavPage, defaultExpanded, collapsed, pendingIds };
+      return { url, pageChanges, key, hasCritical, isNavPage, defaultExpanded };
     });
   };
 
-  // Type-level batch button types for a category
-  const getBatchTypeButtons = (catChanges: Change[]) => {
-    const typeCounts = new Map<string, string[]>();
-    for (const c of catChanges) {
-      const t = normalizeType(c.fields.type || c.fields.change_type) || "";
-      if (!typeCounts.has(t)) typeCounts.set(t, []);
-      typeCounts.get(t)!.push(c.id);
+  // Compute triage card data — safe types that can be bulk-approved without review
+  const safeIds = effectivePending
+    .filter((c) => {
+      const t = normalizeType(c.fields.type || c.fields.change_type);
+      if (SAFE_TYPES.includes(t)) return true;
+      if (t === SAFE_TYPE_SCHEMA && c.fields.priority !== "Critical") return true;
+      return false;
+    })
+    .map((c) => c.id);
+
+  const safeTypeBreakdown: { type: string; count: number }[] = (() => {
+    const counts = new Map<string, number>();
+    for (const id of safeIds) {
+      const c = effectivePending.find((x) => x.id === id);
+      if (!c) continue;
+      const t = normalizeType(c.fields.type || c.fields.change_type) || "Other";
+      counts.set(t, (counts.get(t) || 0) + 1);
     }
-    const result: { type: string; ids: string[] }[] = [];
-    for (const [t, ids] of typeCounts.entries()) {
-      if (ids.length < 5) continue;
-      if (BATCH_ELIGIBLE_TYPES.includes(t)) {
-        result.push({ type: t, ids });
-      } else if (t === BATCH_ELIGIBLE_SCHEMA) {
-        // Only non-Critical schema changes
-        const nonCritical = catChanges
-          .filter((c) => normalizeType(c.fields.type || c.fields.change_type) === BATCH_ELIGIBLE_SCHEMA && c.fields.priority !== "Critical")
-          .map((c) => c.id);
-        if (nonCritical.length >= 5) result.push({ type: t, ids: nonCritical });
-      }
-    }
-    return result;
-  };
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => ({ type, count }));
+  })();
 
   const renderCategorySection = (cat: string, catChanges: Change[]) => {
     const pageGroups = buildPageGroups(catChanges, cat);
-    const batchTypes = activeTab === "pending" ? getBatchTypeButtons(catChanges) : [];
 
     return (
       <div key={cat}>
@@ -424,30 +409,17 @@ function ApprovalMasterDetailInner({
           </span>
         </div>
 
-        {/* Type-level batch approve buttons */}
-        {batchTypes.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-1 mb-3">
-            {batchTypes.map(({ type, ids }) => (
-              <BatchApproveButton
-                key={type}
-                recordIds={ids}
-                token={token}
-                label={`Approve all ${type} (${ids.length})`}
-              />
-            ))}
-          </div>
-        )}
-
         {/* Page groups */}
         <div className="space-y-1 mt-1">
-          {pageGroups.map(({ url, pageChanges, key, hasCritical, isNavPage, defaultExpanded, pendingIds }) => {
+          {pageGroups.map(({ url, pageChanges, key, hasCritical, isNavPage, defaultExpanded }) => {
             const collapsed = collapsedGroups.has(key)
               ? true
               : collapsedGroups.has(key + "__open")
               ? false
               : !defaultExpanded;
 
-            const label = isSitewide(url) ? "Sitewide" : getPageLabel(url);
+            // Only show "Sitewide" for truly empty/null page_url; homepage shows as "Homepage"
+            const label = (!url || url.trim() === "") ? "Sitewide" : getPageLabel(url);
 
             return (
               <div key={key} className="rounded-xl overflow-hidden">
@@ -463,18 +435,16 @@ function ApprovalMasterDetailInner({
                     setCollapsedGroups((prev) => {
                       const next = new Set(prev);
                       if (currentlyCollapsed) {
-                        // Expanding: remove collapse marker, add open marker
                         next.delete(key);
                         next.add(key + "__open");
                       } else {
-                        // Collapsing: add collapse marker, remove open marker
                         next.add(key);
                         next.delete(key + "__open");
                       }
                       return next;
                     });
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.03] transition-colors rounded-lg group"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.03] transition-colors rounded-lg"
                 >
                   <span className={`text-[10px] text-white/30 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}>▶</span>
                   <span className="text-xs font-medium text-white/60 flex-1 truncate">{label}</span>
@@ -485,18 +455,6 @@ function ApprovalMasterDetailInner({
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400/70 border border-violet-400/15 flex-shrink-0">!</span>
                   )}
                   <span className="text-[10px] text-white/25 flex-shrink-0">{pageChanges.length}</span>
-                  {activeTab === "pending" && pendingIds.length > 1 && (
-                    <span
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-shrink-0 ml-1"
-                    >
-                      <BatchApproveButton
-                        recordIds={pendingIds}
-                        token={token}
-                        label={`Approve ${pendingIds.length}`}
-                      />
-                    </span>
-                  )}
                 </button>
 
                 {/* Page group items */}
@@ -572,9 +530,6 @@ function ApprovalMasterDetailInner({
                 </button>
               ))}
             </div>
-            {tier1Ids.length > 0 && (
-              <BatchApproveButton recordIds={tier1Ids} token={token} />
-            )}
           </div>
         )}
 
@@ -587,6 +542,32 @@ function ApprovalMasterDetailInner({
           )}
 
           <div className="space-y-6">
+            {/* Triage card — bulk approve safe types before reviewing the rest */}
+            {activeTab === "pending" && safeIds.length >= 5 && (
+              <div className="rounded-2xl border border-emerald-400/10 bg-emerald-500/[0.04] px-5 py-4">
+                <div className="text-sm font-medium text-white/70 mb-1">Technical Fixes</div>
+                <div className="text-xs text-white/40 mb-3 leading-relaxed">
+                  {safeIds.length} under-the-hood improvements — metadata, schema markup, image
+                  labels, and link fixes. These won't change how your site looks or reads.
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {safeTypeBreakdown.map(({ type, count }) => (
+                    <span
+                      key={type}
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-white/30"
+                    >
+                      {type} · {count}
+                    </span>
+                  ))}
+                </div>
+                <BatchApproveButton
+                  recordIds={safeIds}
+                  token={token}
+                  label={`Approve all ${safeIds.length} fixes`}
+                />
+              </div>
+            )}
+
             {CATEGORY_ORDER.filter((cat) => grouped[cat]).map((cat) =>
               renderCategorySection(cat, grouped[cat])
             )}
@@ -600,7 +581,7 @@ function ApprovalMasterDetailInner({
       </div>
 
       {/* ── Right Panel (Detail) ── */}
-      <div className="w-[60%] flex flex-col min-w-0 bg-white/[0.03] border-l border-white/[0.06]">
+      <div className="w-[60%] flex flex-col min-w-0 min-h-0 bg-white/[0.03] border-l border-white/[0.06]">
         {!effectiveSelected ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
@@ -609,8 +590,8 @@ function ApprovalMasterDetailInner({
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto p-8 pb-24">
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto p-8 pb-6 min-h-0">
               {(() => {
                 const fields = effectiveSelected.fields;
                 const type = normalizeType(fields.type || fields.change_type);
@@ -724,8 +705,8 @@ function ApprovalMasterDetailInner({
               )}
             </div>
 
-            {/* Sticky action bar with gradient fade */}
-            <div className="sticky bottom-0 pt-6 pb-4 px-8 bg-gradient-to-t from-[#0a0a12] via-[#0a0a12]/95 to-transparent">
+            {/* Action bar — flex-pinned to bottom, always visible */}
+            <div className="flex-shrink-0 px-8 py-4 border-t border-white/[0.06] bg-[#0a0a12]/90 backdrop-blur-sm">
               <ApprovalActionBar
                 changeId={effectiveSelected.id}
                 approval={getApprovalStatus(effectiveSelected)}
