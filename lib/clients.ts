@@ -47,7 +47,8 @@ export type ClientFields = {
   portal_token: string;
 
   // Content strategy (populated by SOP 14 after Month 1 audit)
-  keyword_groups: string; // JSON string: KeywordGroup[]
+  keyword_groups: string; // JSON string: KeywordGroup[] — AI-generated, overwritten on SOP 14 re-run
+  custom_keyword_groups: string; // JSON string: KeywordGroup[] — client-added; never overwritten by agent runs
   content_tone: string;   // B2B SaaS | B2B Services | Healthcare | E-commerce | Professional Services
   content_audience: string;
 

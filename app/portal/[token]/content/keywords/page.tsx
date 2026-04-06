@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
-import { KeywordGroups, type KeywordGroup } from "@/components/portal/KeywordGroups";
+import { KeywordGroups, type KeywordGroup, type Subkeyword } from "@/components/portal/KeywordGroups";
+import { CustomKeywordSection } from "@/components/portal/CustomKeywordSection";
 
 export const revalidate = 0;
 
@@ -22,16 +23,28 @@ export default async function KeywordsPage({
     // malformed JSON — treat as empty
   }
 
+  let customGroups: KeywordGroup[] = [];
+  try {
+    if (client.fields.custom_keyword_groups) {
+      customGroups = JSON.parse(client.fields.custom_keyword_groups);
+    }
+  } catch {
+    // malformed JSON — treat as empty
+  }
+
+  const customKeywords: Subkeyword[] = customGroups.flatMap((g) => g.subkeywords);
   const isEmpty = groups.length === 0;
 
   return (
-    <div className="flex flex-col">
-      <div className="mb-6">
+    <div className="flex flex-col gap-8">
+      <div className="mb-0">
         <h1 className="text-3xl font-bold tracking-tight text-white/90">Keywords</h1>
         <p className="text-base text-white/40 mt-1">
           Keyword groups and target subkeywords driving your content strategy
         </p>
       </div>
+
+      <CustomKeywordSection token={token} customKeywords={customKeywords} />
 
       {isEmpty ? (
         <div className="flex-1 flex items-center justify-center py-24">
@@ -45,9 +58,7 @@ export default async function KeywordsPage({
           </div>
         </div>
       ) : (
-        <KeywordGroups
-          groups={groups}
-        />
+        <KeywordGroups groups={groups} />
       )}
     </div>
   );
