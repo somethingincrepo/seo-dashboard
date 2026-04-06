@@ -89,9 +89,12 @@ function ApprovalMasterDetailInner({
   const [questionText, setQuestionText] = useState("");
   const [showTechnical, setShowTechnical] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<string>("All");
+  const [pageFilter, setPageFilter] = useState<string>("");
+  const [pageFilterOpen, setPageFilterOpen] = useState(false);
   // Track which page groups are collapsed (by "cat::pageUrl")
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
+  const pageFilterRef = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
 
   const onDecisionApplied = useCallback((changeId: string, decision: string) => {
@@ -363,11 +366,20 @@ function ApprovalMasterDetailInner({
       return changesB.length - changesA.length;
     });
 
-    return entries.map(([url, pageChanges]) => {
+    const needle = pageFilter.trim().toLowerCase();
+    const filteredEntries = needle
+      ? entries.filter(([url]) => {
+          const label = (!url || url.trim() === "") ? "sitewide" : getPageLabel(url).toLowerCase();
+          return label.includes(needle) || url.toLowerCase().includes(needle);
+        })
+      : entries;
+
+    return filteredEntries.map(([url, pageChanges]) => {
       const key = `${cat}::${url}`;
       const hasCritical = pageChanges.some((c) => c.fields.priority === "Critical");
       const isNavPage = pageChanges.some((c) => c.fields.is_nav_page);
-      const defaultExpanded = hasCritical || isNavPage || entries.length === 1;
+      // Auto-expand all groups when filtering so matches are visible
+      const defaultExpanded = hasCritical || isNavPage || filteredEntries.length === 1 || !!needle;
 
       return { url, pageChanges, key, hasCritical, isNavPage, defaultExpanded };
     });
@@ -508,28 +520,82 @@ function ApprovalMasterDetailInner({
 
         {/* Overview bar — always shown on pending tab */}
         {activeTab === "pending" && (
-          <div className="flex items-center justify-between gap-3 mb-3 px-1 flex-wrap">
-            <span className="text-sm text-white/60">
-              <span className="text-white/90 font-semibold">{effectivePending.length}</span> pending
-              {priorityFilter !== "All" && (
-                <span className="text-white/30 ml-1">({priorityFilter})</span>
-              )}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {(["All", "Critical", "High", "Medium", "Low"] as const).map((p) => (
+          <div className="mb-3 px-1 space-y-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-sm text-white/60">
+                <span className="text-white/90 font-semibold">{effectivePending.length}</span> pending
+                {priorityFilter !== "All" && (
+                  <span className="text-white/30 ml-1">({priorityFilter})</span>
+                )}
+                {pageFilter && (
+                  <span className="text-white/30 ml-1">· page filter active</span>
+                )}
+              </span>
+              <div className="flex items-center gap-1.5">
+                {(["All", "Critical", "High", "Medium", "Low"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPriorityFilter(p)}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all duration-150 ${
+                      priorityFilter === p
+                        ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
+                        : "bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                {/* Page filter toggle */}
                 <button
-                  key={p}
-                  onClick={() => setPriorityFilter(p)}
-                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all duration-150 ${
-                    priorityFilter === p
+                  onClick={() => {
+                    const next = !pageFilterOpen;
+                    setPageFilterOpen(next);
+                    if (next) {
+                      setTimeout(() => pageFilterRef.current?.focus(), 50);
+                    } else {
+                      setPageFilter("");
+                    }
+                  }}
+                  className={`w-6 h-6 flex items-center justify-center rounded-md transition-all duration-150 ${
+                    pageFilterOpen || pageFilter
                       ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
                       : "bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50"
                   }`}
+                  title="Filter by page"
                 >
-                  {p}
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 2h10M3 6h6M5 10h2" />
+                  </svg>
                 </button>
-              ))}
+              </div>
             </div>
+            {/* Page filter input */}
+            {pageFilterOpen && (
+              <div className="relative">
+                <input
+                  ref={pageFilterRef}
+                  type="text"
+                  value={pageFilter}
+                  onChange={(e) => setPageFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setPageFilter("");
+                      setPageFilterOpen(false);
+                    }
+                  }}
+                  placeholder="Filter by page (e.g. services, /about/)"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white/70 placeholder:text-white/20 focus:outline-none focus:border-violet-400/40 focus:bg-white/[0.06] transition-all"
+                />
+                {pageFilter && (
+                  <button
+                    onClick={() => setPageFilter("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
