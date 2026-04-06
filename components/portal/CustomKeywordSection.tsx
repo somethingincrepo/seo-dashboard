@@ -36,17 +36,6 @@ function CustomKeywordsCard({
   editKeyDown,
   removeKeyword,
 }: CustomKeywordsCardProps) {
-  keywords: Subkeyword[];
-  editing: string | null;
-  removing: string | null;
-  editValue: string;
-  editingKeyword: string | null;
-  setEditValue: (v: string) => void;
-  startEdit: (kw: string) => void;
-  cancelEdit: () => void;
-  saveEdit: (oldKw: string) => Promise<void>;
-  editKeyDown: (e: React.KeyboardEvent, oldKw: string) => void;
-}) {
   return (
     <div className="bg-white/[0.03] rounded-2xl border-t-2 border-t-teal-500 border border-white/[0.06] flex flex-col p-4 gap-3">
       {/* Header — matches GroupCard pattern */}
