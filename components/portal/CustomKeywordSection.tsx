@@ -14,11 +14,11 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
   const [editingKeyword, setEditingKeyword] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
 
   const { adding, editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, clearError } =
     useKeywordActions({ token });
 
-  // Focus edit input when entering edit mode
   useEffect(() => {
     if (editingKeyword && editInputRef.current) {
       editInputRef.current.focus();
@@ -52,66 +52,39 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
     clearError();
   }
 
+  const anyEditActive = editingKeyword !== null;
+
   return (
-    <div className="bg-white/[0.03] rounded-2xl border-t-2 border-t-teal-500 border border-white/[0.06] p-4 flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-teal-400">
-              Your Keywords
+    // Same card structure as GroupCard in KeywordGroups.tsx
+    <div className="bg-white/[0.03] rounded-2xl border-t-2 border-t-teal-500 border border-white/[0.06] flex flex-col p-4 gap-3">
+
+      {/* Header — matches GroupCard header exactly */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-teal-400">
+            Your Keywords
+          </span>
+          {customKeywords.length > 0 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-400/15 text-teal-400/70 font-medium tabular-nums">
+              {customKeywords.length}
             </span>
-            {customKeywords.length > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-400/15 text-teal-400/70 font-medium">
-                {customKeywords.length} added
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-white/30 leading-relaxed">
-            Keywords you add here flow into your content pipeline alongside your AI-generated groups.
-          </p>
+          )}
         </div>
+        <h3 className="text-base font-semibold text-white/90 leading-snug">Custom Keywords</h3>
+        <p className="text-xs text-white/35 mt-1 leading-relaxed">
+          Keywords you add here flow into your content pipeline alongside your AI-generated groups.
+        </p>
       </div>
 
-      {/* Add input */}
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          placeholder="Add a keyword..."
-          disabled={adding}
-          className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-white/20 disabled:opacity-50 transition-colors"
-        />
-        <button
-          onClick={handleAdd}
-          disabled={!inputValue.trim() || adding}
-          className="shrink-0 px-4 py-2.5 rounded-xl text-xs font-medium bg-teal-500/20 border border-teal-400/30 text-teal-300 hover:bg-teal-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {adding ? "Adding…" : "Add"}
-        </button>
-      </div>
-
-      {/* Feedback / error */}
-      {feedback && (
-        <div className="text-xs text-teal-400/80 -mt-2">{feedback}</div>
-      )}
-      {error && (
-        <div className="text-xs text-red-400/80 -mt-2">{error}</div>
-      )}
-
-      {/* Existing keywords list */}
+      {/* Keyword rows — same spacing as GroupCard subkeyword list */}
       {customKeywords.length > 0 && (
         <div className="space-y-1.5">
           {customKeywords.map((kw, i) => {
             const isThisEditing = editingKeyword === kw.keyword;
             const isThisRemoving = removing === kw.keyword;
             const isThisSaving = editing === kw.keyword;
-            const anyEditActive = editingKeyword !== null;
 
             if (isThisEditing) {
-              // Inline edit row
               return (
                 <div
                   key={kw.keyword}
@@ -148,7 +121,10 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
             }
 
             return (
-              <div key={kw.keyword} className={`transition-opacity ${isThisRemoving ? "opacity-40 pointer-events-none" : ""}`}>
+              <div
+                key={kw.keyword}
+                className={`transition-opacity duration-150 ${isThisRemoving ? "opacity-30 pointer-events-none" : ""}`}
+              >
                 <SubkeywordRow
                   kw={kw}
                   index={i}
@@ -160,6 +136,32 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
           })}
         </div>
       )}
+
+      {/* Add input — footer of the card */}
+      <div className={`flex flex-col gap-2 ${customKeywords.length > 0 ? "pt-2 border-t border-white/[0.05]" : ""}`}>
+        <div className="flex items-center gap-2">
+          <input
+            ref={addInputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => { setInputValue(e.target.value); clearError(); }}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            placeholder="Add a keyword…"
+            disabled={adding || anyEditActive}
+            className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-white/20 disabled:opacity-40 transition-colors"
+          />
+          <button
+            onClick={handleAdd}
+            disabled={!inputValue.trim() || adding || anyEditActive}
+            className="shrink-0 px-4 py-2 rounded-xl text-xs font-medium bg-teal-500/20 border border-teal-400/30 text-teal-300 hover:bg-teal-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {adding ? "Adding…" : "Add"}
+          </button>
+        </div>
+
+        {feedback && <p className="text-xs text-teal-400/80">{feedback}</p>}
+        {error && <p className="text-xs text-red-400/80">{error}</p>}
+      </div>
     </div>
   );
 }
