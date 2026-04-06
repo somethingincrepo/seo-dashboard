@@ -35,11 +35,15 @@ export function SubkeywordRow({ kw, index, onRemove, onEdit }: { kw: Subkeyword;
         <div className="text-sm text-white/80 font-medium leading-snug">{kw.keyword}</div>
       </div>
       <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-        {kw.volume > 0 && (
+        {kw.volume > 0 ? (
           <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.08] text-white/40 font-medium tabular-nums">
             {formatVolume(kw.volume)}/mo
           </span>
-        )}
+        ) : kw.difficulty > 0 ? (
+          <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.08] text-white/30 font-medium">
+            Low
+          </span>
+        ) : null}
         {kw.difficulty > 0 && (
           <span className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold tabular-nums ${diff.bg} ${diff.text}`}>
             KD {kw.difficulty}

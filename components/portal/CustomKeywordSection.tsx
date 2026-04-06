@@ -61,15 +61,15 @@ export function CustomKeywordSection({ token, customKeywords, groupIndex }: Cust
       <div>
         <div className="flex items-center gap-2 mb-1">
           <span className={`text-[10px] font-bold uppercase tracking-widest ${CUSTOM_STYLE.text}`}>
-            Group {groupIndex + 1}
+            Your Keywords
           </span>
           {customKeywords.length > 0 && (
             <span className="text-[10px] px-2 py-0.5 rounded-md bg-teal-500/10 border border-teal-400/20 text-teal-300 font-medium tabular-nums">
-              {customKeywords.length} keywords
+              {customKeywords.length} added
             </span>
           )}
         </div>
-        <h3 className="text-base font-semibold text-white/90 leading-snug">Your Keywords</h3>
+        <h3 className="text-base font-semibold text-white/90 leading-snug">Client Keywords</h3>
         <p className="text-xs text-white/35 mt-1 leading-relaxed">
           Add your own target keywords. They'll be enriched with search data and included in your content pipeline.
         </p>

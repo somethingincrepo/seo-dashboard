@@ -80,7 +80,7 @@ export default async function KeywordsPage({
             )}
           </div>
 
-          {/* Group cards — 2 column grid */}
+          {/* AI group cards — 2 column grid */}
           <div className="grid grid-cols-2 gap-4">
             {groups.map((group, i) => (
               <GroupCard
@@ -90,13 +90,14 @@ export default async function KeywordsPage({
                 index={i}
               />
             ))}
-            {/* Custom keyword group card — always last */}
-            <CustomKeywordSection
-              token={token}
-              customKeywords={customKeywords}
-              groupIndex={groups.length}
-            />
           </div>
+
+          {/* Custom keyword section — full width, below the grid */}
+          <CustomKeywordSection
+            token={token}
+            customKeywords={customKeywords}
+            groupIndex={groups.length}
+          />
         </>
       )}
     </div>
