@@ -55,7 +55,7 @@ export function SubkeywordRow({ kw, index, onRemove, onEdit }: { kw: Subkeyword;
           </span>
         )}
         {(onRemove || onEdit) && (
-          <div className="hidden group-hover:flex items-center gap-1 ml-1">
+          <div className="flex items-center gap-1 ml-1">
             {onEdit && (
               <button onClick={onEdit} className="text-[10px] px-2 py-0.5 rounded-md border border-white/[0.08] text-white/30 hover:text-violet-300 hover:border-violet-400/30 transition-colors">
                 Edit
