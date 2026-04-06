@@ -6,7 +6,7 @@ import type { KeywordGroup, Subkeyword } from "@/components/portal/KeywordGroups
 const TABLE = "Clients";
 const MAX_CUSTOM_KEYWORDS = 50;
 
-// DataForSEO enrichment
+// DataForSEO enrichment — uses dataforseo_labs/related_keywords endpoint (same as SOP 14)
 async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: boolean }> {
   const login = process.env.DATAFORSEO_LOGIN;
   const password = process.env.DATAFORSEO_PASSWORD;
@@ -17,14 +17,14 @@ async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: 
 
   try {
     const auth = Buffer.from(`${login}:${password}`).toString("base64");
-    const res = await fetch("https://api.dataforseo.com/v3/keywords_data/google_keywords_research/live", {
+    const res = await fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/related_keywords/live", {
       method: "POST",
       headers: {
         Authorization: `Basic ${auth}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify([
-        { keywords: [keyword], location_code: 2840, language_code: "en" },
+        { keyword, location_code: 2840, language_code: "en", limit: 1 },
       ]),
     });
 
@@ -34,16 +34,18 @@ async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: 
 
     const data = await res.json();
     const task = data.tasks?.[0];
-    const result = task?.result?.[0];
+    const item = task?.result?.[0]?.items?.[0];
 
-    if (!result) {
+    if (!item?.keyword_data) {
       return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
     }
 
-    const volume = result.keyword_info?.search_volume ?? 0;
-    const rawDiff = result.keyword_properties?.keyword_difficulty ?? 0;
+    const keywordData = item.keyword_data as Record<string, Record<string, unknown>>;
+
+    const volume = (keywordData.keyword_info?.search_volume as number) ?? 0;
+    const rawDiff = (keywordData.keyword_properties?.keyword_difficulty as number) ?? 0;
     const difficulty = Math.max(0, Math.min(100, rawDiff));
-    const intent = result.search_intent_info?.main_intent ?? "";
+    const intent = (keywordData.search_intent_info?.main_intent as string) ?? "";
 
     return { keyword, volume, difficulty, intent, enriched: true };
   } catch {
