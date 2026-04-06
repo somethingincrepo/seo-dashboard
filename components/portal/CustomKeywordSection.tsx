@@ -35,7 +35,7 @@ function CustomKeywordsCard({
   saveEdit,
   editKeyDown,
   removeKeyword,
-}: CustomKeywordsCardProps) {: {
+}: CustomKeywordsCardProps) {
   keywords: Subkeyword[];
   editing: string | null;
   removing: string | null;
