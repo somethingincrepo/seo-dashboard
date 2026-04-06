@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
     if (decision === "approved") {
       await airtableCreate("Jobs", {
         client_id: [client.id],
-        job_type: "implement",
-        status: "queued",
+        job_type_new: "implement",
+        job_status_new: "queued",
         triggered_by: "portal_approval",
         params: JSON.stringify({ change_id: recordId }),
       });

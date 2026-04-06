@@ -22,9 +22,6 @@ export default async function KeywordsPage({
     // malformed JSON — treat as empty
   }
 
-  const contentTone = client.fields.content_tone || "";
-  const contentAudience = client.fields.content_audience || "";
-
   const isEmpty = groups.length === 0;
 
   return (
@@ -42,16 +39,14 @@ export default async function KeywordsPage({
             <div className="text-3xl mb-4 text-white/20">◈</div>
             <div className="font-medium text-white/50 mb-2">Keyword research in progress</div>
             <div className="text-sm text-white/30 leading-relaxed">
-              Your 5 keyword groups will appear here once your Month 1 audit is complete.
-              Each group will include 2 target subkeywords with volume and difficulty data.
+              Your 6 keyword groups will appear here once your Month 1 audit is complete.
+              Each group will include 5 target subkeywords with volume and difficulty data.
             </div>
           </div>
         </div>
       ) : (
         <KeywordGroups
           groups={groups}
-          contentTone={contentTone}
-          contentAudience={contentAudience}
         />
       )}
     </div>

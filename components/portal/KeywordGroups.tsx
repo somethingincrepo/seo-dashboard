@@ -15,8 +15,6 @@ export type KeywordGroup = {
 
 interface KeywordGroupsProps {
   groups: KeywordGroup[];
-  contentTone: string;
-  contentAudience: string;
 }
 
 const GROUP_STYLES = [
@@ -25,6 +23,7 @@ const GROUP_STYLES = [
   { border: "border-t-emerald-500",dot: "bg-emerald-400",text: "text-emerald-400",pill: "bg-emerald-500/10 text-emerald-300 border-emerald-400/20" },
   { border: "border-t-amber-500",  dot: "bg-amber-400",  text: "text-amber-400",  pill: "bg-amber-500/10 text-amber-300 border-amber-400/20" },
   { border: "border-t-rose-500",   dot: "bg-rose-400",   text: "text-rose-400",   pill: "bg-rose-500/10 text-rose-300 border-rose-400/20" },
+  { border: "border-t-cyan-500",   dot: "bg-cyan-400",   text: "text-cyan-400",   pill: "bg-cyan-500/10 text-cyan-300 border-cyan-400/20" },
 ];
 
 function getDifficultyStyle(kd: number) {
@@ -105,42 +104,19 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-export function KeywordGroups({ groups, contentTone, contentAudience }: KeywordGroupsProps) {
+export function KeywordGroups({ groups }: KeywordGroupsProps) {
   const totalKeywords = groups.reduce((sum, g) => sum + g.subkeywords.length, 0);
   const allKds = groups.flatMap(g => g.subkeywords.map(kw => kw.difficulty)).filter(kd => kd > 0);
   const avgKd = allKds.length > 0 ? Math.round(allKds.reduce((a, b) => a + b, 0) / allKds.length) : null;
-  const intents = groups.flatMap(g => g.subkeywords.map(kw => kw.intent)).filter(Boolean);
-  const topIntent = intents.length > 0
-    ? Object.entries(intents.reduce<Record<string, number>>((acc, i) => { acc[i] = (acc[i] || 0) + 1; return acc; }, {}))
-        .sort(([, a], [, b]) => b - a)[0]?.[0]
-    : null;
 
   return (
     <div className="space-y-6">
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <StatPill label="Groups" value={groups.length} />
         <StatPill label="Keywords" value={totalKeywords} />
         {avgKd !== null && <StatPill label="Avg Difficulty" value={avgKd} />}
-        {contentTone && <StatPill label="Content Tone" value={contentTone} />}
-        {!contentTone && topIntent && <StatPill label="Top Intent" value={topIntent} />}
       </div>
-
-      {/* Audience / tone context */}
-      {(contentTone || contentAudience) && (
-        <div className="flex items-center gap-3 flex-wrap">
-          {contentTone && (
-            <span className="text-xs px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-400/20 text-violet-300 font-medium">
-              {contentTone}
-            </span>
-          )}
-          {contentAudience && (
-            <span className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/40">
-              {contentAudience}
-            </span>
-          )}
-        </div>
-      )}
 
       {/* Group cards — 2 column grid */}
       <div className="grid grid-cols-2 gap-4">
