@@ -40,16 +40,20 @@ async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: 
       return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
     }
 
-    const keywordData = (items[0].keyword_data as Record<string, Record<string, unknown>>) | undefined;
+    const keywordData = items[0].keyword_data as Record<string, unknown> | undefined;
 
     if (!keywordData) {
       return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
     }
 
-    const volume = (keywordData.keyword_info?.search_volume as number) ?? 0;
-    const rawDiff = (keywordData.keyword_properties?.keyword_difficulty as number) ?? 0;
+    const info = keywordData.keyword_info as Record<string, unknown> | undefined;
+    const props = keywordData.keyword_properties as Record<string, unknown> | undefined;
+    const intentInfo = keywordData.search_intent_info as Record<string, unknown> | undefined;
+
+    const volume = (info?.search_volume as number) ?? 0;
+    const rawDiff = (props?.keyword_difficulty as number) ?? 0;
     const difficulty = Math.max(0, Math.min(100, rawDiff));
-    const intent = (keywordData.search_intent_info?.main_intent as string) ?? "";
+    const intent = (intentInfo?.main_intent as string) ?? "";
 
     return { keyword, volume, difficulty, intent, enriched: true };
   } catch {
