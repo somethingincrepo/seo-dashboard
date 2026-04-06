@@ -34,13 +34,17 @@ async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: 
 
     const data = await res.json();
     const task = data.tasks?.[0];
-    const item = task?.result?.[0]?.items?.[0];
+    const items = task?.result?.[0]?.items;
 
-    if (!item?.keyword_data) {
+    if (!items || items.length === 0) {
       return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
     }
 
-    const keywordData = item.keyword_data as Record<string, Record<string, unknown>>;
+    const keywordData = (items[0].keyword_data as Record<string, Record<string, unknown>>) | undefined;
+
+    if (!keywordData) {
+      return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
+    }
 
     const volume = (keywordData.keyword_info?.search_volume as number) ?? 0;
     const rawDiff = (keywordData.keyword_properties?.keyword_difficulty as number) ?? 0;
