@@ -47,6 +47,10 @@ export default async function KeywordsPage({
         </p>
       </div>
 
+      {/* Add input strip — always visible at the top */}
+      <CustomKeywordSection token={token} customKeywords={customKeywords} />
+
+      {/* AI-generated groups */}
       {isEmpty ? (
         <div className="flex-1 flex items-center justify-center py-24">
           <div className="text-center max-w-sm">
@@ -65,8 +69,6 @@ export default async function KeywordsPage({
           contentAudience={contentAudience}
         />
       )}
-
-      <CustomKeywordSection token={token} customKeywords={customKeywords} />
     </div>
   );
 }
