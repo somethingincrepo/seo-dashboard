@@ -54,8 +54,8 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
   };
 
   return (
-    <div className="bg-white/[0.03] rounded-2xl border-t-2 border-t-teal-500 border border-white/[0.06] flex flex-col p-4 gap-4">
-      {/* Header */}
+    <div className="bg-white/[0.03] rounded-2xl border-t-2 border-t-teal-500 border border-white/[0.06] flex flex-col p-4 gap-3">
+      {/* Header — matches GroupCard pattern */}
       <div>
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] font-bold uppercase tracking-widest text-teal-400">
@@ -67,30 +67,10 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
             </span>
           )}
         </div>
-        <p className="text-xs text-white/35 leading-relaxed">
-          Add your own target keywords. They'll be enriched with search data and included in your content pipeline automatically.
+        <h3 className="text-base font-semibold text-white/90 leading-snug">Client Keywords</h3>
+        <p className="text-xs text-white/35 mt-1 leading-relaxed">
+          Add your own target keywords. They'll be enriched with search data and included in your content pipeline.
         </p>
-      </div>
-
-      {/* Add input */}
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add a keyword..."
-          disabled={adding}
-          className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-teal-400/40 focus:ring-1 focus:ring-teal-400/20 disabled:opacity-40 transition-colors"
-          maxLength={100}
-        />
-        <button
-          onClick={handleAdd}
-          disabled={adding || !inputValue.trim()}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-teal-500/20 text-teal-300 border border-teal-400/20 hover:bg-teal-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-        >
-          {adding ? "Adding…" : "Add"}
-        </button>
       </div>
 
       {/* Feedback / error */}
@@ -144,6 +124,29 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
             </div>
           );
         })}
+      </div>
+
+      {/* Add input — footer with border-t divider when keywords exist */}
+      <div className={customKeywords.length > 0 ? "border-t border-white/[0.05] pt-3" : ""}>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add a keyword..."
+            disabled={adding}
+            className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-teal-400/40 focus:ring-1 focus:ring-teal-400/20 disabled:opacity-40 transition-colors"
+            maxLength={100}
+          />
+          <button
+            onClick={handleAdd}
+            disabled={adding || !inputValue.trim()}
+            className="px-4 py-2 rounded-xl text-sm font-medium bg-teal-500/20 text-teal-300 border border-teal-400/20 hover:bg-teal-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {adding ? "Adding…" : "Add"}
+          </button>
+        </div>
       </div>
     </div>
   );
