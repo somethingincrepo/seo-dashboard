@@ -39,10 +39,20 @@ function formatVolume(v: number): string {
   return String(v);
 }
 
-function SubkeywordRow({ kw, index }: { kw: Subkeyword; index: number }) {
+export function SubkeywordRow({
+  kw,
+  index,
+  onRemove,
+  onEdit,
+}: {
+  kw: Subkeyword;
+  index: number;
+  onRemove?: () => void;
+  onEdit?: () => void;
+}) {
   const diff = getDifficultyStyle(kw.difficulty);
   return (
-    <div className={`flex items-start gap-3 px-3 py-2.5 rounded-xl ${index === 0 ? "bg-white/[0.03]" : "bg-white/[0.015]"} border border-white/[0.04]`}>
+    <div className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl ${index === 0 ? "bg-white/[0.03]" : "bg-white/[0.015]"} border border-white/[0.04]`}>
       <div className="flex-1 min-w-0">
         <div className="text-sm text-white/80 font-medium leading-snug">{kw.keyword}</div>
       </div>
@@ -61,6 +71,26 @@ function SubkeywordRow({ kw, index }: { kw: Subkeyword; index: number }) {
           <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-white/30 capitalize">
             {kw.intent}
           </span>
+        )}
+        {(onRemove || onEdit) && (
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-1 shrink-0">
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="text-[10px] text-white/30 hover:text-violet-400 transition-colors px-1.5 py-0.5 rounded"
+              >
+                Edit
+              </button>
+            )}
+            {onRemove && (
+              <button
+                onClick={onRemove}
+                className="text-[10px] text-white/30 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded"
+              >
+                ×
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
