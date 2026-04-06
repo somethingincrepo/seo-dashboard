@@ -13,10 +13,6 @@ export type KeywordGroup = {
   subkeywords: Subkeyword[];
 };
 
-interface KeywordGroupsProps {
-  groups: KeywordGroup[];
-}
-
 const GROUP_STYLES = [
   { border: "border-t-violet-500", dot: "bg-violet-400", text: "text-violet-400", pill: "bg-violet-500/10 text-violet-300 border-violet-400/20" },
   { border: "border-t-blue-500",   dot: "bg-blue-400",   text: "text-blue-400",   pill: "bg-blue-500/10 text-blue-300 border-blue-400/20" },
@@ -25,6 +21,11 @@ const GROUP_STYLES = [
   { border: "border-t-rose-500",   dot: "bg-rose-400",   text: "text-rose-400",   pill: "bg-rose-500/10 text-rose-300 border-rose-400/20" },
   { border: "border-t-cyan-500",   dot: "bg-cyan-400",   text: "text-cyan-400",   pill: "bg-cyan-500/10 text-cyan-300 border-cyan-400/20" },
 ];
+
+// Teal style for the custom keywords group card
+const CUSTOM_STYLE = { border: "border-t-teal-500", dot: "bg-teal-400", text: "text-teal-400", pill: "bg-teal-500/10 text-teal-300 border-teal-400/20" };
+
+export { GROUP_STYLES, CUSTOM_STYLE };
 
 function getDifficultyStyle(kd: number) {
   if (kd < 30) return { text: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-400/20", label: "Easy" };
@@ -80,7 +81,7 @@ export function SubkeywordRow({ kw, index, onRemove, onEdit }: { kw: Subkeyword;
   );
 }
 
-function GroupCard({ group, style, index }: { group: KeywordGroup; style: typeof GROUP_STYLES[0]; index: number }) {
+export function GroupCard({ group, style, index }: { group: KeywordGroup; style: typeof GROUP_STYLES[0]; index: number }) {
   return (
     <div className={`bg-white/[0.03] rounded-2xl border-t-2 ${style.border} border border-white/[0.06] flex flex-col p-4 gap-3`}>
       {/* Header */}
@@ -116,6 +117,10 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
       <div className="text-lg font-bold text-white/80">{value}</div>
     </div>
   );
+}
+
+interface KeywordGroupsProps {
+  groups: KeywordGroup[];
 }
 
 export function KeywordGroups({ groups }: KeywordGroupsProps) {

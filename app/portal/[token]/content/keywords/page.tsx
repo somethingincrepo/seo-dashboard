@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { KeywordGroups, type KeywordGroup, type Subkeyword } from "@/components/portal/KeywordGroups";
+import { GroupCard } from "@/components/portal/KeywordGroups";
+import { GROUP_STYLES } from "@/components/portal/KeywordGroups";
 import { CustomKeywordSection } from "@/components/portal/CustomKeywordSection";
 
 export const revalidate = 0;
@@ -33,10 +35,14 @@ export default async function KeywordsPage({
   }
 
   const customKeywords: Subkeyword[] = customGroups.flatMap((g) => g.subkeywords);
-  const isEmpty = groups.length === 0;
+  const aiKeywordCount = groups.reduce((sum, g) => sum + g.subkeywords.length, 0);
+  const totalKeywords = aiKeywordCount + customKeywords.length;
+  const allKds = [...groups, ...customGroups].flatMap((g) => g.subkeywords.map((kw) => kw.difficulty)).filter((kd) => kd > 0);
+  const avgKd = allKds.length > 0 ? Math.round(allKds.reduce((a, b) => a + b, 0) / allKds.length) : null;
+  const hasKeywords = groups.length > 0 || customKeywords.length > 0;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <div className="mb-0">
         <h1 className="text-3xl font-bold tracking-tight text-white/90">Keywords</h1>
         <p className="text-base text-white/40 mt-1">
@@ -44,9 +50,7 @@ export default async function KeywordsPage({
         </p>
       </div>
 
-      <CustomKeywordSection token={token} customKeywords={customKeywords} />
-
-      {isEmpty ? (
+      {!hasKeywords ? (
         <div className="flex-1 flex items-center justify-center py-24">
           <div className="text-center max-w-sm">
             <div className="text-3xl mb-4 text-white/20">◈</div>
@@ -58,7 +62,43 @@ export default async function KeywordsPage({
           </div>
         </div>
       ) : (
-        <KeywordGroups groups={groups} />
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] px-4 py-3 flex flex-col gap-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-white/25">Groups</div>
+              <div className="text-lg font-bold text-white/80">{groups.length + 1}</div>
+            </div>
+            <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] px-4 py-3 flex flex-col gap-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-white/25">Keywords</div>
+              <div className="text-lg font-bold text-white/80">{totalKeywords}</div>
+            </div>
+            {avgKd !== null && (
+              <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] px-4 py-3 flex flex-col gap-0.5">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-white/25">Avg Difficulty</div>
+                <div className="text-lg font-bold text-white/80">{avgKd}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Group cards — 2 column grid */}
+          <div className="grid grid-cols-2 gap-4">
+            {groups.map((group, i) => (
+              <GroupCard
+                key={i}
+                group={group}
+                style={GROUP_STYLES[i % GROUP_STYLES.length]}
+                index={i}
+              />
+            ))}
+            {/* Custom keyword group card — always last */}
+            <CustomKeywordSection
+              token={token}
+              customKeywords={customKeywords}
+              groupIndex={groups.length}
+            />
+          </div>
+        </>
       )}
     </div>
   );
