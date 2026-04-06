@@ -16,24 +16,25 @@ async function enrichKeyword(keyword: string): Promise<{
 
   try {
     const res = await fetch(
-      "https://api.dataforseo.com/v3/keywords_data/google_keywords_research/live",
+      "https://api.dataforseo.com/v3/dataforseo_labs/google/related_keywords/live",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Basic ${Buffer.from(`${login}:${password}`).toString("base64")}`,
         },
-        body: JSON.stringify([{ keywords: [keyword], location_code: 2840, language_code: "en" }]),
+        body: JSON.stringify([{ keyword, location_code: 2840, language_code: "en", limit: 1 }]),
       }
     );
     if (!res.ok) return { volume: 0, difficulty: 0, intent: "", enriched: false };
 
     const data = await res.json();
-    const r = data?.tasks?.[0]?.result?.[0];
+    // Response path: tasks[0].result[0].items[0].keyword_data
+    const kd = data?.tasks?.[0]?.result?.[0]?.items?.[0]?.keyword_data;
     return {
-      volume: r?.keyword_info?.search_volume ?? 0,
-      difficulty: Math.max(0, Math.min(100, r?.keyword_properties?.keyword_difficulty ?? 0)),
-      intent: r?.search_intent_info?.main_intent ?? "",
+      volume: kd?.keyword_info?.search_volume ?? 0,
+      difficulty: Math.max(0, Math.min(100, kd?.keyword_properties?.keyword_difficulty ?? 0)),
+      intent: kd?.search_intent_info?.main_intent ?? "",
       enriched: true,
     };
   } catch {
