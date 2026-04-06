@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { SubkeywordRow, type Subkeyword, CUSTOM_STYLE } from "./KeywordGroups";
+import { SubkeywordRow, type Subkeyword } from "./KeywordGroups";
+import { CUSTOM_STYLE } from "./keyword-styles";
 import { useKeywordActions } from "./useKeywordActions";
 
 interface CustomKeywordSectionProps {

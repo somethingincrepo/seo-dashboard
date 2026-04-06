@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
-import { KeywordGroups, type KeywordGroup, type Subkeyword } from "@/components/portal/KeywordGroups";
-import { GroupCard } from "@/components/portal/KeywordGroups";
-import { GROUP_STYLES } from "@/components/portal/KeywordGroups";
+import { type KeywordGroup, type Subkeyword, GroupCard } from "@/components/portal/KeywordGroups";
+import { GROUP_STYLES } from "@/components/portal/keyword-styles";
 import { CustomKeywordSection } from "@/components/portal/CustomKeywordSection";
 
 export const revalidate = 0;
