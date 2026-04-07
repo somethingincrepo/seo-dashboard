@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { GROUP_STYLES } from "./keyword-styles";
 
 export type Subkeyword = {
@@ -7,6 +8,7 @@ export type Subkeyword = {
   volume: number;
   difficulty: number;
   intent: string;
+  priority?: number; // 1 (highest) – 5 (lowest), defaults to 3
 };
 
 export type KeywordGroup = {
@@ -27,14 +29,55 @@ function formatVolume(v: number): string {
   return String(v);
 }
 
-export function SubkeywordRow({ kw, index, onRemove, onEdit }: { kw: Subkeyword; index: number; onRemove?: () => void; onEdit?: () => void }) {
+const PRIORITY_STYLES: Record<number, { text: string; bg: string; border: string }> = {
+  1: { text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200" },
+  2: { text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200" },
+  3: { text: "text-slate-500", bg: "bg-slate-100", border: "border-slate-200" },
+  4: { text: "text-slate-400", bg: "bg-slate-50", border: "border-slate-100" },
+  5: { text: "text-slate-300", bg: "bg-slate-50", border: "border-slate-100" },
+};
+
+export function SubkeywordRow({ kw, index, onRemove, onEdit, token, showPriority }: { kw: Subkeyword; index: number; onRemove?: () => void; onEdit?: () => void; token?: string; showPriority?: boolean }) {
+  const router = useRouter();
   const diff = getDifficultyStyle(kw.difficulty);
+  const p = kw.priority ?? 3;
+  const ps = PRIORITY_STYLES[p] || PRIORITY_STYLES[3];
+
+  const handlePriorityChange = async (newPriority: number) => {
+    if (!token) return;
+    try {
+      await fetch("/api/portal/keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "priority", token, keyword: kw.keyword, priority: newPriority }),
+      });
+      router.refresh();
+    } catch {
+      // Dropdown will revert on next refresh
+    }
+  };
+
   return (
     <div className={`flex items-start gap-3 px-3 py-2.5 rounded-xl transition-colors duration-150 ${index === 0 ? "bg-slate-50 border border-slate-200 hover:bg-slate-100" : "bg-white border border-slate-100 hover:bg-slate-50"}`}>
       <div className="flex-1 min-w-0">
         <div className="text-sm text-slate-800 font-medium leading-snug">{kw.keyword}</div>
       </div>
       <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+        {showPriority && (
+          <select
+            value={p}
+            onChange={(e) => handlePriorityChange(parseInt(e.target.value, 10))}
+            className={`text-[10px] pl-1.5 pr-5 py-0.5 rounded-md border font-semibold appearance-none cursor-pointer transition-colors ${ps.bg} ${ps.text} ${ps.border} hover:opacity-80`}
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' fill='none'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 5px center" }}
+            title={`Priority ${p} — higher = created first`}
+          >
+            <option value={1}>P1</option>
+            <option value={2}>P2</option>
+            <option value={3}>P3</option>
+            <option value={4}>P4</option>
+            <option value={5}>P5</option>
+          </select>
+        )}
         {kw.volume > 0 ? (
           <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-500 font-medium tabular-nums">
             {formatVolume(kw.volume)}/mo
@@ -73,7 +116,7 @@ export function SubkeywordRow({ kw, index, onRemove, onEdit }: { kw: Subkeyword;
   );
 }
 
-export function GroupCard({ group, style, index }: { group: KeywordGroup; style: typeof GROUP_STYLES[0]; index: number }) {
+export function GroupCard({ group, style, index, token }: { group: KeywordGroup; style: typeof GROUP_STYLES[0]; index: number; token?: string }) {
   return (
     <div className={`bg-white rounded-2xl border-t-2 ${style.border} border border-slate-200 flex flex-col p-4 gap-3 transition-all duration-200 hover:shadow-[var(--shadow-md)]`} style={{ boxShadow: "var(--shadow-xs)" }}>
       {/* Header */}
@@ -92,7 +135,7 @@ export function GroupCard({ group, style, index }: { group: KeywordGroup; style:
       {/* Subkeywords */}
       <div className="space-y-1.5">
         {group.subkeywords.map((kw, i) => (
-          <SubkeywordRow key={i} kw={kw} index={i} />
+          <SubkeywordRow key={i} kw={kw} index={i} showPriority token={token} />
         ))}
         {group.subkeywords.length === 0 && (
           <div className="text-xs text-slate-300 text-center py-3">No subkeywords</div>
@@ -113,9 +156,10 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
 
 interface KeywordGroupsProps {
   groups: KeywordGroup[];
+  token?: string;
 }
 
-export function KeywordGroups({ groups }: KeywordGroupsProps) {
+export function KeywordGroups({ groups, token }: KeywordGroupsProps) {
   const totalKeywords = groups.reduce((sum, g) => sum + g.subkeywords.length, 0);
   const allKds = groups.flatMap(g => g.subkeywords.map(kw => kw.difficulty)).filter(kd => kd > 0);
   const avgKd = allKds.length > 0 ? Math.round(allKds.reduce((a, b) => a + b, 0) / allKds.length) : null;
@@ -137,6 +181,7 @@ export function KeywordGroups({ groups }: KeywordGroupsProps) {
             group={group}
             style={GROUP_STYLES[i % GROUP_STYLES.length]}
             index={i}
+            token={token}
           />
         ))}
       </div>

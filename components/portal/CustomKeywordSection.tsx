@@ -9,9 +9,10 @@ interface CustomKeywordSectionProps {
   token: string;
   customKeywords: Subkeyword[];
   groupIndex: number;
+  showPriority?: boolean;
 }
 
-export function CustomKeywordSection({ token, customKeywords, groupIndex }: CustomKeywordSectionProps) {
+export function CustomKeywordSection({ token, customKeywords, groupIndex, showPriority }: CustomKeywordSectionProps) {
   const [inputValue, setInputValue] = useState("");
   const [editValue, setEditValue] = useState("");
   const [editingKeyword, setEditingKeyword] = useState<string | null>(null);
@@ -116,6 +117,8 @@ export function CustomKeywordSection({ token, customKeywords, groupIndex }: Cust
               <SubkeywordRow
                 kw={kw}
                 index={i}
+                showPriority={showPriority}
+                token={token}
                 onEdit={!editing ? () => startEdit(kw.keyword) : undefined}
                 onRemove={!editing ? () => removeKeyword(kw.keyword) : undefined}
               />

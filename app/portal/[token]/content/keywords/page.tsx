@@ -88,6 +88,7 @@ export default async function KeywordsPage({
                 group={group}
                 style={GROUP_STYLES[i % GROUP_STYLES.length]}
                 index={i}
+                token={token}
               />
             ))}
           </div>
@@ -97,6 +98,7 @@ export default async function KeywordsPage({
             token={token}
             customKeywords={customKeywords}
             groupIndex={groups.length}
+            showPriority
           />
         </>
       )}

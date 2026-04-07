@@ -6,7 +6,7 @@ import type { KeywordGroup, Subkeyword } from "@/components/portal/KeywordGroups
 const TABLE = "Clients";
 const MAX_CUSTOM_KEYWORDS = 50;
 
-// DataForSEO enrichment — uses dataforseo_labs/related_keywords endpoint (same as SOP 14)
+// DataForSEO enrichment — uses keywords_data/search_volume endpoint for volume + keywords_data/keyword_info for difficulty
 async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: boolean }> {
   const login = process.env.DATAFORSEO_LOGIN;
   const password = process.env.DATAFORSEO_PASSWORD;
@@ -17,43 +17,58 @@ async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: 
 
   try {
     const auth = Buffer.from(`${login}:${password}`).toString("base64");
-    const res = await fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/related_keywords/live", {
+
+    // Step 1: Get search volume
+    const volRes = await fetch("https://api.dataforseo.com/v3/keywords_data/google/search_volume/live", {
       method: "POST",
       headers: {
         Authorization: `Basic ${auth}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify([
-        { keyword, location_code: 2840, language_code: "en", limit: 1 },
+        { keywords: [keyword], location_code: 2840, language_code: "en" },
       ]),
     });
 
-    if (!res.ok) {
+    if (!volRes.ok) {
       return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
     }
 
-    const data = await res.json();
-    const task = data.tasks?.[0];
-    const items = task?.result?.[0]?.items;
+    const volData = await volRes.json();
+    const volTask = volData.tasks?.[0];
+    const volResult = volTask?.result?.[0];
 
-    if (!items || items.length === 0) {
+    if (!volResult || typeof volResult.search_volume !== "number") {
       return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
     }
 
-    const keywordData = items[0].keyword_data as Record<string, unknown> | undefined;
+    const volume = volResult.search_volume as number;
 
-    if (!keywordData) {
-      return { keyword, volume: 0, difficulty: 0, intent: "", enriched: false };
+    // Step 2: Get keyword difficulty (different endpoint)
+    const kdRes = await fetch("https://api.dataforseo.com/v3/keywords_data/google/keywords/live", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([
+        { keywords: [keyword], location_code: 2840, language_code: "en" },
+      ]),
+    });
+
+    let difficulty = 0;
+    let intent = "";
+
+    if (kdRes.ok) {
+      const kdData = await kdRes.json();
+      const kdTask = kdData.tasks?.[0];
+      const kdItems = kdTask?.result?.[0]?.items;
+      if (kdItems && kdItems.length > 0) {
+        const item = kdItems[0];
+        difficulty = Math.max(0, Math.min(100, (item.keyword_info?.keyword_difficulty as number) ?? 0));
+        intent = (item.keyword_info?.search_intent_info?.main_intent as string) ?? "";
+      }
     }
-
-    const info = keywordData.keyword_info as Record<string, unknown> | undefined;
-    const props = keywordData.keyword_properties as Record<string, unknown> | undefined;
-    const intentInfo = keywordData.search_intent_info as Record<string, unknown> | undefined;
-
-    const volume = (info?.search_volume as number) ?? 0;
-    const rawDiff = (props?.keyword_difficulty as number) ?? 0;
-    const difficulty = Math.max(0, Math.min(100, rawDiff));
-    const intent = (intentInfo?.main_intent as string) ?? "";
 
     return { keyword, volume, difficulty, intent, enriched: true };
   } catch {
@@ -184,6 +199,57 @@ export async function POST(req: NextRequest) {
       await patchCustomGroups(client.id, groups);
 
       return NextResponse.json({ ok: true });
+    }
+
+    if (action === "priority") {
+      const keyword = (body.keyword as string)?.trim();
+      const priority = body.priority as number;
+
+      if (!keyword || ![1, 2, 3, 4, 5].includes(priority)) {
+        return NextResponse.json({ error: "Keyword and valid priority (1-5) required" }, { status: 400 });
+      }
+
+      // Check both custom_keyword_groups and keyword_groups
+      let customGroups = parseCustomGroups(client.fields.custom_keyword_groups);
+      let customFound = false;
+
+      for (const group of customGroups) {
+        for (let i = 0; i < group.subkeywords.length; i++) {
+          if (group.subkeywords[i].keyword.toLowerCase() === keyword.toLowerCase()) {
+            group.subkeywords[i].priority = priority;
+            customFound = true;
+            break;
+          }
+        }
+        if (customFound) break;
+      }
+
+      if (customFound) {
+        await patchCustomGroups(client.id, customGroups);
+        return NextResponse.json({ ok: true, source: "custom" });
+      }
+
+      // Check keyword_groups (AI-generated)
+      let aiGroups = parseCustomGroups(client.fields.keyword_groups);
+      let aiFound = false;
+
+      for (const group of aiGroups) {
+        for (let i = 0; i < group.subkeywords.length; i++) {
+          if (group.subkeywords[i].keyword.toLowerCase() === keyword.toLowerCase()) {
+            group.subkeywords[i].priority = priority;
+            aiFound = true;
+            break;
+          }
+        }
+        if (aiFound) break;
+      }
+
+      if (aiFound) {
+        await airtablePatch(TABLE, client.id, { keyword_groups: JSON.stringify(aiGroups) });
+        return NextResponse.json({ ok: true, source: "ai" });
+      }
+
+      return NextResponse.json({ error: "Keyword not found" }, { status: 404 });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
