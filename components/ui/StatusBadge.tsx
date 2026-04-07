@@ -1,44 +1,51 @@
 import { cn } from "@/lib/utils";
 
 const PLAN_STATUS: Record<string, string> = {
-  form_submitted: "bg-slate-100 text-slate-600 border-slate-200",
-  onboarding_setup: "bg-blue-50 text-blue-700 border-blue-200",
-  month1_audit: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  awaiting_approval: "bg-amber-50 text-amber-700 border-amber-200",
-  month1_implementing: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  paused: "bg-slate-100 text-slate-500 border-slate-200",
-  failed: "bg-red-50 text-red-700 border-red-200",
+  form_submitted:       "text-slate-700 bg-slate-50 ring-slate-200",
+  onboarding_setup:     "text-blue-700 bg-blue-50 ring-blue-100",
+  month1_audit:         "text-indigo-700 bg-indigo-50 ring-indigo-100",
+  awaiting_approval:    "text-amber-700 bg-amber-50 ring-amber-100",
+  month1_implementing:  "text-indigo-700 bg-indigo-50 ring-indigo-100",
+  active:               "text-emerald-700 bg-emerald-50 ring-emerald-100",
+  paused:               "text-slate-600 bg-slate-50 ring-slate-200",
+  failed:               "text-red-700 bg-red-50 ring-red-100",
 };
 
 const JOB_STATUS: Record<string, string> = {
-  queued: "bg-slate-100 text-slate-600 border-slate-200",
-  running: "bg-blue-50 text-blue-700 border-blue-200 animate-pulse",
-  implementing: "bg-indigo-50 text-indigo-700 border-indigo-200 animate-pulse",
-  awaiting_approval: "bg-amber-50 text-amber-700 border-amber-200",
-  complete: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  failed: "bg-red-50 text-red-700 border-red-200",
+  queued:           "text-slate-700 bg-slate-50 ring-slate-200",
+  running:          "text-blue-700 bg-blue-50 ring-blue-100 animate-pulse",
+  implementing:     "text-indigo-700 bg-indigo-50 ring-indigo-100 animate-pulse",
+  awaiting_approval:"text-amber-700 bg-amber-50 ring-amber-100",
+  complete:         "text-emerald-700 bg-emerald-50 ring-emerald-100",
+  failed:           "text-red-700 bg-red-50 ring-red-100",
+  Proposed:         "text-blue-700 bg-blue-50 ring-blue-100",
+  Approved:         "text-emerald-700 bg-emerald-50 ring-emerald-100",
+  Generating:       "text-amber-700 bg-amber-50 ring-amber-100",
+  Ready:            "text-indigo-700 bg-indigo-50 ring-indigo-100",
+  Published:        "text-teal-700 bg-teal-50 ring-teal-100",
+  Skipped:          "text-slate-600 bg-slate-50 ring-slate-200",
+  Completed:        "text-emerald-700 bg-emerald-50 ring-emerald-100",
 };
 
 const CONFIDENCE: Record<string, string> = {
-  High: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Medium: "bg-amber-50 text-amber-700 border-amber-200",
-  Low: "bg-red-50 text-red-700 border-red-200",
+  High:   "text-emerald-700 bg-emerald-50 ring-emerald-100",
+  Medium: "text-amber-700 bg-amber-50 ring-amber-100",
+  Low:    "text-red-700 bg-red-50 ring-red-100",
 };
 
 const APPROVAL: Record<string, string> = {
-  pending: "bg-amber-50 text-amber-700 border-amber-200",
-  approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  skipped: "bg-slate-100 text-slate-600 border-slate-200",
-  question: "bg-blue-50 text-blue-700 border-blue-200",
-  backlog: "bg-slate-100 text-slate-500 border-slate-200",
+  pending:  "text-amber-700 bg-amber-50 ring-amber-100",
+  approved: "text-emerald-700 bg-emerald-50 ring-emerald-100",
+  skipped:  "text-slate-600 bg-slate-50 ring-slate-200",
+  question: "text-blue-700 bg-blue-50 ring-blue-100",
+  backlog:  "text-slate-600 bg-slate-50 ring-slate-200",
 };
 
 const CATEGORY: Record<string, string> = {
-  Technical: "bg-slate-100 text-slate-600 border-slate-200",
-  "On-Page": "bg-indigo-50 text-indigo-700 border-indigo-200",
-  Content: "bg-blue-50 text-blue-700 border-blue-200",
-  "AI-GEO": "bg-pink-50 text-pink-700 border-pink-200",
+  Technical: "text-slate-700 bg-slate-50 ring-slate-200",
+  "On-Page": "text-blue-700 bg-blue-50 ring-blue-100",
+  Content:   "text-blue-700 bg-blue-50 ring-blue-100",
+  "AI-GEO":  "text-pink-700 bg-pink-50 ring-pink-100",
 };
 
 type BadgeVariant = "plan_status" | "job_status" | "confidence" | "approval" | "category";
@@ -57,9 +64,7 @@ function getStyle(variant: BadgeVariant, value: string): string {
     approval: APPROVAL,
     category: CATEGORY,
   };
-  return (
-    map[variant][value] ?? "bg-slate-100 text-slate-600 border-slate-200"
-  );
+  return map[variant][value] ?? "text-slate-700 bg-slate-50 ring-slate-200";
 }
 
 function formatLabel(value: string): string {
@@ -70,7 +75,7 @@ export function StatusBadge({ value, variant, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
+        "inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded ring-1 ring-inset",
         getStyle(variant, value),
         className
       )}

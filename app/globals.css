@@ -1,57 +1,41 @@
 @import "tailwindcss";
 
-:root {
-  /* Light-mode glass */
-  --glass-bg: rgba(255, 255, 255, 0.80);
-  --glass-bg-hover: rgba(255, 255, 255, 0.92);
-  --glass-border: rgba(0, 0, 0, 0.06);
-  --glass-blur: blur(20px);
-  --glass-shadow: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
-
-  /* Custom shadow scale */
-  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
-  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+@theme {
+  --shadow-xs: 0 1px 2px 0 rgba(16, 24, 40, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(16, 24, 40, 0.05), 0 1px 3px 0 rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 2px 4px -1px rgba(16, 24, 40, 0.04), 0 4px 8px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 4px 8px -2px rgba(16, 24, 40, 0.04), 0 12px 20px -4px rgba(16, 24, 40, 0.08);
+  --shadow-xl: 0 8px 16px -4px rgba(16, 24, 40, 0.06), 0 20px 32px -8px rgba(16, 24, 40, 0.10);
 }
 
 * {
   box-sizing: border-box;
 }
 
-html,
-body {
+html, body {
   min-height: 100vh;
-  background-color: #FAFAFB;
-  color: #0A0A0B;
+  background-color: #FAFAFA;
+  color: #0A0A0A;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Glass utilities */
+/* Plain white card — replaces glassmorphism */
 .glass {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-}
-
-.glass-hover {
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.glass-hover:hover {
-  background: var(--glass-bg-hover);
-  border-color: rgba(0, 0, 0, 0.10);
-  box-shadow: var(--shadow-md);
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 2px 0 rgba(16, 24, 40, 0.05), 0 1px 3px 0 rgba(16, 24, 40, 0.04);
 }
 
 /* Tabular numerics */
 .tabular {
+  font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.20); }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.10); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }

@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import {
+  LayoutDashboard,
+  CheckSquare,
+  FileText,
+  BarChart3,
+  Activity,
+  Calendar,
+} from "lucide-react";
 
 interface PortalSidebarProps {
   children: React.ReactNode;
@@ -20,11 +28,11 @@ const CATEGORY_ROUTES: Record<string, string> = {
 };
 
 const NAV_ITEMS = [
-  { suffix: "", label: "Dashboard", icon: "⬡" },
-  { suffix: "/approvals", label: "Approvals", icon: "✦" },
-  { suffix: "/content", label: "Content", icon: "◆" },
-  { suffix: "/reports", label: "Reports", icon: "◈" },
-  { suffix: "/activity", label: "Activity", icon: "◎" },
+  { suffix: "",          label: "Dashboard", Icon: LayoutDashboard },
+  { suffix: "/approvals",label: "Approvals", Icon: CheckSquare },
+  { suffix: "/content",  label: "Content",   Icon: FileText },
+  { suffix: "/reports",  label: "Reports",   Icon: BarChart3 },
+  { suffix: "/activity", label: "Activity",  Icon: Activity },
 ] as const;
 
 export function PortalSidebar({
@@ -44,57 +52,60 @@ export function PortalSidebar({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="glass fixed left-0 top-0 h-full w-56 z-20 flex flex-col py-6 px-4 border-r border-slate-200/60">
+      <aside className="fixed left-0 top-0 h-full w-[240px] z-20 flex flex-col bg-white border-r border-slate-200/80">
         {/* Brand */}
-        <div className="mb-8 px-2">
+        <div className="px-4 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700">
+            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-semibold text-sm shrink-0">
               {companyName.charAt(0).toUpperCase()}
             </div>
-            <div>
-              <div className="text-sm font-semibold text-slate-900 tracking-tight leading-none">{companyName}</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Client Portal</div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[13px] font-semibold text-slate-900 leading-tight truncate">{companyName}</span>
+              <span className="text-[11px] text-slate-500 leading-tight">Client Portal</span>
             </div>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const href = `${base}${item.suffix}`;
             const isActive =
               item.suffix === ""
                 ? pathname === base
                 : pathname.startsWith(href);
+            const { Icon } = item;
 
             return (
               <div key={item.suffix}>
                 <Link
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 border-l-2",
+                    "flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors",
                     isActive
-                      ? "bg-indigo-50 text-indigo-700 border-l-indigo-500"
-                      : "border-l-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/80"
+                      ? "bg-slate-100 text-slate-900"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   )}
                 >
-                  <span className="text-[15px] leading-none">{item.icon}</span>
-                  <span className="flex-1">{item.label}</span>
+                  <div className="flex items-center gap-2">
+                    <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-slate-700" : "text-slate-500")} />
+                    <span>{item.label}</span>
+                  </div>
                   {item.suffix === "/approvals" && pendingCount > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 ml-auto mr-1 tabular">
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
                       {pendingCount}
                     </span>
                   )}
                   {item.suffix === "/content" && contentReviewCount > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 ml-auto mr-1 tabular">
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/60">
                       {contentReviewCount}
                     </span>
                   )}
                 </Link>
 
-                {/* Nested category items under Approvals */}
+                {/* Approvals sub-nav */}
                 {item.suffix === "/approvals" && (approvalsExpanded || hasCategoryItems) && (
-                  <div className="ml-5 mt-0.5 space-y-0.5">
+                  <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
                     {Object.entries(CATEGORY_ROUTES).map(([cat, slug]) => {
                       const count = categoryBreakdown[cat] || 0;
                       const catHref = `${base}/approvals/${slug}`;
@@ -105,28 +116,28 @@ export function PortalSidebar({
                           key={slug}
                           href={catHref}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all duration-150",
+                            "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
                             catActive
-                              ? "text-indigo-700 bg-indigo-50 font-medium"
-                              : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/60"
+                              ? "text-slate-900 font-medium bg-slate-50"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                           )}
                         >
-                          <span className="flex-1">{cat}</span>
-                          <span className="text-slate-400 tabular">{count}</span>
+                          <span>{cat}</span>
+                          <span className="tabular text-slate-400 text-[11px]">{count}</span>
                         </Link>
                       );
                     })}
                   </div>
                 )}
 
-                {/* Nested sub-items under Content */}
+                {/* Content sub-nav */}
                 {item.suffix === "/content" && contentExpanded && (
-                  <div className="ml-5 mt-0.5 space-y-0.5">
+                  <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
                     {[
                       { label: "Pipeline", href: `${base}/content` },
                       { label: "Keywords", href: `${base}/content/keywords` },
                     ].map(({ label, href }) => {
-                      const isActive = label === "Pipeline"
+                      const subActive = label === "Pipeline"
                         ? pathname === `${base}/content`
                         : pathname.startsWith(href);
                       return (
@@ -134,10 +145,10 @@ export function PortalSidebar({
                           key={label}
                           href={href}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all duration-150",
-                            isActive
-                              ? "text-indigo-700 bg-indigo-50 font-medium"
-                              : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/60"
+                            "flex items-center px-2 py-1 rounded text-[12px] transition-colors",
+                            subActive
+                              ? "text-slate-900 font-medium bg-slate-50"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                           )}
                         >
                           {label}
@@ -151,22 +162,22 @@ export function PortalSidebar({
           })}
         </nav>
 
-        {/* Bottom — Book a meeting */}
-        <div className="border-t border-slate-200 pt-4 px-2">
+        {/* Bottom CTA */}
+        <div className="px-3 py-3 border-t border-slate-100">
           <a
             href="https://calendly.com/somethinginc/something-inc-touchbase-1"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm transition-all duration-150 text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-[0_1px_2px_0_rgba(16,24,40,0.04)]"
           >
-            <span className="text-base">🗓</span>
-            <span>Book a meeting</span>
+            <Calendar className="w-4 h-4 shrink-0" />
+            Book a meeting
           </a>
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col ml-56 p-10">{children}</main>
+      <main className="flex-1 flex flex-col ml-[240px] p-10 min-h-screen">{children}</main>
     </div>
   );
 }
