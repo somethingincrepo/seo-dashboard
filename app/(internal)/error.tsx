@@ -12,10 +12,10 @@ export default function InternalError({
       <div className="glass rounded-2xl p-8 max-w-md text-center">
         <div className="text-2xl mb-2">⚠</div>
         <div className="font-medium mb-2">Something went wrong</div>
-        <div className="text-white/40 text-sm mb-4">{error.message}</div>
+        <div className="text-slate-500 text-sm mb-4">{error.message}</div>
         <button
           onClick={reset}
-          className="px-4 py-2 rounded-xl bg-violet-600/70 border border-violet-400/30 text-sm hover:bg-violet-500/80 transition-all"
+          className="px-4 py-2 rounded-xl bg-indigo-600 border border-indigo-500 text-white text-sm hover:bg-indigo-700 transition-all"
         >
           Try again
         </button>

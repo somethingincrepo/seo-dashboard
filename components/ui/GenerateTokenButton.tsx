@@ -26,7 +26,7 @@ export function GenerateTokenButton({ clientId, hasToken }: GenerateTokenButtonP
     <button
       onClick={handleGenerate}
       disabled={loading}
-      className="px-4 py-2 rounded-xl text-sm border transition-all disabled:opacity-40 bg-violet-600/25 border-violet-400/30 text-violet-300 hover:bg-violet-500/35"
+      className="px-4 py-2 rounded-xl text-sm border transition-all disabled:opacity-40 bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100"
     >
       {loading ? "Generating…" : hasToken ? "Regenerate" : "Generate Token"}
     </button>

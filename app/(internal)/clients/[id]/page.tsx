@@ -121,7 +121,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <Link href="/clients" className="text-white/40 text-sm hover:text-white/60 transition-colors">
+        <Link href="/clients" className="text-slate-500 text-sm hover:text-slate-600 transition-colors">
           ← Clients
         </Link>
         <div className="flex items-start justify-between gap-4 mt-2">
@@ -129,7 +129,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             <h1 className="text-2xl font-semibold">{f.company_name}</h1>
             {f.site_url && (
               <a href={f.site_url} target="_blank" rel="noreferrer"
-                className="text-white/40 text-sm hover:text-white/60 transition-colors">
+                className="text-slate-500 text-sm hover:text-slate-600 transition-colors">
                 {f.site_url} ↗
               </a>
             )}
@@ -142,18 +142,18 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       <GlassCard className="p-5">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Client Portal</div>
+            <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Client Portal</div>
             {portalUrl ? (
-              <div className="font-mono text-sm text-violet-300 break-all">{portalUrl}</div>
+              <div className="font-mono text-sm text-indigo-600 break-all">{portalUrl}</div>
             ) : (
-              <div className="text-sm text-amber-400/80">No portal token — generate one to give this client access</div>
+              <div className="text-sm text-amber-600">No portal token — generate one to give this client access</div>
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {portalUrl && <CopyButton value={portalUrl} label="Copy link" size="lg" />}
             {portalUrl && (
               <a href={portalUrl} target="_blank" rel="noreferrer"
-                className="px-3 py-1.5 rounded-xl text-xs glass glass-hover text-white/60 hover:text-white transition-colors">
+                className="px-3 py-1.5 rounded-xl text-xs border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors">
                 Preview ↗
               </a>
             )}
@@ -165,27 +165,27 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <GlassCard className="p-4 text-center">
-          <div className="text-2xl font-bold text-amber-400">{pending.length}</div>
-          <div className="text-white/40 text-xs mt-1">Pending Approval</div>
+          <div className="text-2xl font-bold text-amber-600">{pending.length}</div>
+          <div className="text-slate-500 text-xs mt-1">Pending Approval</div>
         </GlassCard>
         <GlassCard className="p-4 text-center">
-          <div className="text-2xl font-bold text-emerald-400">{approved.length}</div>
-          <div className="text-white/40 text-xs mt-1">Approved</div>
+          <div className="text-2xl font-bold text-emerald-600">{approved.length}</div>
+          <div className="text-slate-500 text-xs mt-1">Approved</div>
         </GlassCard>
         <GlassCard className="p-4 text-center">
           <div className="text-2xl font-bold text-slate-400">{skipped.length}</div>
-          <div className="text-white/40 text-xs mt-1">Skipped</div>
+          <div className="text-slate-500 text-xs mt-1">Skipped</div>
         </GlassCard>
         <GlassCard className="p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{jobs.length}</div>
-          <div className="text-white/40 text-xs mt-1">Jobs Run</div>
+          <div className="text-2xl font-bold text-blue-600">{jobs.length}</div>
+          <div className="text-slate-500 text-xs mt-1">Jobs Run</div>
         </GlassCard>
       </div>
 
       {/* Pending audit changes */}
       {pending.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+          <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider mb-3">
             Pending Approvals
           </h2>
 
@@ -196,29 +196,29 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                 return (
                 <GlassCard key={cat} className="overflow-hidden">
                   {/* Category header */}
-                  <div className="px-5 py-3 border-b border-white/8 flex items-center gap-2">
+                  <div className="px-5 py-3 border-b border-slate-200 flex items-center gap-2">
                     <StatusBadge value={cat} variant="category" />
-                    <span className="text-white/40 text-xs">{catChanges.length} changes</span>
-                    <span className="text-white/20 text-xs">· {pageGroups.length} pages</span>
+                    <span className="text-slate-500 text-xs">{catChanges.length} changes</span>
+                    <span className="text-slate-400 text-xs">· {pageGroups.length} pages</span>
                   </div>
 
                   {/* Page groups */}
                   {pageGroups.map((group) => (
-                    <div key={group.url} className="border-b border-white/5 last:border-b-0">
+                    <div key={group.url} className="border-b border-slate-100 last:border-b-0">
                       {/* Page group header */}
-                      <div className="px-5 py-2.5 bg-white/[0.02] flex items-center gap-2">
-                        <span className="text-white/20 text-xs">▸</span>
-                        <span className="text-xs text-white/50 font-mono flex-1 truncate">
+                      <div className="px-5 py-2.5 bg-slate-50 flex items-center gap-2">
+                        <span className="text-slate-400 text-xs">▸</span>
+                        <span className="text-xs text-slate-600 font-mono flex-1 truncate">
                           {group.label}
                         </span>
                         {group.isNav && (
-                          <span className="text-xs text-violet-400/60 border border-violet-400/20 px-1.5 py-0 rounded-full">nav</span>
+                          <span className="text-xs text-indigo-500 border border-indigo-200 px-1.5 py-0 rounded-full">nav</span>
                         )}
-                        <span className="text-xs text-white/30 tabular-nums">{group.changes.length}</span>
+                        <span className="text-xs text-slate-400 tabular-nums">{group.changes.length}</span>
                       </div>
 
                       {/* Changes within page group */}
-                      <div className="divide-y divide-white/5">
+                      <div className="divide-y divide-slate-100">
                         {group.changes.map((change) => {
                           const changeType = (change.fields.type || change.fields.change_type || "") as string;
                           return (
@@ -226,22 +226,22 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                                    <span className="text-white/50">{CHANGE_TYPE_ICONS[changeType] || "·"}</span>
+                                    <span className="text-slate-500">{CHANGE_TYPE_ICONS[changeType] || "·"}</span>
                                     <span className="text-sm font-medium">{changeType}</span>
                                     <StatusBadge value={(change.fields.confidence || "Medium") as string} variant="confidence" />
                                     {change.fields.implementation_tier && (
-                                      <span className="text-xs text-violet-400/70 border border-violet-400/20 px-1.5 py-0.5 rounded-full">
+                                      <span className="text-xs text-indigo-500 border border-indigo-200 px-1.5 py-0.5 rounded-full">
                                         {change.fields.implementation_tier as string}
                                       </span>
                                     )}
                                   </div>
                                   {change.fields.proposed_value && (
-                                    <div className="text-xs text-white/60 bg-white/5 rounded-lg px-3 py-2 border border-white/8 line-clamp-2">
+                                    <div className="text-xs text-slate-700 bg-slate-50 rounded-lg px-3 py-2 border border-slate-200 line-clamp-2">
                                       {change.fields.proposed_value as string}
                                     </div>
                                   )}
                                   {change.fields.reasoning && (
-                                    <div className="text-xs text-white/30 mt-1.5 italic line-clamp-1">
+                                    <div className="text-xs text-slate-400 mt-1.5 italic line-clamp-1">
                                       {change.fields.reasoning as string}
                                     </div>
                                   )}
@@ -260,7 +260,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             </div>
           ) : (
             <GlassCard>
-              <div className="px-5 py-8 text-center text-white/30 text-sm">
+              <div className="px-5 py-8 text-center text-slate-400 text-sm">
                 Run an audit to generate recommendations
               </div>
             </GlassCard>
@@ -271,19 +271,19 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       {/* Implemented changes */}
       {approved.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+          <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider mb-3">
             Implemented ({approved.length})
           </h2>
           <GlassCard>
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-slate-100">
               {approved.map((change) => (
                 <div key={change.id} className="px-5 py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="text-sm text-white/70 flex items-center gap-2">
+                    <div className="text-sm text-slate-700 flex items-center gap-2">
                       <StatusBadge value={change.fields.cat || change.fields.category || "Other"} variant="category" />
                       <span>{change.fields.type || change.fields.change_type}</span>
                     </div>
-                    <div className="text-xs text-white/30 font-mono mt-0.5 truncate">{change.fields.page_url}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">{change.fields.page_url}</div>
                   </div>
                   <StatusBadge value="approved" variant="approval" />
                 </div>
@@ -295,11 +295,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
       {/* Jobs */}
       <section>
-        <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">Job History</h2>
+        <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider mb-3">Job History</h2>
         <GlassCard>
-          <div className="divide-y divide-white/8">
+          <div className="divide-y divide-slate-100">
             {jobs.length === 0 ? (
-              <div className="px-5 py-8 text-center text-white/30 text-sm">No jobs yet</div>
+              <div className="px-5 py-8 text-center text-slate-400 text-sm">No jobs yet</div>
             ) : (
               jobs.map((job) => (
                 <div key={job.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
@@ -307,7 +307,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                     <div className="text-sm font-medium">
                       {(job.fields.job_type || job.fields.type || "job")?.replace(/_/g, " ")}
                     </div>
-                    <div className="text-white/30 text-xs mt-0.5">
+                    <div className="text-slate-400 text-xs mt-0.5">
                       {job.fields.started_at ? new Date(job.fields.started_at).toLocaleString() : "Queued"}
                     </div>
                     {job.fields.error_message && (
@@ -325,7 +325,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       {/* Reports */}
       {reports.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">Reports</h2>
+          <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider mb-3">Reports</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {reports.map((report) => (
               <GlassCard key={report.id} className="p-5">
@@ -333,27 +333,27 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   <div className="font-medium text-sm">Month {report.fields.month}</div>
                   {report.fields.pdf_url && (
                     <a href={report.fields.pdf_url} target="_blank" rel="noreferrer"
-                      className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                      className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors">
                       PDF ↗
                     </a>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
-                    <div className={`text-lg font-bold ${(report.fields.gsc_clicks_delta ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    <div className={`text-lg font-bold ${(report.fields.gsc_clicks_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                       {(report.fields.gsc_clicks_delta ?? 0) >= 0 ? "+" : ""}{report.fields.gsc_clicks_delta ?? "—"}
                     </div>
-                    <div className="text-white/30 text-xs">Clicks</div>
+                    <div className="text-slate-400 text-xs">Clicks</div>
                   </div>
                   <div>
-                    <div className={`text-lg font-bold ${(report.fields.gsc_impressions_delta ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    <div className={`text-lg font-bold ${(report.fields.gsc_impressions_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                       {(report.fields.gsc_impressions_delta ?? 0) >= 0 ? "+" : ""}{report.fields.gsc_impressions_delta ?? "—"}
                     </div>
-                    <div className="text-white/30 text-xs">Impressions</div>
+                    <div className="text-slate-400 text-xs">Impressions</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-blue-400">{report.fields.ai_citation_score ?? "—"}</div>
-                    <div className="text-white/30 text-xs">AI Score</div>
+                    <div className="text-lg font-bold text-blue-600">{report.fields.ai_citation_score ?? "—"}</div>
+                    <div className="text-slate-400 text-xs">AI Score</div>
                   </div>
                 </div>
               </GlassCard>

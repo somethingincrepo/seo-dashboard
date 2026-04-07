@@ -20,7 +20,7 @@ function PipelineBar({ status }: { status: string }) {
   const pct = idx < 0 ? 0 : Math.round(((idx + 1) / PIPELINE_STAGES.length) * 100);
   return (
     <div className="mt-3">
-      <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+      <div className="h-1 rounded-full bg-slate-200 overflow-hidden">
         <div
           className="h-full rounded-full bg-gradient-to-r from-violet-500 to-teal-500 transition-all"
           style={{ width: `${pct}%` }}
@@ -39,13 +39,13 @@ export default async function ClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Clients</h1>
-          <p className="text-white/40 text-sm mt-1">{clients.length} clients</p>
+          <p className="text-slate-500 text-sm mt-1">{clients.length} clients</p>
         </div>
       </div>
 
       {clients.length === 0 && (
         <GlassCard className="p-12 text-center">
-          <div className="text-white/30 text-sm">
+          <div className="text-slate-400 text-sm">
             No clients yet. Add clients to your Airtable Clients table to get started.
           </div>
         </GlassCard>
@@ -62,21 +62,21 @@ export default async function ClientsPage() {
               {/* Header row */}
               <Link href={`/clients/${client.id}`} className="block mb-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="font-semibold text-sm leading-tight hover:text-violet-300 transition-colors">
+                  <div className="font-semibold text-sm leading-tight hover:text-indigo-600 transition-colors">
                     {client.fields.company_name}
                   </div>
                   <StatusBadge value={client.fields.plan_status || "form_submitted"} variant="plan_status" />
                 </div>
-                <div className="text-white/35 text-xs mt-1 truncate">{client.fields.site_url}</div>
-                <div className="text-white/25 text-xs">{client.fields.cms}</div>
+                <div className="text-slate-500 text-xs mt-1 truncate">{client.fields.site_url}</div>
+                <div className="text-slate-400 text-xs">{client.fields.cms}</div>
                 <PipelineBar status={client.fields.plan_status} />
               </Link>
 
               {/* Portal link row */}
-              <div className="pt-3 border-t border-white/8">
+              <div className="pt-3 border-t border-slate-200">
                 {portalUrl ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-white/30 flex-1 truncate font-mono">
+                    <span className="text-xs text-slate-400 flex-1 truncate font-mono">
                       /portal/{client.fields.portal_token?.slice(0, 12)}…
                     </span>
                     <CopyButton value={portalUrl} label="Copy portal link" />
@@ -84,7 +84,7 @@ export default async function ClientsPage() {
                 ) : (
                   <Link
                     href={`/clients/${client.id}`}
-                    className="text-xs text-amber-400/70 hover:text-amber-300 transition-colors"
+                    className="text-xs text-amber-600 hover:text-amber-700 transition-colors"
                   >
                     ⚠ No portal token — click to generate
                   </Link>

@@ -23,7 +23,7 @@ export default async function HomePage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold">Overview</h1>
-        <p className="text-white/40 text-sm mt-1">System health at a glance</p>
+        <p className="text-slate-500 text-sm mt-1">System health at a glance</p>
       </div>
 
       {/* Metrics */}
@@ -37,7 +37,7 @@ export default async function HomePage() {
       {/* Needs Attention */}
       {awaitingApproval.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+          <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider mb-3">
             Needs Attention
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -45,7 +45,7 @@ export default async function HomePage() {
               <Link key={client.id} href={`/clients/${client.id}`}>
                 <GlassCard hover className="p-4">
                   <div className="font-medium text-sm">{client.fields.company_name}</div>
-                  <div className="text-white/40 text-xs mt-0.5 truncate">{client.fields.site_url}</div>
+                  <div className="text-slate-500 text-xs mt-0.5 truncate">{client.fields.site_url}</div>
                   <div className="mt-3">
                     <StatusBadge value={client.fields.plan_status} variant="plan_status" />
                   </div>
@@ -58,13 +58,13 @@ export default async function HomePage() {
 
       {/* Recent Jobs */}
       <section>
-        <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+        <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider mb-3">
           Recent Jobs
         </h2>
         <GlassCard>
-          <div className="divide-y divide-white/8">
+          <div className="divide-y divide-slate-100">
             {recentJobs.length === 0 && (
-              <div className="px-5 py-8 text-center text-white/30 text-sm">No jobs yet</div>
+              <div className="px-5 py-8 text-center text-slate-400 text-sm">No jobs yet</div>
             )}
             {recentJobs.map((job) => (
               <div key={job.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
@@ -72,7 +72,7 @@ export default async function HomePage() {
                   <div className="text-sm font-medium truncate">
                     {(job.fields.job_type || job.fields.type)?.replace(/_/g, " ")}
                   </div>
-                  <div className="text-white/30 text-xs mt-0.5">
+                  <div className="text-slate-400 text-xs mt-0.5">
                     {job.fields.started_at
                       ? new Date(job.fields.started_at).toLocaleString()
                       : "Queued"}
