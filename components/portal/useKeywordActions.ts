@@ -3,27 +3,27 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-interface UseKeywordActionsOptions {
-  token: string;
-}
-
-export function useKeywordActions({ token }: UseKeywordActionsOptions) {
+export function useKeywordActions(token: string) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<string | null>(null); // keyword currently saving in edit mode
-  const [removing, setRemoving] = useState<string | null>(null); // keyword currently being removed
+  const [editing, setEditing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
 
-  const showFeedback = useCallback((msg: string) => {
-    setFeedback(msg);
-    setTimeout(() => setFeedback(null), 2500);
+  const autoClear = useCallback((msg: string, isError?: boolean) => {
+    if (isError) setError(msg);
+    else setFeedback(msg);
+    setTimeout(() => {
+      setError(null);
+      setFeedback(null);
+    }, 2500);
   }, []);
 
   const addKeyword = useCallback(
-    async (keyword: string) => {
+    async (keyword: string): Promise<boolean> => {
       setAdding(true);
       setError(null);
       try {
@@ -32,26 +32,26 @@ export function useKeywordActions({ token }: UseKeywordActionsOptions) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "add", token, keyword }),
         });
+        const data = await res.json();
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.error || `Failed to add keyword (${res.status})`);
+          autoClear(data.error || "Failed to add keyword", true);
           return false;
         }
-        showFeedback(`Added — "${keyword}" is now in your keywords`);
+        autoClear(`"${keyword}" added${data.enriched ? "" : " (no volume data)"}`);
         router.refresh();
         return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+      } catch {
+        autoClear("Failed to add keyword", true);
         return false;
       } finally {
         setAdding(false);
       }
     },
-    [token, router, showFeedback]
+    [token, router, autoClear]
   );
 
   const editKeyword = useCallback(
-    async (oldKeyword: string, newKeyword: string) => {
+    async (oldKeyword: string, newKeyword: string): Promise<boolean> => {
       setEditing(oldKeyword);
       setError(null);
       try {
@@ -60,26 +60,27 @@ export function useKeywordActions({ token }: UseKeywordActionsOptions) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "edit", token, oldKeyword, newKeyword }),
         });
+        const data = await res.json();
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.error || `Failed to update keyword (${res.status})`);
+          autoClear(data.error || "Failed to update keyword", true);
+          setEditing(null);
           return false;
         }
-        showFeedback("Keyword updated");
+        autoClear(`Keyword updated`);
         router.refresh();
-        return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-        return false;
-      } finally {
         setEditing(null);
+        return true;
+      } catch {
+        autoClear("Failed to update keyword", true);
+        setEditing(null);
+        return false;
       }
     },
-    [token, router, showFeedback]
+    [token, router, autoClear]
   );
 
   const removeKeyword = useCallback(
-    async (keyword: string) => {
+    async (keyword: string): Promise<boolean> => {
       setRemoving(keyword);
       setError(null);
       try {
@@ -88,32 +89,24 @@ export function useKeywordActions({ token }: UseKeywordActionsOptions) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "remove", token, keyword }),
         });
+        const data = await res.json();
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.error || `Failed to remove keyword (${res.status})`);
+          autoClear(data.error || "Failed to remove keyword", true);
+          setRemoving(null);
           return false;
         }
+        autoClear(`"${keyword}" removed`);
         router.refresh();
-        return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-        return false;
-      } finally {
         setRemoving(null);
+        return true;
+      } catch {
+        autoClear("Failed to remove keyword", true);
+        setRemoving(null);
+        return false;
       }
     },
-    [token, router]
+    [token, router, autoClear]
   );
 
-  return {
-    adding,
-    editing,
-    removing,
-    feedback,
-    error,
-    addKeyword,
-    editKeyword,
-    removeKeyword,
-    clearError,
-  };
+  return { adding, editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, clearError };
 }

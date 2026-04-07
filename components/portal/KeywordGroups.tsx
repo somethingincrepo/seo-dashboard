@@ -1,5 +1,7 @@
 "use client";
 
+import { GROUP_STYLES } from "./keyword-styles";
+
 export type Subkeyword = {
   keyword: string;
   volume: number;
@@ -13,20 +15,6 @@ export type KeywordGroup = {
   subkeywords: Subkeyword[];
 };
 
-interface KeywordGroupsProps {
-  groups: KeywordGroup[];
-  contentTone: string;
-  contentAudience: string;
-}
-
-const GROUP_STYLES = [
-  { border: "border-t-indigo-500", text: "text-indigo-700", pill: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  { border: "border-t-blue-500",   text: "text-blue-700",   pill: "bg-blue-50 text-blue-700 border-blue-200" },
-  { border: "border-t-emerald-500",text: "text-emerald-700",pill: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { border: "border-t-amber-500",  text: "text-amber-700",  pill: "bg-amber-50 text-amber-700 border-amber-200" },
-  { border: "border-t-rose-500",   text: "text-rose-700",   pill: "bg-rose-50 text-rose-700 border-rose-200" },
-];
-
 function getDifficultyStyle(kd: number) {
   if (kd < 30) return { bg: "bg-emerald-50 border-emerald-200 text-emerald-700", label: "Easy" };
   if (kd < 50) return { bg: "bg-amber-50 border-amber-200 text-amber-700",       label: "Med" };
@@ -39,31 +27,25 @@ function formatVolume(v: number): string {
   return String(v);
 }
 
-export function SubkeywordRow({
-  kw,
-  index,
-  onRemove,
-  onEdit,
-}: {
-  kw: Subkeyword;
-  index: number;
-  onRemove?: () => void;
-  onEdit?: () => void;
-}) {
+export function SubkeywordRow({ kw, index, onRemove, onEdit }: { kw: Subkeyword; index: number; onRemove?: () => void; onEdit?: () => void }) {
   const diff = getDifficultyStyle(kw.difficulty);
   return (
-    <div className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl transition-colors duration-150 ${index === 0 ? "bg-slate-50 border border-slate-200 hover:bg-slate-100" : "bg-white border border-slate-100 hover:bg-slate-50"}`}>
+    <div className={`flex items-start gap-3 px-3 py-2.5 rounded-xl transition-colors duration-150 ${index === 0 ? "bg-slate-50 border border-slate-200 hover:bg-slate-100" : "bg-white border border-slate-100 hover:bg-slate-50"}`}>
       <div className="flex-1 min-w-0">
         <div className="text-sm text-slate-800 font-medium leading-snug">{kw.keyword}</div>
       </div>
       <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-        {kw.volume > 0 && (
-          <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-500 font-medium tabular">
+        {kw.volume > 0 ? (
+          <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-500 font-medium tabular-nums">
             {formatVolume(kw.volume)}/mo
           </span>
-        )}
+        ) : kw.difficulty > 0 ? (
+          <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-500 font-medium">
+            Low
+          </span>
+        ) : null}
         {kw.difficulty > 0 && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold tabular ${diff.bg}`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold tabular-nums ${diff.bg}`}>
             KD {kw.difficulty}
           </span>
         )}
@@ -73,20 +55,14 @@ export function SubkeywordRow({
           </span>
         )}
         {(onRemove || onEdit) && (
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-1 shrink-0">
+          <div className="flex items-center gap-1 ml-1">
             {onEdit && (
-              <button
-                onClick={onEdit}
-                className="text-[10px] text-slate-400 hover:text-indigo-600 transition-colors px-1.5 py-0.5 rounded"
-              >
+              <button onClick={onEdit} className="text-[10px] px-2 py-0.5 rounded-md border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
                 Edit
               </button>
             )}
             {onRemove && (
-              <button
-                onClick={onRemove}
-                className="text-[10px] text-slate-400 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded"
-              >
+              <button onClick={onRemove} className="text-[10px] px-2 py-0.5 rounded-md border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 transition-colors">
                 ×
               </button>
             )}
@@ -97,12 +73,9 @@ export function SubkeywordRow({
   );
 }
 
-function GroupCard({ group, style, index }: { group: KeywordGroup; style: typeof GROUP_STYLES[0]; index: number }) {
+export function GroupCard({ group, style, index }: { group: KeywordGroup; style: typeof GROUP_STYLES[0]; index: number }) {
   return (
-    <div
-      className={`bg-white rounded-2xl border-t-2 ${style.border} border border-slate-200 flex flex-col p-4 gap-3 transition-all duration-200 hover:shadow-[var(--shadow-md)]`}
-      style={{ boxShadow: "var(--shadow-xs)" }}
-    >
+    <div className={`bg-white rounded-2xl border-t-2 ${style.border} border border-slate-200 flex flex-col p-4 gap-3 transition-all duration-200 hover:shadow-[var(--shadow-md)]`} style={{ boxShadow: "var(--shadow-xs)" }}>
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
@@ -138,42 +111,23 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-export function KeywordGroups({ groups, contentTone, contentAudience }: KeywordGroupsProps) {
+interface KeywordGroupsProps {
+  groups: KeywordGroup[];
+}
+
+export function KeywordGroups({ groups }: KeywordGroupsProps) {
   const totalKeywords = groups.reduce((sum, g) => sum + g.subkeywords.length, 0);
   const allKds = groups.flatMap(g => g.subkeywords.map(kw => kw.difficulty)).filter(kd => kd > 0);
   const avgKd = allKds.length > 0 ? Math.round(allKds.reduce((a, b) => a + b, 0) / allKds.length) : null;
-  const intents = groups.flatMap(g => g.subkeywords.map(kw => kw.intent)).filter(Boolean);
-  const topIntent = intents.length > 0
-    ? Object.entries(intents.reduce<Record<string, number>>((acc, i) => { acc[i] = (acc[i] || 0) + 1; return acc; }, {}))
-        .sort(([, a], [, b]) => b - a)[0]?.[0]
-    : null;
 
   return (
     <div className="space-y-6">
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <StatPill label="Groups" value={groups.length} />
         <StatPill label="Keywords" value={totalKeywords} />
         {avgKd !== null && <StatPill label="Avg Difficulty" value={avgKd} />}
-        {contentTone && <StatPill label="Content Tone" value={contentTone} />}
-        {!contentTone && topIntent && <StatPill label="Top Intent" value={topIntent} />}
       </div>
-
-      {/* Audience / tone context */}
-      {(contentTone || contentAudience) && (
-        <div className="flex items-center gap-3 flex-wrap">
-          {contentTone && (
-            <span className="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-medium">
-              {contentTone}
-            </span>
-          )}
-          {contentAudience && (
-            <span className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600">
-              {contentAudience}
-            </span>
-          )}
-        </div>
-      )}
 
       {/* Group cards — 2 column grid */}
       <div className="grid grid-cols-2 gap-4">
