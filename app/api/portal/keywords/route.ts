@@ -203,10 +203,10 @@ export async function POST(req: NextRequest) {
 
     if (action === "priority") {
       const keyword = (body.keyword as string)?.trim();
-      const priority = body.priority as number;
+      const priority = body.priority as "high" | "medium" | "low";
 
-      if (!keyword || ![1, 2, 3, 4, 5].includes(priority)) {
-        return NextResponse.json({ error: "Keyword and valid priority (1-5) required" }, { status: 400 });
+      if (!keyword || !["high", "medium", "low"].includes(priority)) {
+        return NextResponse.json({ error: "Keyword and valid priority (high/medium/low) required" }, { status: 400 });
       }
 
       // Check both custom_keyword_groups and keyword_groups

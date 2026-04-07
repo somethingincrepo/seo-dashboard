@@ -8,7 +8,7 @@ export type Subkeyword = {
   volume: number;
   difficulty: number;
   intent: string;
-  priority?: number; // 1 (highest) – 5 (lowest), defaults to 3
+  priority?: "high" | "medium" | "low"; // defaults to "medium"
 };
 
 export type KeywordGroup = {
@@ -29,21 +29,21 @@ function formatVolume(v: number): string {
   return String(v);
 }
 
-const PRIORITY_STYLES: Record<number, { text: string; bg: string; border: string }> = {
-  1: { text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200" },
-  2: { text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200" },
-  3: { text: "text-slate-500", bg: "bg-slate-100", border: "border-slate-200" },
-  4: { text: "text-slate-400", bg: "bg-slate-50", border: "border-slate-100" },
-  5: { text: "text-slate-300", bg: "bg-slate-50", border: "border-slate-100" },
+type Priority = "high" | "medium" | "low";
+
+const PRIORITY_STYLES: Record<Priority, { text: string; bg: string; border: string; label: string }> = {
+  high:   { text: "text-red-700",    bg: "bg-red-50",    border: "border-red-200",    label: "High" },
+  medium: { text: "text-amber-700",  bg: "bg-amber-50",  border: "border-amber-200",  label: "Med" },
+  low:    { text: "text-emerald-700",bg: "bg-emerald-50", border: "border-emerald-200", label: "Low" },
 };
 
 export function SubkeywordRow({ kw, index, onRemove, onEdit, token, showPriority }: { kw: Subkeyword; index: number; onRemove?: () => void; onEdit?: () => void; token?: string; showPriority?: boolean }) {
   const router = useRouter();
   const diff = getDifficultyStyle(kw.difficulty);
-  const p = kw.priority ?? 3;
-  const ps = PRIORITY_STYLES[p] || PRIORITY_STYLES[3];
+  const p: Priority = (kw.priority as Priority) || "medium";
+  const ps = PRIORITY_STYLES[p];
 
-  const handlePriorityChange = async (newPriority: number) => {
+  const handlePriorityChange = async (newPriority: string) => {
     if (!token) return;
     try {
       await fetch("/api/portal/keywords", {
@@ -66,16 +66,14 @@ export function SubkeywordRow({ kw, index, onRemove, onEdit, token, showPriority
         {showPriority && (
           <select
             value={p}
-            onChange={(e) => handlePriorityChange(parseInt(e.target.value, 10))}
+            onChange={(e) => handlePriorityChange(e.target.value)}
             className={`text-[10px] pl-1.5 pr-5 py-0.5 rounded-md border font-semibold appearance-none cursor-pointer transition-colors ${ps.bg} ${ps.text} ${ps.border} hover:opacity-80`}
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' fill='none'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 5px center" }}
-            title={`Priority ${p} — higher = created first`}
+            title={`${ps.label} priority`}
           >
-            <option value={1}>P1</option>
-            <option value={2}>P2</option>
-            <option value={3}>P3</option>
-            <option value={4}>P4</option>
-            <option value={5}>P5</option>
+            <option value="high">High</option>
+            <option value="medium">Med</option>
+            <option value="low">Low</option>
           </select>
         )}
         {kw.volume > 0 ? (
