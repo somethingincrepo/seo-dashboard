@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+
+function ArrowRight({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+    </svg>
+  );
+}
 
 interface DashboardHeroProps {
   pendingCount: number;
