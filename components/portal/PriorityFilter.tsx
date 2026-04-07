@@ -8,7 +8,7 @@ const PRIORITIES = ["All", "Critical", "High", "Medium", "Low"] as const;
 
 export function PriorityFilterWrapper() {
   return (
-    <Suspense fallback={<div className="text-xs text-white/30">Filter by priority:</div>}>
+    <Suspense fallback={<div className="text-xs text-slate-400">Filter by priority:</div>}>
       <PriorityFilter />
     </Suspense>
   );
@@ -35,15 +35,15 @@ function PriorityFilter() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-white/30 mr-1">Filter by priority:</span>
+      <span className="text-xs text-slate-500 mr-1">Filter by priority:</span>
       {PRIORITIES.map((p) => (
         <button
           key={p}
           onClick={() => setPriority(p)}
-          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 border ${
             current === p
-              ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
-              : "bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50 hover:bg-white/[0.06]"
+              ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+              : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
           }`}
         >
           {p}

@@ -115,51 +115,43 @@ export default async function ActivityPage({
 
   function statusLabel(status: string) {
     switch (status) {
-      case "implemented":
-        return "Implemented";
-      case "approved":
-        return "Approved";
-      case "skipped":
-        return "Skipped";
-      default:
-        return "Pending";
+      case "implemented": return "Implemented";
+      case "approved": return "Approved";
+      case "skipped": return "Skipped";
+      default: return "Pending";
     }
   }
 
   function statusColor(status: string) {
     switch (status) {
-      case "implemented":
-        return "bg-violet-500/15 border-violet-400/20 text-violet-300";
-      case "approved":
-        return "bg-emerald-500/15 border-emerald-400/20 text-emerald-300";
-      case "skipped":
-        return "bg-slate-500/15 border-slate-400/20 text-slate-400";
-      default:
-        return "bg-amber-500/15 border-amber-400/20 text-amber-300";
+      case "implemented": return "bg-indigo-50 border-indigo-200 text-indigo-700";
+      case "approved": return "bg-emerald-50 border-emerald-200 text-emerald-700";
+      case "skipped": return "bg-slate-100 border-slate-200 text-slate-600";
+      default: return "bg-amber-50 border-amber-200 text-amber-700";
     }
   }
 
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white/90">Changelog</h1>
-        <p className="text-base text-white/40 mt-1">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Changelog</h1>
+        <p className="text-base text-slate-500 mt-1">
           A record of all changes on your SEO program
         </p>
       </div>
 
       {entries.length === 0 ? (
         <GlassCard className="p-12 text-center">
-          <div className="text-white/30 text-sm">
+          <div className="text-slate-400 text-sm">
             No changes yet. Activity will appear here once your audit is complete.
           </div>
         </GlassCard>
       ) : (
         <GlassCard>
-          <div className="divide-y divide-white/[0.06]">
+          <div className="divide-y divide-slate-100">
             {/* Header row */}
-            <div className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white/25">
-              <span>Date & Time</span>
+            <div className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+              <span>Date &amp; Time</span>
               <span>Change</span>
               <span>Page</span>
               <span>Category</span>
@@ -170,15 +162,15 @@ export default async function ActivityPage({
               if (entry.kind === "report") {
                 return (
                   <div key={i} className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">
-                    <span className="text-xs text-white/40">
+                    <span className="text-xs text-slate-500">
                       {formatDate(entry.date)}
                     </span>
-                    <span className="text-sm font-medium text-white/70">
+                    <span className="text-sm font-medium text-slate-800">
                       Monthly Report — Month {entry.month}
                     </span>
-                    <span className="text-xs text-white/30 truncate">—</span>
-                    <span className="text-xs text-white/30">Report</span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs border bg-blue-500/15 border-blue-400/20 text-blue-300`}>
+                    <span className="text-xs text-slate-400 truncate">—</span>
+                    <span className="text-xs text-slate-400">Report</span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs border bg-blue-50 border-blue-200 text-blue-700">
                       Delivered
                     </span>
                   </div>
@@ -187,17 +179,17 @@ export default async function ActivityPage({
 
               return (
                 <div key={i} className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">
-                  <span className="text-xs text-white/40">
+                  <span className="text-xs text-slate-500">
                     {formatDate(entry.date)}
                   </span>
-                  <span className="text-sm font-semibold text-white/80 truncate">
+                  <span className="text-sm font-semibold text-slate-800 truncate">
                     {entry.title}
                   </span>
                   <a
                     href={entry.pageUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-white/30 hover:text-white/50 font-mono truncate transition-colors"
+                    className="text-xs text-slate-400 hover:text-slate-600 font-mono truncate transition-colors"
                     title={entry.pageUrl}
                   >
                     {(() => {

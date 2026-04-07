@@ -46,7 +46,7 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
 
       {/* Pipeline Board — fills remaining height */}
       <div className="flex-1 min-h-0 flex flex-col">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3 flex-shrink-0">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex-shrink-0">
           Pipeline
         </div>
         <div className="flex-1 min-h-0">

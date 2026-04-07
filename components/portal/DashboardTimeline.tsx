@@ -75,8 +75,8 @@ export function DashboardTimeline({ client, pendingCount, approvedCount, impleme
 
   return (
     <GlassCard className="p-6">
-      <div className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-5">
-        What we're working on
+      <div className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-5">
+        What we&apos;re working on
       </div>
       <div className="space-y-0">
         {steps.map((step, i) => (
@@ -84,35 +84,35 @@ export function DashboardTimeline({ client, pendingCount, approvedCount, impleme
             {/* Icon column */}
             <div className="w-6 flex-shrink-0 flex flex-col items-center pt-0.5">
               {step.status === "complete" && (
-                <span className="text-emerald-400 text-sm font-bold">✓</span>
+                <span className="text-emerald-500 text-sm font-bold">✓</span>
               )}
               {step.status === "current" && (
-                <span className="text-violet-400 text-sm animate-pulse">◉</span>
+                <span className="text-indigo-500 text-sm animate-pulse">◉</span>
               )}
               {step.status === "future" && (
-                <span className="text-white/20 text-sm">○</span>
+                <span className="text-slate-300 text-sm">○</span>
               )}
               {i < steps.length - 1 && (
-                <div className="w-px flex-1 mt-1 mb-1 border-l border-white/[0.06]" />
+                <div className="w-px flex-1 mt-1 mb-1 border-l border-slate-200" />
               )}
             </div>
 
             {/* Text column */}
             <div className="flex-1 min-w-0 py-1.5">
               <div className={`text-sm ${
-                step.status === "current" ? "font-semibold text-white/90" :
-                step.status === "complete" ? "text-white/70" :
-                "text-white/20"
+                step.status === "current" ? "font-semibold text-slate-900" :
+                step.status === "complete" ? "text-slate-700" :
+                "text-slate-400"
               }`}>
                 {step.label}
               </div>
-              <div className="text-xs text-white/30 mt-0.5">
+              <div className="text-xs text-slate-500 mt-0.5">
                 {step.description}
               </div>
             </div>
 
             {/* Date column */}
-            <div className="text-xs text-white/20 text-right flex-shrink-0 w-28 pt-1">
+            <div className="text-xs text-slate-400 text-right flex-shrink-0 w-28 pt-1">
               {step.date}
             </div>
           </div>

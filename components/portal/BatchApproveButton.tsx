@@ -35,7 +35,7 @@ export function BatchApproveButton({ recordIds, token, label }: BatchApproveButt
     <button
       onClick={handleApproveAll}
       disabled={state !== "idle"}
-      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all disabled:cursor-not-allowed bg-emerald-500/20 border-emerald-400/30 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-60"
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed bg-emerald-600 border-emerald-700 text-white hover:bg-emerald-700 disabled:opacity-60"
     >
       {state === "idle" && (
         <>

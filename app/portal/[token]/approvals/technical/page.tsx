@@ -24,8 +24,8 @@ export default async function TechnicalApprovalsPage({ params }: { params: Promi
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white/90">Technical</h1>
-        <p className="text-base text-white/40 mt-1">Schema, redirects, canonicals, alt text, and other technical SEO changes.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Technical</h1>
+        <p className="text-base text-slate-500 mt-1">Schema, redirects, canonicals, alt text, and other technical SEO changes.</p>
       </div>
       <ApprovalMasterDetail
         changes={pending}

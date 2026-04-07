@@ -58,7 +58,7 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
 
       {/* ── Add input strip ─────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-2">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-1">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-1">
           Add Your Own Keywords
         </div>
         <div className="flex items-center gap-2">
@@ -69,36 +69,36 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             placeholder="e.g. best mental health software…"
             disabled={adding}
-            className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-white/15 disabled:opacity-40 transition-colors"
+            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 disabled:opacity-40 transition-colors"
           />
           <button
             onClick={handleAdd}
             disabled={!inputValue.trim() || adding}
-            className="shrink-0 px-5 py-2.5 rounded-xl text-xs font-semibold bg-teal-500/20 border border-teal-400/30 text-teal-300 hover:bg-teal-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 px-5 py-2.5 rounded-xl text-xs font-semibold bg-teal-600 border border-teal-700 text-white hover:bg-teal-700 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {adding ? "Adding…" : "Add"}
           </button>
         </div>
-        {feedback && <p className="text-xs text-teal-400/80">{feedback}</p>}
-        {error && <p className="text-xs text-red-400/80">{error}</p>}
+        {feedback && <p className="text-xs text-teal-700">{feedback}</p>}
+        {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
 
       {/* ── Custom group card — same structure as GroupCard in KeywordGroups.tsx ── */}
       {customKeywords.length > 0 && (
-        <div className="bg-white/[0.03] rounded-2xl border-t-2 border-t-teal-500 border border-white/[0.06] flex flex-col p-4 gap-3">
+        <div className="bg-white rounded-2xl border-t-2 border-t-teal-500 border border-slate-200 flex flex-col p-4 gap-3" style={{ boxShadow: "var(--shadow-xs)" }}>
 
           {/* Header — identical pattern to GroupCard */}
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-teal-400">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-teal-600">
                 Your Keywords
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-400/15 text-teal-400/70 font-medium tabular-nums">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-50 border border-teal-200 text-teal-700 font-medium tabular-nums">
                 {customKeywords.length}
               </span>
             </div>
-            <h3 className="text-base font-semibold text-white/90 leading-snug">Custom Keywords</h3>
-            <p className="text-xs text-white/35 mt-1 leading-relaxed">
+            <h3 className="text-base font-semibold text-slate-900 leading-snug">Custom Keywords</h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
               Included in your content pipeline alongside your AI-generated groups.
             </p>
           </div>
@@ -114,7 +114,7 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
                 return (
                   <div
                     key={kw.keyword}
-                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/[0.05] border border-violet-400/20"
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white border border-indigo-200"
                   >
                     <input
                       ref={editInputRef}
@@ -125,19 +125,19 @@ export function CustomKeywordSection({ token, customKeywords }: CustomKeywordSec
                         if (e.key === "Enter") handleSaveEdit();
                         if (e.key === "Escape") handleCancelEdit();
                       }}
-                      className="flex-1 bg-transparent text-sm text-white/80 focus:outline-none min-w-0"
+                      className="flex-1 bg-transparent text-sm text-slate-800 focus:outline-none min-w-0"
                     />
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={handleSaveEdit}
                         disabled={!editDraft.trim() || isThisSaving}
-                        className="text-[10px] px-2.5 py-1 rounded-lg bg-violet-500/20 border border-violet-400/25 text-violet-300 hover:bg-violet-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="text-[10px] px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {isThisSaving ? "Saving…" : "Save"}
                       </button>
                       <button
                         onClick={handleCancelEdit}
-                        className="text-[10px] text-white/30 hover:text-white/50 transition-colors px-1.5 py-1 rounded"
+                        className="text-[10px] text-slate-500 hover:text-slate-700 transition-colors px-1.5 py-1 rounded"
                       >
                         Cancel
                       </button>

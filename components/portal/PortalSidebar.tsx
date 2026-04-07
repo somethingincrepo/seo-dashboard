@@ -44,16 +44,16 @@ export function PortalSidebar({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="glass fixed left-0 top-0 h-full w-56 z-20 flex flex-col py-6 px-4">
+      <aside className="glass fixed left-0 top-0 h-full w-56 z-20 flex flex-col py-6 px-4 border-r border-slate-200/60">
         {/* Brand */}
         <div className="mb-8 px-2">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-violet-600/40 border border-violet-400/30 flex items-center justify-center text-xs font-bold text-violet-300">
+            <div className="w-7 h-7 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700">
               {companyName.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="text-sm font-semibold text-white/80 tracking-tight leading-none">{companyName}</div>
-              <div className="text-[10px] text-white/30 mt-0.5">Client Portal</div>
+              <div className="text-sm font-semibold text-slate-900 tracking-tight leading-none">{companyName}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Client Portal</div>
             </div>
           </div>
         </div>
@@ -72,22 +72,22 @@ export function PortalSidebar({
                 <Link
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border-l-2",
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 border-l-2",
                     isActive
-                      ? "bg-white/[0.06] text-white/90 border-l-violet-400"
-                      : "border-l-transparent text-white/50 hover:text-white/75 hover:bg-white/[0.04]"
+                      ? "bg-indigo-50 text-indigo-700 border-l-indigo-500"
+                      : "border-l-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/80"
                   )}
                 >
                   <span className="text-[15px] leading-none">{item.icon}</span>
                   <span className="flex-1">{item.label}</span>
                   {item.suffix === "/approvals" && pendingCount > 0 && (
-                    <span className="text-[10px] text-amber-300 ml-auto mr-1">
-                      {pendingCount} to review
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 ml-auto mr-1 tabular">
+                      {pendingCount}
                     </span>
                   )}
                   {item.suffix === "/content" && contentReviewCount > 0 && (
-                    <span className="text-[10px] text-emerald-300 ml-auto mr-1">
-                      {contentReviewCount} new
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 ml-auto mr-1 tabular">
+                      {contentReviewCount}
                     </span>
                   )}
                 </Link>
@@ -105,14 +105,14 @@ export function PortalSidebar({
                           key={slug}
                           href={catHref}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all duration-150",
                             catActive
-                              ? "text-white/90 bg-white/[0.06] font-medium"
-                              : "text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
+                              ? "text-indigo-700 bg-indigo-50 font-medium"
+                              : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/60"
                           )}
                         >
                           <span className="flex-1">{cat}</span>
-                          <span className="text-white/25">{count}</span>
+                          <span className="text-slate-400 tabular">{count}</span>
                         </Link>
                       );
                     })}
@@ -134,10 +134,10 @@ export function PortalSidebar({
                           key={label}
                           href={href}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all duration-150",
                             isActive
-                              ? "text-white/90 bg-white/[0.06] font-medium"
-                              : "text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
+                              ? "text-indigo-700 bg-indigo-50 font-medium"
+                              : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/60"
                           )}
                         >
                           {label}
@@ -152,12 +152,12 @@ export function PortalSidebar({
         </nav>
 
         {/* Bottom — Book a meeting */}
-        <div className="border-t border-white/[0.08] pt-4 px-2">
+        <div className="border-t border-slate-200 pt-4 px-2">
           <a
             href="https://calendly.com/somethinginc/something-inc-touchbase-1"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm transition-all text-white/40 hover:text-white/70 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12]"
+            className="flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm transition-all duration-150 text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100"
           >
             <span className="text-base">🗓</span>
             <span>Book a meeting</span>

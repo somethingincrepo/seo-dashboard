@@ -41,8 +41,8 @@ export default async function KeywordsPage({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white/90">Keywords</h1>
-        <p className="text-base text-white/40 mt-1">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Keywords</h1>
+        <p className="text-base text-slate-500 mt-1">
           Keyword groups and target subkeywords driving your content strategy
         </p>
       </div>
@@ -54,9 +54,9 @@ export default async function KeywordsPage({
       {isEmpty ? (
         <div className="flex-1 flex items-center justify-center py-24">
           <div className="text-center max-w-sm">
-            <div className="text-3xl mb-4 text-white/20">◈</div>
-            <div className="font-medium text-white/50 mb-2">Keyword research in progress</div>
-            <div className="text-sm text-white/30 leading-relaxed">
+            <div className="text-3xl mb-4 text-slate-300">◈</div>
+            <div className="font-medium text-slate-500 mb-2">Keyword research in progress</div>
+            <div className="text-sm text-slate-400 leading-relaxed">
               Your 5 keyword groups will appear here once your Month 1 audit is complete.
               Each group will include 2 target subkeywords with volume and difficulty data.
             </div>

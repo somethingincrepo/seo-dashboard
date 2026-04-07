@@ -26,8 +26,8 @@ export function CopyButton({ value, label = "Copy", size = "sm" }: CopyButtonPro
           ? "px-4 py-2 text-sm"
           : "px-3 py-1.5 text-xs",
         copied
-          ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
-          : "bg-white/6 border-white/12 text-white/60 hover:bg-white/12 hover:text-white"
+          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+          : "bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
       )}
     >
       {copied ? "✓ Copied!" : label}

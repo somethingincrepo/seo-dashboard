@@ -21,7 +21,7 @@ export function CategorySection({ category, changes, token }: CategorySectionPro
     <section className="space-y-3">
       <div className="flex items-center gap-2">
         <StatusBadge value={category} variant="category" />
-        <span className="text-white/30 text-xs">{changes.length} change{changes.length !== 1 ? "s" : ""}</span>
+        <span className="text-slate-400 text-xs">{changes.length} change{changes.length !== 1 ? "s" : ""}</span>
       </div>
       <div className="space-y-2">
         {Object.entries(byPage).map(([page, pageChanges], i) => (

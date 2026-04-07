@@ -138,19 +138,19 @@ function RedirectPreview({ current, proposed }: { current: string; proposed: str
 
   return (
     <div className="mt-4">
-      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 font-mono text-sm">
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 font-mono text-sm">
         {from && (
-          <div className="text-red-400/70" style={{ overflowWrap: "anywhere" }}>{from}</div>
+          <div className="text-red-600" style={{ overflowWrap: "anywhere" }}>{from}</div>
         )}
-        <div className="text-white/20 text-center my-2 text-xs">
+        <div className="text-slate-400 text-center my-2 text-xs">
           ↓ {code}
         </div>
         {to && (
-          <div className="text-emerald-400/70" style={{ overflowWrap: "anywhere" }}>{to}</div>
+          <div className="text-emerald-600" style={{ overflowWrap: "anywhere" }}>{to}</div>
         )}
       </div>
       {current && !from && (
-        <p className="text-xs text-white/25 mt-2" style={{ overflowWrap: "anywhere" }}>Current: {current}</p>
+        <p className="text-xs text-slate-400 mt-2" style={{ overflowWrap: "anywhere" }}>Current: {current}</p>
       )}
     </div>
   );
@@ -274,9 +274,9 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
           <MetadataFieldRow label="Meta Description" current={currentMeta.description} proposed={null} />
         )}
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Direction</div>
-          <div className="bg-emerald-500/[0.03] border border-emerald-400/[0.06] rounded-xl p-4">
-            <div className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap break-words">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Proposed Direction</div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <div className="text-sm text-emerald-800 leading-relaxed whitespace-pre-wrap break-words">
               {proposed}
             </div>
           </div>
@@ -303,9 +303,9 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
       ) : hasDescData && !hasTitleData ? (
         /* Only description is in the data — show title as "no change" so client sees the full picture */
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Page Title</div>
-          <div className="bg-white/[0.02] rounded-xl px-4 py-2.5 border border-white/[0.04]">
-            <div className="text-xs text-white/20 italic">No changes needed</div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Page Title</div>
+          <div className="bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
+            <div className="text-xs text-slate-400 italic">No changes needed</div>
           </div>
         </div>
       ) : null}
@@ -320,9 +320,9 @@ function MetadataPreview({ current, proposed, pageUrl }: { current: string; prop
       ) : hasTitleData && !hasDescData ? (
         /* Only title is in the data — show description as "no change" so client sees the full picture */
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Meta Description</div>
-          <div className="bg-white/[0.02] rounded-xl px-4 py-2.5 border border-white/[0.04]">
-            <div className="text-xs text-white/20 italic">No changes needed</div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Meta Description</div>
+          <div className="bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
+            <div className="text-xs text-slate-400 italic">No changes needed</div>
           </div>
         </div>
       ) : null}
@@ -347,29 +347,29 @@ function MetadataFieldRow({
 
   return (
     <div>
-      <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">{label}</div>
+      <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</div>
       <div className="space-y-2">
         {/* Current value */}
-        <div className="bg-white/[0.03] rounded-xl px-4 py-3 border border-l-2 border-white/[0.06] border-l-red-400/30">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-red-400/50 mb-1">Current</div>
+        <div className="bg-red-50 rounded-xl px-4 py-3 border border-l-2 border-red-100 border-l-red-400">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-red-500 mb-1">Current</div>
           {current ? (
             <div className="text-sm leading-relaxed break-words" style={{ overflowWrap: "anywhere" }}>
               {hasChange ? (
-                <span className="text-white/30 line-through">{current}</span>
+                <span className="text-red-700/60 line-through">{current}</span>
               ) : (
-                <span className="text-white/60">{current}</span>
+                <span className="text-slate-700">{current}</span>
               )}
             </div>
           ) : (
-            <div className="text-xs text-white/20 italic">Not set</div>
+            <div className="text-xs text-slate-400 italic">Not set</div>
           )}
         </div>
 
         {/* Proposed value — only show if there's actually a new value */}
         {proposed && (
-          <div className="bg-white/[0.03] rounded-xl px-4 py-3 border border-l-2 border-white/[0.06] border-l-emerald-400/30">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/50 mb-1">Proposed</div>
-            <div className="text-sm text-emerald-300/80 leading-relaxed break-words" style={{ overflowWrap: "anywhere" }}>
+          <div className="bg-emerald-50 rounded-xl px-4 py-3 border border-l-2 border-emerald-100 border-l-emerald-400">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 mb-1">Proposed</div>
+            <div className="text-sm text-emerald-800 leading-relaxed break-words" style={{ overflowWrap: "anywhere" }}>
               {proposed}
             </div>
           </div>
@@ -385,23 +385,23 @@ function TechnicalPreview({ current, proposed }: { current: string; proposed: st
   return (
     <div className="mt-4 space-y-3">
       {current && (
-        <div className="bg-red-500/[0.03] border border-red-400/[0.06] rounded-xl p-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25">Current State</div>
-            <span className="text-xs text-red-400/60">✕</span>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Current State</div>
+            <span className="text-xs text-red-500">✕</span>
           </div>
-          <pre className="text-xs font-mono text-white/60 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+          <pre className="text-xs font-mono text-red-700 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
             {current}
           </pre>
         </div>
       )}
       {proposed && (
-        <div className="bg-emerald-500/[0.03] border border-emerald-400/[0.06] rounded-xl p-4">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-white/25">Proposed Fix</div>
-            <span className="text-xs text-emerald-400/60">✓</span>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Proposed Fix</div>
+            <span className="text-xs text-emerald-600">✓</span>
           </div>
-          <pre className="text-xs font-mono text-emerald-300/70 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+          <pre className="text-xs font-mono text-emerald-700 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
             {proposed}
           </pre>
         </div>
@@ -441,15 +441,15 @@ function ElementPreview({ current, proposed, type }: { current: string; proposed
     <div className="mt-4 space-y-3">
       {current && (
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current {typeLabel}</div>
-          <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Current {typeLabel}</div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
             {type === "Alt Text" ? (
-              <code className="text-sm text-white/60" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-white/30">{currentPrefix}</span>{stripElementPrefix(current)}<span className="text-white/30">{suffix}</span>
+              <code className="text-sm text-slate-700" style={{ overflowWrap: "anywhere" }}>
+                <span className="text-slate-400">{currentPrefix}</span>{stripElementPrefix(current)}<span className="text-slate-400">{suffix}</span>
               </code>
             ) : (
-              <span className="text-sm text-white/60" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-white/30 text-xs font-mono mr-1">{currentPrefix}</span>{stripElementPrefix(current)}
+              <span className="text-sm text-slate-700" style={{ overflowWrap: "anywhere" }}>
+                <span className="text-slate-400 text-xs font-mono mr-1">{currentPrefix}</span>{stripElementPrefix(current)}
               </span>
             )}
           </div>
@@ -457,15 +457,15 @@ function ElementPreview({ current, proposed, type }: { current: string; proposed
       )}
       {proposed && (
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Updated {typeLabel}</div>
-          <div className="bg-white/[0.02] border-l-2 border-emerald-400/30 border border-white/[0.06] rounded-xl px-4 py-3">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Updated {typeLabel}</div>
+          <div className="bg-emerald-50 border-l-2 border-emerald-400 border border-emerald-200 rounded-xl px-4 py-3">
             {type === "Alt Text" ? (
-              <code className="text-sm text-emerald-300/80" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-emerald-400/40">{proposedPrefix}</span>{stripElementPrefix(proposed)}<span className="text-emerald-400/40">{suffix}</span>
+              <code className="text-sm text-emerald-800" style={{ overflowWrap: "anywhere" }}>
+                <span className="text-emerald-500">{proposedPrefix}</span>{stripElementPrefix(proposed)}<span className="text-emerald-500">{suffix}</span>
               </code>
             ) : (
-              <span className="text-sm text-emerald-300/80" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-emerald-400/40 text-xs font-mono mr-1">{proposedPrefix}</span>{stripElementPrefix(proposed)}
+              <span className="text-sm text-emerald-800" style={{ overflowWrap: "anywhere" }}>
+                <span className="text-emerald-500 text-xs font-mono mr-1">{proposedPrefix}</span>{stripElementPrefix(proposed)}
               </span>
             )}
           </div>
@@ -486,9 +486,9 @@ function ContentPreview({ current, proposed, type }: { current: string; proposed
     <div className="mt-4 space-y-3">
       {current && (
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Current Content</div>
-          <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
-            <p className="text-sm text-white/60 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Current Content</div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+            <p className="text-sm text-slate-600 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
               {!showFullCurrent && current.length > truncateAt
                 ? current.slice(0, truncateAt) + "..."
                 : current}
@@ -496,7 +496,7 @@ function ContentPreview({ current, proposed, type }: { current: string; proposed
             {current.length > truncateAt && (
               <button
                 onClick={() => setShowFullCurrent(!showFullCurrent)}
-                className="text-xs text-violet-400/60 hover:text-violet-400 mt-2 transition-colors"
+                className="text-xs text-indigo-500 hover:text-indigo-700 mt-2 transition-colors"
               >
                 {showFullCurrent ? "Show less" : "Show full text"}
               </button>
@@ -506,9 +506,9 @@ function ContentPreview({ current, proposed, type }: { current: string; proposed
       )}
       {proposed && (
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Proposed Content</div>
-          <div className="bg-emerald-500/5 border border-emerald-400/10 rounded-xl px-4 py-3">
-            <p className="text-sm text-emerald-300/80 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Proposed Content</div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+            <p className="text-sm text-emerald-800 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
               {!showFullProposed && proposed.length > truncateAt
                 ? proposed.slice(0, truncateAt) + "..."
                 : proposed}
@@ -516,13 +516,13 @@ function ContentPreview({ current, proposed, type }: { current: string; proposed
             {proposed.length > truncateAt && (
               <button
                 onClick={() => setShowFullProposed(!showFullProposed)}
-                className="text-xs text-violet-400/60 hover:text-violet-400 mt-2 transition-colors"
+                className="text-xs text-indigo-500 hover:text-indigo-700 mt-2 transition-colors"
               >
                 {showFullProposed ? "Show less" : "Show full text"}
               </button>
             )}
           </div>
-          <p className="text-xs text-white/25 mt-2">Content changes may be visible to site visitors.</p>
+          <p className="text-xs text-slate-400 mt-2">Content changes may be visible to site visitors.</p>
         </div>
       )}
     </div>
@@ -534,13 +534,13 @@ function ContentPreview({ current, proposed, type }: { current: string; proposed
 function GeoPreview({ current, proposed }: { current: string; proposed: string }) {
   return (
     <div className="mt-4">
-      <div className="bg-blue-500/[0.03] border border-blue-400/[0.06] rounded-xl p-4 space-y-3">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-blue-400/50">AI Search Optimization</div>
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-blue-600">AI Search Optimization</div>
         {current && (
-          <p className="text-xs text-white/30 leading-relaxed" style={{ overflowWrap: "anywhere" }}>Current state: {current}</p>
+          <p className="text-xs text-slate-500 leading-relaxed" style={{ overflowWrap: "anywhere" }}>Current state: {current}</p>
         )}
         {proposed && (
-          <p className="text-sm text-blue-300/70 leading-relaxed" style={{ overflowWrap: "anywhere" }}>{proposed}</p>
+          <p className="text-sm text-blue-800 leading-relaxed" style={{ overflowWrap: "anywhere" }}>{proposed}</p>
         )}
       </div>
     </div>

@@ -65,7 +65,7 @@ export function ApprovalMasterDetail(props: ApprovalMasterDetailProps) {
   return (
     <Suspense fallback={
       <div className="flex gap-0 h-[calc(100vh-12rem)]">
-        <div className="w-[40%] flex items-center justify-center text-white/30 text-sm">Loading...</div>
+        <div className="w-[40%] flex items-center justify-center text-slate-400 text-sm">Loading...</div>
         <div className="w-[60%]" />
       </div>
     }>
@@ -211,11 +211,11 @@ function ApprovalMasterDetailInner({
   };
 
   const priorityDotColor = (priority: string) => {
-    if (priority === "Critical") return "bg-violet-400";
-    if (priority === "High") return "bg-red-400";
+    if (priority === "Critical") return "bg-red-500";
+    if (priority === "High") return "bg-orange-500";
     if (priority === "Medium") return "bg-amber-400";
-    if (priority === "Low") return "bg-emerald-400";
-    return "bg-slate-500";
+    if (priority === "Low") return "bg-emerald-500";
+    return "bg-slate-400";
   };
 
   const truncateUrl = (url: string) => {
@@ -259,9 +259,9 @@ function ApprovalMasterDetailInner({
       const isDecided = activeTab === "decided";
       let decidedBorder = "border-l-transparent";
       if (isDecided) {
-        if (approval === "approved") decidedBorder = "border-l-emerald-400/40";
-        else if (approval === "skipped") decidedBorder = "border-l-white/10 opacity-50";
-        else if (approval === "question") decidedBorder = "border-l-blue-400/40";
+        if (approval === "approved") decidedBorder = "border-l-emerald-400";
+        else if (approval === "skipped") decidedBorder = "border-l-slate-200 opacity-50";
+        else if (approval === "question") decidedBorder = "border-l-blue-400";
       }
 
       return (
@@ -278,48 +278,48 @@ function ApprovalMasterDetailInner({
           }}
           className={`w-full text-left px-4 py-3 cursor-pointer transition-all duration-150 border-l-2 ${
             isSelected
-              ? "border-l-violet-400 bg-white/[0.06]"
+              ? "border-l-indigo-500 bg-indigo-50/60"
               : isDecided
-              ? `${decidedBorder} hover:bg-white/[0.04]`
-              : "border-l-transparent hover:bg-white/[0.04] hover:border-l-white/10"
+              ? `${decidedBorder} hover:bg-slate-50`
+              : "border-l-transparent hover:bg-slate-50 hover:border-l-slate-300"
           }`}
         >
           <div className="flex items-start gap-2.5">
             <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${priorityDotColor(change.fields.priority)}`} />
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-white/80 truncate">
+              <div className="text-sm font-medium text-slate-800 truncate">
                 {getListItemTitle(changeType, change.fields.page_url, 30, change.fields.change_title, false, change.fields)}
               </div>
-              <div className="text-xs text-white/30 mt-0.5 truncate">
+              <div className="text-xs text-slate-400 mt-0.5 truncate">
                 {truncateUrl(change.fields.page_url || "")}
               </div>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 {change.fields.priority && (
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
                     change.fields.priority === "Critical"
-                      ? "bg-violet-500/15 text-violet-400 border-violet-400/20"
+                      ? "bg-red-50 text-red-700 border-red-200"
                       : change.fields.priority === "High"
-                      ? "bg-red-500/15 text-red-400 border-red-400/20"
+                      ? "bg-orange-50 text-orange-700 border-orange-200"
                       : change.fields.priority === "Medium"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-400/15"
-                      : "bg-emerald-500/10 text-emerald-400 border-emerald-400/15"
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
                   }`}>
                     {change.fields.priority}
                   </span>
                 )}
                 {change.fields.implementation_tier === "tier_1" && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-400/20">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                     Tier 1
                   </span>
                 )}
                 {change.fields.is_nav_page && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-400/20">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                     Nav page
                   </span>
                 )}
                 {isDecided && (approval === "approved" || approval === "skipped") && (
                   <>
-                    <span className={`text-[10px] ${approval === "approved" ? "text-emerald-400" : "text-slate-400"}`}>{approval === "approved" ? "✓" : "—"}</span>
+                    <span className={`text-[10px] ${approval === "approved" ? "text-emerald-600" : "text-slate-500"}`}>{approval === "approved" ? "✓" : "—"}</span>
                     {!change.fields.implemented_at && (
                       <button
                         onClick={(e) => {
@@ -327,7 +327,7 @@ function ApprovalMasterDetailInner({
                           handleUndo(change.id);
                         }}
                         disabled={submitting}
-                        className="text-[10px] text-white/25 hover:text-red-300 underline underline-offset-2 transition-colors ml-0.5 disabled:opacity-50"
+                        className="text-[10px] text-slate-400 hover:text-red-600 underline underline-offset-2 transition-colors ml-0.5 disabled:opacity-50"
                       >
                         {approval === "approved" ? "Undo" : "Unskip"}
                       </button>
@@ -335,7 +335,7 @@ function ApprovalMasterDetailInner({
                   </>
                 )}
                 {isDecided && approval === "question" && (
-                  <span className="text-[10px] text-blue-400">?</span>
+                  <span className="text-[10px] text-blue-600">?</span>
                 )}
               </div>
             </div>
@@ -414,9 +414,9 @@ function ApprovalMasterDetailInner({
     return (
       <div key={cat}>
         {/* Sticky category header */}
-        <div className="flex items-center gap-2 mb-3 px-1 sticky top-0 z-10 bg-[#08080f]/80 backdrop-blur-sm py-2 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2 mb-3 px-1 sticky top-0 z-10 bg-[#FAFAFB]/90 backdrop-blur-sm py-2 border-b border-slate-100">
           <StatusBadge value={cat} variant="category" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-white/30">
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
             ({catChanges.length})
           </span>
         </div>
@@ -456,22 +456,22 @@ function ApprovalMasterDetailInner({
                       return next;
                     });
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.03] transition-colors rounded-lg"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-100/60 transition-colors rounded-lg"
                 >
-                  <span className={`text-[10px] text-white/30 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}>▶</span>
-                  <span className="text-xs font-medium text-white/60 flex-1 truncate">{label}</span>
+                  <span className={`text-[10px] text-slate-400 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}>▶</span>
+                  <span className="text-xs font-medium text-slate-600 flex-1 truncate">{label}</span>
                   {isNavPage && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400/70 border border-blue-400/15 flex-shrink-0">nav</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 flex-shrink-0">nav</span>
                   )}
                   {hasCritical && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400/70 border border-violet-400/15 flex-shrink-0">!</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 flex-shrink-0">!</span>
                   )}
-                  <span className="text-[10px] text-white/25 flex-shrink-0">{pageChanges.length}</span>
+                  <span className="text-[10px] text-slate-400 flex-shrink-0">{pageChanges.length}</span>
                 </button>
 
                 {/* Page group items */}
                 {!collapsed && (
-                  <div className="ml-3 border-l border-white/[0.04] pl-1">
+                  <div className="ml-3 border-l border-slate-100 pl-1">
                     {renderListItems(pageChanges)}
                   </div>
                 )}
@@ -486,9 +486,9 @@ function ApprovalMasterDetailInner({
   return (
     <div className="flex gap-0 h-[calc(100vh-12rem)]">
       {/* ── Left Panel (List) ── */}
-      <div className="w-[40%] flex flex-col min-w-0 border-r border-white/[0.06] pr-6">
+      <div className="w-[40%] flex flex-col min-w-0 border-r border-slate-200 pr-6">
         {/* Segmented control */}
-        <div className="inline-flex rounded-xl bg-white/[0.04] p-1 mb-4">
+        <div className="inline-flex rounded-xl bg-slate-100 p-1 mb-4">
           {(["pending", "decided"] as const).map((tab) => {
             const count = tab === "pending" ? effectivePending.length : effectiveDecided.length;
             return (
@@ -503,13 +503,14 @@ function ApprovalMasterDetailInner({
                 }}
                 className={`flex-1 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                   activeTab === tab
-                    ? "bg-white/[0.08] rounded-lg text-white/90 shadow-sm"
-                    : "text-white/30 hover:text-white/50"
+                    ? "bg-white text-slate-900"
+                    : "text-slate-500 hover:text-slate-700"
                 }`}
+                style={activeTab === tab ? { boxShadow: "var(--shadow-xs)" } : {}}
               >
                 {tab === "pending" ? "Pending" : "Decided"}
                 <span className={`ml-1.5 text-xs ${
-                  activeTab === tab ? "text-white/50" : "text-white/30"
+                  activeTab === tab ? "text-slate-400" : "text-slate-400"
                 }`}>
                   ({count})
                 </span>
@@ -522,13 +523,13 @@ function ApprovalMasterDetailInner({
         {activeTab === "pending" && (
           <div className="mb-3 px-1 space-y-2">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-sm text-white/60">
-                <span className="text-white/90 font-semibold">{effectivePending.length}</span> pending
+              <span className="text-sm text-slate-500">
+                <span className="text-slate-900 font-semibold">{effectivePending.length}</span> pending
                 {priorityFilter !== "All" && (
-                  <span className="text-white/30 ml-1">({priorityFilter})</span>
+                  <span className="text-slate-400 ml-1">({priorityFilter})</span>
                 )}
                 {pageFilter && (
-                  <span className="text-white/30 ml-1">· page filter active</span>
+                  <span className="text-slate-400 ml-1">· page filter active</span>
                 )}
               </span>
               <div className="flex items-center gap-1.5">
@@ -536,10 +537,10 @@ function ApprovalMasterDetailInner({
                   <button
                     key={p}
                     onClick={() => setPriorityFilter(p)}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all duration-150 ${
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all duration-150 border ${
                       priorityFilter === p
-                        ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
-                        : "bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50"
+                        ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                        : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
                     {p}
@@ -556,10 +557,10 @@ function ApprovalMasterDetailInner({
                       setPageFilter("");
                     }
                   }}
-                  className={`w-6 h-6 flex items-center justify-center rounded-md transition-all duration-150 ${
+                  className={`w-6 h-6 flex items-center justify-center rounded-md transition-all duration-150 border ${
                     pageFilterOpen || pageFilter
-                      ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
-                      : "bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50"
+                      ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                      : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
                   }`}
                   title="Filter by page"
                 >
@@ -584,12 +585,12 @@ function ApprovalMasterDetailInner({
                     }
                   }}
                   placeholder="Filter by page (e.g. services, /about/)"
-                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-white/70 placeholder:text-white/20 focus:outline-none focus:border-violet-400/40 focus:bg-white/[0.06] transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 transition-all"
                 />
                 {pageFilter && (
                   <button
                     onClick={() => setPageFilter("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors text-xs"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors text-xs"
                   >
                     ✕
                   </button>
@@ -602,7 +603,7 @@ function ApprovalMasterDetailInner({
         {/* Change list */}
         <div ref={listRef} className="flex-1 overflow-y-auto pr-1">
           {activeChanges.length === 0 && (
-            <div className="py-12 text-center text-white/30 text-sm">
+            <div className="py-12 text-center text-slate-400 text-sm">
               {activeTab === "pending" ? "All caught up!" : "No decided changes yet."}
             </div>
           )}
@@ -610,17 +611,17 @@ function ApprovalMasterDetailInner({
           <div className="space-y-6">
             {/* Triage card — bulk approve safe types before reviewing the rest */}
             {activeTab === "pending" && safeIds.length >= 5 && (
-              <div className="rounded-2xl border border-emerald-400/10 bg-emerald-500/[0.04] px-5 py-4">
-                <div className="text-sm font-medium text-white/70 mb-1">Technical Fixes</div>
-                <div className="text-xs text-white/40 mb-3 leading-relaxed">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4" style={{ boxShadow: "var(--shadow-xs)" }}>
+                <div className="text-sm font-medium text-slate-800 mb-1">Technical Fixes</div>
+                <div className="text-xs text-slate-500 mb-3 leading-relaxed">
                   {safeIds.length} under-the-hood improvements — metadata, schema markup, image
-                  labels, and link fixes. These won't change how your site looks or reads.
+                  labels, and link fixes. These won&apos;t change how your site looks or reads.
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-4">
                   {safeTypeBreakdown.map(({ type, count }) => (
                     <span
                       key={type}
-                      className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-white/30"
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-500"
                     >
                       {type} · {count}
                     </span>
@@ -647,12 +648,12 @@ function ApprovalMasterDetailInner({
       </div>
 
       {/* ── Right Panel (Detail) ── */}
-      <div className="w-[60%] flex flex-col min-w-0 min-h-0 bg-white/[0.03] border-l border-white/[0.06]">
+      <div className="w-[60%] flex flex-col min-w-0 min-h-0 bg-slate-50/40 border-l border-slate-100">
         {!effectiveSelected ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <div className="text-2xl text-white/10 mb-2">◇</div>
-              <div className="text-sm text-white/20">Select a recommendation</div>
+              <div className="text-2xl text-slate-300 mb-2">◇</div>
+              <div className="text-sm text-slate-400">Select a recommendation</div>
             </div>
           </div>
         ) : (
@@ -672,12 +673,12 @@ function ApprovalMasterDetailInner({
                   <StatusBadge value={type} variant="category" />
                 )}
                 {fields.is_nav_page && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-400/15">Nav page</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Nav page</span>
                 )}
               </div>
 
               {/* Title — short, readable page name */}
-              <h2 className="text-xl font-semibold text-white/90 mb-3">
+              <h2 className="text-xl font-semibold text-slate-900 mb-3">
                 {getListItemTitle(type, page_url, undefined, fields.change_title, true, fields)}
               </h2>
 
@@ -686,7 +687,7 @@ function ApprovalMasterDetailInner({
                 href={page_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-400/15 text-violet-300 text-xs font-mono hover:bg-violet-500/15 transition-colors mb-5 max-w-full"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-mono hover:bg-indigo-100 transition-colors mb-5 max-w-full"
               >
                 <span className="truncate">{(() => {
                   try {
@@ -702,8 +703,8 @@ function ApprovalMasterDetailInner({
               <div className="space-y-5">
                 {/* What We Recommend */}
                 <div>
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">What We Recommend</h3>
-                  <p className="text-sm text-white/70 leading-relaxed">{getWhatWeRecommend(fields)}</p>
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">What We Recommend</h3>
+                  <p className="text-sm text-slate-700 leading-relaxed">{getWhatWeRecommend(fields)}</p>
 
                   {/* Type-specific visual preview */}
                   <ChangePreview fields={fields} cat={cat} type={type} />
@@ -712,7 +713,7 @@ function ApprovalMasterDetailInner({
                 {/* View the Draft */}
                 {getDocUrl(fields) && (
                   <a href={getDocUrl(fields)!} target="_blank" rel="noreferrer"
-                     className="inline-flex items-center gap-1.5 text-xs text-violet-400/80 hover:text-violet-400 transition-colors px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-400/15 hover:bg-violet-500/15">
+                     className="inline-flex items-center gap-1.5 text-xs text-indigo-700 hover:text-indigo-800 transition-colors px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100">
                     View the Draft ↗
                   </a>
                 )}
@@ -720,13 +721,13 @@ function ApprovalMasterDetailInner({
                 {/* Why It Matters — single text block, hidden if empty */}
                 {whyText && (
                   <div>
-                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-3">Why It Matters</h3>
-                    <p className="text-sm text-white/60 leading-relaxed">{whyText}</p>
+                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Why It Matters</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">{whyText}</p>
                   </div>
                 )}
 
                 {/* What happens next? */}
-                <div className="text-xs text-white/25 pt-6 pb-3 border-t border-white/[0.06]">
+                <div className="text-xs text-slate-400 pt-6 pb-3 border-t border-slate-200">
                   {getApprovalStatus(effectiveSelected) === 'pending'
                     ? "When you approve, we'll implement this change within 48 hours. You'll see it in your next monthly report."
                     : ''}
@@ -739,19 +740,19 @@ function ApprovalMasterDetailInner({
               {/* Question textarea */}
               {showQuestion && (
                 <div className="mt-6">
-                  <label className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2 block">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">
                     What would you like to know?
                   </label>
                   <textarea
                     value={questionText}
                     onChange={(e) => setQuestionText(e.target.value)}
                     placeholder="Ask us anything about this recommendation..."
-                    className="w-full h-24 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-violet-400/40 resize-none"
+                    className="w-full h-24 rounded-xl bg-white border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 resize-none"
                   />
                   <div className="flex justify-end gap-2 mt-2">
                     <button
                       onClick={() => { setShowQuestion(false); setQuestionText(""); }}
-                      className="px-3 py-1.5 text-xs text-white/40 hover:text-white/60 transition-colors duration-150"
+                      className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors duration-150"
                     >
                       Cancel
                     </button>
@@ -762,7 +763,7 @@ function ApprovalMasterDetailInner({
                         }
                       }}
                       disabled={!questionText.trim() || submitting}
-                      className="px-4 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/30 text-xs text-blue-300 hover:bg-blue-500/30 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 hover:bg-blue-100 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Submit question
                     </button>
@@ -772,7 +773,7 @@ function ApprovalMasterDetailInner({
             </div>
 
             {/* Action bar — flex-pinned to bottom, always visible */}
-            <div className="flex-shrink-0 px-8 py-4 border-t border-white/[0.06] bg-[#0a0a12]/90 backdrop-blur-sm">
+            <div className="flex-shrink-0 px-8 py-4 border-t border-slate-200 bg-white/90 backdrop-blur-sm">
               <ApprovalActionBar
                 changeId={effectiveSelected.id}
                 approval={getApprovalStatus(effectiveSelected)}

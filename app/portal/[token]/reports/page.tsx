@@ -9,10 +9,10 @@ function Delta({ value, label }: { value: number | undefined; label: string }) {
   const isPositive = (value ?? 0) >= 0;
   return (
     <div className="text-center">
-      <div className={`text-xl font-bold ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
+      <div className={`text-xl font-bold tabular ${isPositive ? "text-emerald-600" : "text-red-600"}`}>
         {isPositive ? "+" : ""}{value ?? "—"}
       </div>
-      <div className="text-white/30 text-xs mt-0.5">{label}</div>
+      <div className="text-slate-500 text-xs mt-0.5">{label}</div>
     </div>
   );
 }
@@ -31,15 +31,15 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white/90">Reports</h1>
-        <p className="text-base text-white/40 mt-1">Monthly performance summaries</p>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Reports</h1>
+        <p className="text-base text-slate-500 mt-1">Monthly performance summaries</p>
       </div>
 
       {reports.length === 0 && (
         <GlassCard className="p-12 text-center">
-          <div className="text-3xl mb-4 text-white/20">◎</div>
-          <div className="font-medium text-white/70 mb-2">No reports yet</div>
-          <div className="text-sm text-white/40 max-w-xs mx-auto">
+          <div className="text-3xl mb-4 text-slate-300">◎</div>
+          <div className="font-medium text-slate-700 mb-2">No reports yet</div>
+          <div className="text-sm text-slate-500 max-w-xs mx-auto">
             {isOnboarding
               ? "Your first monthly report will be ready after Month 1 optimizations are complete."
               : "Reports will appear here after your first monthly cycle."}
@@ -55,22 +55,22 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
 
           return (
             <GlassCard key={report.id} className="overflow-hidden">
-              <div className="p-5 border-b border-white/[0.08] flex items-center justify-between">
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
                 <div>
-                  <div className="text-lg font-semibold text-white/90">Month {report.fields.month}</div>
+                  <div className="text-lg font-semibold text-slate-900">Month {report.fields.month}</div>
                   {report.fields.sent_at && (
-                    <div className="text-white/30 text-xs mt-0.5">
+                    <div className="text-slate-400 text-xs mt-0.5">
                       {new Date(report.fields.sent_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                     </div>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
                   {report.fields.changes_made > 0 && (
-                    <span className="text-xs text-white/40">{report.fields.changes_made} changes implemented</span>
+                    <span className="text-xs text-slate-500">{report.fields.changes_made} changes implemented</span>
                   )}
                   {report.fields.pdf_url && (
                     <a href={report.fields.pdf_url} target="_blank" rel="noreferrer"
-                      className="text-xs px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/20 text-violet-300 hover:bg-violet-500/30 transition-all duration-150">
+                      className="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-all duration-150">
                       PDF ↗
                     </a>
                   )}
@@ -81,18 +81,18 @@ export default async function PortalReportsPage({ params }: { params: Promise<{ 
                 <Delta value={report.fields.gsc_clicks_delta} label="Clicks" />
                 <Delta value={report.fields.gsc_impressions_delta} label="Impressions" />
                 <div className="text-center">
-                  <div className="text-xl font-bold text-blue-400">{report.fields.ai_citation_score ?? "—"}</div>
-                  <div className="text-white/30 text-xs mt-0.5">AI Citation Score</div>
+                  <div className="text-xl font-bold tabular text-blue-600">{report.fields.ai_citation_score ?? "—"}</div>
+                  <div className="text-slate-500 text-xs mt-0.5">AI Citation Score</div>
                 </div>
               </div>
 
               {priorities.length > 0 && (
                 <div className="px-5 pb-5">
-                  <div className="text-[11px] font-bold uppercase tracking-widest text-white/25 mb-2">Next month</div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Next month</div>
                   <ul className="space-y-1">
                     {priorities.map((p, i) => (
-                      <li key={i} className="text-sm text-white/60 flex items-start gap-2">
-                        <span className="text-violet-400 mt-0.5 flex-shrink-0">·</span>
+                      <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                        <span className="text-indigo-500 mt-0.5 flex-shrink-0">·</span>
                         {p.replace(/^[-•·*]\s*/, "")}
                       </li>
                     ))}
