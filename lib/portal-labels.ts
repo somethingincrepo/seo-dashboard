@@ -129,6 +129,11 @@ export function getMetadataAction(currentValue?: string, proposedValue?: string)
   return "Update search listing";
 }
 
+// Strip internal severity prefixes agents sometimes put in change_title
+function cleanChangeTitle(title: string): string {
+  return title.trim().replace(/^(CRITICAL|HIGH|MEDIUM|LOW)\s*:\s*/i, "");
+}
+
 export function getListItemTitle(
   type: string,
   pageUrl: string,
@@ -139,7 +144,7 @@ export function getListItemTitle(
   /** Pass ChangeFields for metadata-aware titles */
   fields?: { current_value?: string; proposed_value?: string }
 ): string {
-  if (changeTitle?.trim()) return changeTitle.trim();
+  if (changeTitle?.trim()) return cleanChangeTitle(changeTitle);
   const normalizedType = normalizeType(type);
   let action = ACTION_VERBS[normalizedType] || `Update ${normalizedType.toLowerCase()}`;
   // For metadata, detect title vs description vs both

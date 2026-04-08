@@ -29,9 +29,10 @@ export default async function ActivityPage({
   if (!client) notFound();
 
   const clientId = client.fields.client_id || client.id;
+  const recordId = client.id;
 
   const [changes, reports] = await Promise.all([
-    getClientChanges(clientId),
+    getClientChanges(clientId, recordId),
     getClientReports(clientId),
   ]);
 

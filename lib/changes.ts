@@ -40,20 +40,33 @@ export type Change = AirtableRecord<ChangeFields>;
 
 const TABLE = "Changes";
 
-export async function getPendingApprovals(clientId?: string): Promise<Change[]> {
-  const filter = clientId
-    ? `AND({approval}="pending",FIND("${clientId}",ARRAYJOIN({client_id})))`
-    : `{approval}="pending"`;
+// clientId may be an Airtable record ID (recXXX — written by SOPs) or a slug field value.
+// Search both so portal and admin views work regardless of which was stored.
+function clientFilter(clientId: string): string {
+  return `OR(FIND("${clientId}",{client_id}),{client_id}="${clientId}")`;
+}
+
+export async function getPendingApprovals(clientId?: string, recordId?: string): Promise<Change[]> {
+  let filter: string;
+  if (!clientId && !recordId) {
+    filter = `{approval}="pending"`;
+  } else if (clientId && recordId && clientId !== recordId) {
+    filter = `AND({approval}="pending",OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id})))`;
+  } else {
+    const id = clientId || recordId!;
+    filter = `AND({approval}="pending",${clientFilter(id)})`;
+  }
   return airtableFetch<Change>(TABLE, {
     filterByFormula: filter,
     sort: [{ field: "confidence", direction: "desc" }],
   });
 }
 
-export async function getClientChanges(clientId: string): Promise<Change[]> {
-  return airtableFetch<Change>(TABLE, {
-    filterByFormula: `FIND("${clientId}",ARRAYJOIN({client_id}))`,
-  });
+export async function getClientChanges(clientId: string, recordId?: string): Promise<Change[]> {
+  const filter = recordId && recordId !== clientId
+    ? `OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id}))`
+    : clientFilter(clientId);
+  return airtableFetch<Change>(TABLE, { filterByFormula: filter });
 }
 
 export async function updateApproval(

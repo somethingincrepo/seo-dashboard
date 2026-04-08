@@ -3,6 +3,62 @@
 import { useState } from "react";
 import type { ChangeFields } from "@/lib/changes";
 import { isAwarenessFlag, isInstruction } from "@/lib/portal-labels";
+// isInstruction is used by ElementPreview for heading direction detection
+
+// Returns true if a proposed_value is implementation code (JSON-LD, robots.txt rules, etc.)
+// rather than human-readable content. These should be collapsed by default.
+function isCodeValue(val: string): boolean {
+  if (!val) return false;
+  const t = val.trim();
+  return (
+    t.startsWith("{") ||
+    t.startsWith("[") ||
+    t.startsWith("<script") ||
+    // robots.txt / llms.txt style
+    t.startsWith("User-agent:") ||
+    t.startsWith("# ") && t.includes("\n")
+  );
+}
+
+// Collapsed code block — shows "View code" by default, expands on click
+function CollapsibleCode({ label, code, copyLabel = "Copy" }: { label: string; code: string; copyLabel?: string }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <span className={`transition-transform duration-150 ${open ? "rotate-90" : ""}`}>▶</span>
+        {open ? `Hide ${label}` : `View ${label}`}
+      </button>
+      {open && (
+        <div className="mt-2 relative">
+          <pre
+            className="text-[11px] font-mono leading-relaxed bg-slate-900 text-slate-200 rounded-xl p-4 overflow-x-auto"
+            style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+          >
+            {code}
+          </pre>
+          <button
+            onClick={handleCopy}
+            className="absolute top-2 right-2 text-[10px] px-2 py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+          >
+            {copied ? "Copied!" : copyLabel}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * ChangePreview — renders type-appropriate visual previews for the detail panel.
@@ -45,8 +101,42 @@ function isAgentAnalysis(val: string): boolean {
     lower.includes("faqpage schema") ||
     lower.includes("missing compliance") ||
     lower.includes("zero or near-zero") ||
-    lower.includes("internal links to")
+    lower.includes("internal links to") ||
+    // Heading-specific: agent notes use pipe separators between fields
+    /\|\s*(Title|H[1-6]|Page renders)/i.test(val) ||
+    lower.includes("page renders as") ||
+    lower.includes("no heading tags present") ||
+    // Proposed is an instruction / conditional, not a clean heading value
+    /^(once|when|after)\s+the\s+/i.test(val.trim()) ||
+    lower.includes("drawn from target keywords") ||
+    lower.includes("once live page copy") ||
+    // Parked/redirect domain flags
+    lower.includes("domain appears to be parked") ||
+    lower.includes("for-sale") ||
+    lower.includes("javascript redirect shell")
   );
+}
+
+// Check if a heading value is agent analysis — same as above but specifically
+// handles the "(missing)" pattern which is valid shorthand for no H1 present
+function isHeadingAgentNote(val: string): boolean {
+  if (!val) return false;
+  // "(missing)" alone is fine to show; "(missing) | Title: ..." is an agent note
+  if (/\|\s*(Title|H[1-6]|Page renders)/i.test(val)) return true;
+  return isAgentAnalysis(val);
+}
+
+// Extract just the heading text from agent-style values like "H1: Foo | Title: Bar | ..."
+function extractCleanHeading(val: string): string | null {
+  if (!val) return null;
+  // Try to pull just the H1/H2/etc value before the first pipe
+  const pipeMatch = val.match(/^(H[1-6]\s*:\s*)?(.*?)\s*\|/i);
+  if (pipeMatch) {
+    const text = pipeMatch[2].trim();
+    if (text && !text.toLowerCase().includes("missing") && text.length > 2) return text;
+    return null;
+  }
+  return null;
 }
 
 export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
@@ -80,6 +170,11 @@ export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
     const proposedIsAnalysis = isAgentAnalysis(effectiveProposed);
     if (currentIsAnalysis && proposedIsAnalysis) return null;
     if (currentIsAnalysis && !effectiveProposed) return null;
+    // If proposed is implementation code (JSON-LD schema), route to TechnicalPreview
+    // so it renders collapsed rather than dumping raw JSON into the content panel
+    if (isCodeValue(effectiveProposed)) {
+      return <TechnicalPreview current={currentIsAnalysis ? "" : current} proposed={effectiveProposed} />;
+    }
     return <ContentPreview
       current={currentIsAnalysis ? "" : current}
       proposed={proposedIsAnalysis ? "" : effectiveProposed}
@@ -382,6 +477,9 @@ function MetadataFieldRow({
 // ─── Technical: Code-Style Boxes ───────────────────────────────
 
 function TechnicalPreview({ current, proposed }: { current: string; proposed: string }) {
+  const proposedIsCode = isCodeValue(proposed);
+  const currentIsCode = isCodeValue(current);
+
   return (
     <div className="mt-4 space-y-3">
       {current && (
@@ -390,21 +488,36 @@ function TechnicalPreview({ current, proposed }: { current: string; proposed: st
             <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Current State</div>
             <span className="text-xs text-red-500">✕</span>
           </div>
-          <pre className="text-xs font-mono text-red-700 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
-            {current}
-          </pre>
+          {currentIsCode ? (
+            <CollapsibleCode label="current code" code={current} />
+          ) : (
+            <pre className="text-xs font-mono text-red-700 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+              {current}
+            </pre>
+          )}
         </div>
       )}
       {proposed && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Proposed Fix</div>
-            <span className="text-xs text-emerald-600">✓</span>
+        proposedIsCode ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Implementation Code</div>
+              <span className="text-xs text-emerald-600">✓</span>
+            </div>
+            <p className="text-xs text-slate-500 mb-1">Ready to implement — our team will add this to your site.</p>
+            <CollapsibleCode label="code" code={proposed} copyLabel="Copy code" />
           </div>
-          <pre className="text-xs font-mono text-emerald-700 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
-            {proposed}
-          </pre>
-        </div>
+        ) : (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Proposed Fix</div>
+              <span className="text-xs text-emerald-600">✓</span>
+            </div>
+            <pre className="text-xs font-mono text-emerald-700 leading-relaxed" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+              {proposed}
+            </pre>
+          </div>
+        )
       )}
     </div>
   );
@@ -432,43 +545,91 @@ function getElementSuffix(type: string): string {
 }
 
 function ElementPreview({ current, proposed, type }: { current: string; proposed: string; type: string }) {
-  const currentPrefix = current ? getElementPrefix(type, current) : "";
-  const proposedPrefix = proposed ? getElementPrefix(type, proposed) : "";
-  const suffix = getElementSuffix(type);
   const typeLabel = type === "Alt Text" ? "Alt Text" : type === "Heading" ? "Heading" : type;
+
+  // For headings, clean up agent notes before displaying
+  let displayCurrent = current;
+  let displayProposed = proposed;
+  let currentIsMissing = false;
+  let proposedIsDirection = false;
+
+  if (type === "Heading") {
+    if (isHeadingAgentNote(current)) {
+      const extracted = extractCleanHeading(current);
+      if (extracted) {
+        displayCurrent = extracted;
+      } else if (/\(missing\)/i.test(current)) {
+        displayCurrent = "";
+        currentIsMissing = true;
+      } else {
+        displayCurrent = "";
+      }
+    }
+    if (isHeadingAgentNote(proposed) || isInstruction(type, proposed)) {
+      const extracted = extractCleanHeading(proposed);
+      if (extracted) {
+        displayProposed = extracted;
+      } else {
+        // Extract quoted heading from instruction text: add H1: 'Foo Bar'
+        const quotedMatch = proposed.match(/['"]([^'"]{10,80})['"]/);
+        if (quotedMatch) {
+          displayProposed = quotedMatch[1];
+        } else {
+          proposedIsDirection = true;
+        }
+      }
+    }
+  }
+
+  const currentPrefix = displayCurrent ? getElementPrefix(type, displayCurrent) : "";
+  const proposedPrefix = displayProposed && !proposedIsDirection ? getElementPrefix(type, displayProposed) : "";
+  const suffix = getElementSuffix(type);
+
+  // Nothing useful to show
+  if (!displayCurrent && !currentIsMissing && !displayProposed && !proposedIsDirection) return null;
 
   return (
     <div className="mt-4 space-y-3">
-      {current && (
+      {(displayCurrent || currentIsMissing) && (
         <div>
           <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Current {typeLabel}</div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-            {type === "Alt Text" ? (
+            {currentIsMissing || !displayCurrent ? (
+              <span className="text-sm text-slate-400 italic">Not set</span>
+            ) : type === "Alt Text" ? (
               <code className="text-sm text-slate-700" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-slate-400">{currentPrefix}</span>{stripElementPrefix(current)}<span className="text-slate-400">{suffix}</span>
+                <span className="text-slate-400">{currentPrefix}</span>{stripElementPrefix(displayCurrent)}<span className="text-slate-400">{suffix}</span>
               </code>
             ) : (
               <span className="text-sm text-slate-700" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-slate-400 text-xs font-mono mr-1">{currentPrefix}</span>{stripElementPrefix(current)}
+                <span className="text-slate-400 text-xs font-mono mr-1">{currentPrefix}</span>{stripElementPrefix(displayCurrent)}
               </span>
             )}
           </div>
         </div>
       )}
-      {proposed && (
+      {(displayProposed || proposedIsDirection) && (
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Updated {typeLabel}</div>
-          <div className="bg-emerald-50 border-l-2 border-emerald-400 border border-emerald-200 rounded-xl px-4 py-3">
-            {type === "Alt Text" ? (
-              <code className="text-sm text-emerald-800" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-emerald-500">{proposedPrefix}</span>{stripElementPrefix(proposed)}<span className="text-emerald-500">{suffix}</span>
-              </code>
-            ) : (
-              <span className="text-sm text-emerald-800" style={{ overflowWrap: "anywhere" }}>
-                <span className="text-emerald-500 text-xs font-mono mr-1">{proposedPrefix}</span>{stripElementPrefix(proposed)}
-              </span>
-            )}
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+            {proposedIsDirection ? "Recommendation" : `Updated ${typeLabel}`}
           </div>
+          {proposedIsDirection ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+              <p className="text-sm text-emerald-800 leading-relaxed" style={{ overflowWrap: "anywhere" }}>{proposed}</p>
+            </div>
+          ) : (
+            <div className="bg-emerald-50 border-l-2 border-emerald-400 border border-emerald-200 rounded-xl px-4 py-3">
+              {type === "Alt Text" ? (
+                <code className="text-sm text-emerald-800" style={{ overflowWrap: "anywhere" }}>
+                  <span className="text-emerald-500">{proposedPrefix}</span>{stripElementPrefix(displayProposed)}<span className="text-emerald-500">{suffix}</span>
+                </code>
+              ) : (
+                <span className="text-sm text-emerald-800" style={{ overflowWrap: "anywhere" }}>
+                  <span className="text-emerald-500 text-xs font-mono mr-1">{proposedPrefix}</span>{stripElementPrefix(displayProposed)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

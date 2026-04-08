@@ -12,10 +12,11 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   if (!client) notFound();
 
   const clientId = client.fields.client_id || client.id;
+  const recordId = client.id;
 
   const [pending, allChanges] = await Promise.all([
-    getPendingApprovals(clientId),
-    getClientChanges(clientId),
+    getPendingApprovals(clientId, recordId),
+    getClientChanges(clientId, recordId),
   ]);
 
   const status = client.fields.status || client.fields.plan_status || "form_submitted";

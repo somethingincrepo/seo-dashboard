@@ -11,10 +11,11 @@ export default async function ContentApprovalsPage({ params }: { params: Promise
   if (!client) notFound();
 
   const clientId = client.fields.client_id || client.id;
+  const recordId = client.id;
 
   const [pending, allChanges] = await Promise.all([
-    getPendingApprovals(clientId),
-    getClientChanges(clientId),
+    getPendingApprovals(clientId, recordId),
+    getClientChanges(clientId, recordId),
   ]);
 
   const decided = allChanges.filter(

@@ -18,10 +18,11 @@ export default async function PortalLayout({
   if (!client) notFound();
 
   const clientId = client.fields.client_id || client.id;
+  const recordId = client.id;
   const companyName = client.fields.company_name || "";
 
   const [pending, contentResults] = await Promise.all([
-    getPendingApprovals(clientId),
+    getPendingApprovals(clientId, recordId),
     getContentResultsForClient(companyName).catch(() => []),
   ]);
 
