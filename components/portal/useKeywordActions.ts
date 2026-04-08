@@ -16,27 +16,25 @@ export function useKeywordActions(token: string) {
   const autoClear = useCallback((msg: string, isError?: boolean) => {
     if (isError) setError(msg);
     else setFeedback(msg);
-    setTimeout(() => {
-      setError(null);
-      setFeedback(null);
-    }, 2500);
+    setTimeout(() => { setError(null); setFeedback(null); }, 2500);
   }, []);
 
+  const post = useCallback(async (body: object) => {
+    return fetch("/api/portal/keywords", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, ...body }),
+    });
+  }, [token]);
+
   const addKeyword = useCallback(
-    async (keyword: string): Promise<boolean> => {
+    async (keyword: string, groupName?: string): Promise<boolean> => {
       setAdding(true);
       setError(null);
       try {
-        const res = await fetch("/api/portal/keywords", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "add", token, keyword }),
-        });
+        const res = await post({ action: "add", keyword, ...(groupName ? { groupName } : {}) });
         const data = await res.json();
-        if (!res.ok) {
-          autoClear(data.error || "Failed to add keyword", true);
-          return false;
-        }
+        if (!res.ok) { autoClear(data.error || "Failed to add keyword", true); return false; }
         autoClear(`"${keyword}" added${data.enriched ? "" : " (no volume data)"}`);
         router.refresh();
         return true;
@@ -47,7 +45,7 @@ export function useKeywordActions(token: string) {
         setAdding(false);
       }
     },
-    [token, router, autoClear]
+    [post, router, autoClear]
   );
 
   const editKeyword = useCallback(
@@ -55,18 +53,10 @@ export function useKeywordActions(token: string) {
       setEditing(oldKeyword);
       setError(null);
       try {
-        const res = await fetch("/api/portal/keywords", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "edit", token, oldKeyword, newKeyword }),
-        });
+        const res = await post({ action: "edit", oldKeyword, newKeyword });
         const data = await res.json();
-        if (!res.ok) {
-          autoClear(data.error || "Failed to update keyword", true);
-          setEditing(null);
-          return false;
-        }
-        autoClear(`Keyword updated`);
+        if (!res.ok) { autoClear(data.error || "Failed to update keyword", true); setEditing(null); return false; }
+        autoClear("Keyword updated");
         router.refresh();
         setEditing(null);
         return true;
@@ -76,7 +66,7 @@ export function useKeywordActions(token: string) {
         return false;
       }
     },
-    [token, router, autoClear]
+    [post, router, autoClear]
   );
 
   const removeKeyword = useCallback(
@@ -84,17 +74,9 @@ export function useKeywordActions(token: string) {
       setRemoving(keyword);
       setError(null);
       try {
-        const res = await fetch("/api/portal/keywords", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "remove", token, keyword }),
-        });
+        const res = await post({ action: "remove", keyword });
         const data = await res.json();
-        if (!res.ok) {
-          autoClear(data.error || "Failed to remove keyword", true);
-          setRemoving(null);
-          return false;
-        }
+        if (!res.ok) { autoClear(data.error || "Failed to remove keyword", true); setRemoving(null); return false; }
         autoClear(`"${keyword}" removed`);
         router.refresh();
         setRemoving(null);
@@ -105,8 +87,59 @@ export function useKeywordActions(token: string) {
         return false;
       }
     },
-    [token, router, autoClear]
+    [post, router, autoClear]
   );
 
-  return { adding, editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, clearError };
+  const createGroup = useCallback(
+    async (groupName: string): Promise<boolean> => {
+      setError(null);
+      try {
+        const res = await post({ action: "createGroup", groupName });
+        const data = await res.json();
+        if (!res.ok) { autoClear(data.error || "Failed to create group", true); return false; }
+        router.refresh();
+        return true;
+      } catch {
+        autoClear("Failed to create group", true);
+        return false;
+      }
+    },
+    [post, router, autoClear]
+  );
+
+  const deleteGroup = useCallback(
+    async (groupName: string): Promise<boolean> => {
+      setError(null);
+      try {
+        const res = await post({ action: "deleteGroup", groupName });
+        const data = await res.json();
+        if (!res.ok) { autoClear(data.error || "Failed to delete group", true); return false; }
+        router.refresh();
+        return true;
+      } catch {
+        autoClear("Failed to delete group", true);
+        return false;
+      }
+    },
+    [post, router, autoClear]
+  );
+
+  const renameGroup = useCallback(
+    async (oldName: string, newName: string): Promise<boolean> => {
+      setError(null);
+      try {
+        const res = await post({ action: "renameGroup", oldName, newName });
+        const data = await res.json();
+        if (!res.ok) { autoClear(data.error || "Failed to rename group", true); return false; }
+        router.refresh();
+        return true;
+      } catch {
+        autoClear("Failed to rename group", true);
+        return false;
+      }
+    },
+    [post, router, autoClear]
+  );
+
+  return { adding, editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, createGroup, deleteGroup, renameGroup, clearError };
 }

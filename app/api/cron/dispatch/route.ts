@@ -20,11 +20,13 @@ export async function GET(request: NextRequest) {
 
   const supabase = getSupabase();
 
-  // Find up to 5 pending jobs, oldest first
+  // Find up to 5 pending Vercel-routed jobs, oldest first.
+  // Jobs with runner='fly' are handled by the Fly.io worker — skip them here.
   const { data: pending } = await supabase
     .from("jobs")
     .select("*")
     .eq("status", "pending")
+    .eq("runner", "vercel")
     .order("created_at", { ascending: true })
     .limit(5);
 

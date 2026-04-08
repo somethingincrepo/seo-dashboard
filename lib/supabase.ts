@@ -3,11 +3,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 export type JobStatus = "pending" | "claimed" | "running" | "done" | "failed";
 export type LogLevel = "info" | "warn" | "error" | "debug";
 
+export type JobRunner = "vercel" | "fly";
+
 export type SupabaseJob = {
   id: string;
   sop_name: string;
   client_id: string | null;
   status: JobStatus;
+  runner: JobRunner;
   payload: Record<string, unknown>;
   result: Record<string, unknown> | null;
   error: string | null;
@@ -16,6 +19,7 @@ export type SupabaseJob = {
   cost_usd: number;
   model: string | null;
   parent_job_id: string | null;
+  worker_leased_until: string | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;

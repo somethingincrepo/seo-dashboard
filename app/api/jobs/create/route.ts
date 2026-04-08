@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
     sop_name?: string;
     client_id?: string;
     payload?: Record<string, unknown>;
+    runner?: "vercel" | "fly";
+    parent_job_id?: string;
   };
 
   try {
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { sop_name, client_id, payload = {} } = body;
+  const { sop_name, client_id, payload = {}, runner = "fly", parent_job_id } = body;
 
   if (!sop_name) {
     return NextResponse.json({ error: "sop_name is required" }, { status: 400 });
@@ -36,7 +38,14 @@ export async function POST(request: NextRequest) {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("jobs")
-    .insert({ sop_name, client_id: client_id ?? null, payload, status: "pending" })
+    .insert({
+      sop_name,
+      client_id: client_id ?? null,
+      payload,
+      status: "pending",
+      runner,
+      parent_job_id: parent_job_id ?? null,
+    })
     .select("id")
     .single();
 
