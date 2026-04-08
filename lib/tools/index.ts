@@ -25,14 +25,6 @@ import {
   executeSheetsRead,
   executeSheetsBatchUpdate,
 } from "./google-sheets";
-import {
-  driveUploadHtmlAsPdfDefinition,
-  driveListFilesDefinition,
-  driveCreateFolderDefinition,
-  executeDriveUploadHtmlAsPdf,
-  executeDriveListFiles,
-  executeDriveCreateFolder,
-} from "./google-drive";
 import type Anthropic from "@anthropic-ai/sdk";
 
 export type ToolImpl = {
@@ -80,17 +72,5 @@ export const TOOL_REGISTRY: Record<string, ToolImpl> = {
   sheets_batch_update: {
     definition: sheetsBatchUpdateDefinition,
     execute: (input) => executeSheetsBatchUpdate(input as Parameters<typeof executeSheetsBatchUpdate>[0]),
-  },
-  drive_upload_html_as_pdf: {
-    definition: driveUploadHtmlAsPdfDefinition,
-    execute: (input) => executeDriveUploadHtmlAsPdf(input as Parameters<typeof executeDriveUploadHtmlAsPdf>[0]),
-  },
-  drive_list_files: {
-    definition: driveListFilesDefinition,
-    execute: (input) => executeDriveListFiles(input as Parameters<typeof executeDriveListFiles>[0]),
-  },
-  drive_create_folder: {
-    definition: driveCreateFolderDefinition,
-    execute: (input) => executeDriveCreateFolder(input as Parameters<typeof executeDriveCreateFolder>[0]),
   },
 };
