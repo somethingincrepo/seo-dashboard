@@ -73,7 +73,7 @@ Compute:
 - `top_ranking_gains`: top 5 queries with the most position improvement — `[{ keyword, prior_position, current_position, change }]`
 - `ranking_opportunities`: queries at position 5.0–15.0 with impressions >= 100 this month (quick wins for next month)
 
-If GSC unavailable, set all GSC fields to null.
+If GSC returns any error (including 403 permission errors, 404, or network failures), immediately set all GSC fields to null and move on to Step 4. Do NOT retry the GSC call.
 
 ---
 
@@ -104,7 +104,7 @@ Each priority: one sentence, action-oriented.
 
 ## Step 6 — Write Airtable Reports Record
 
-Call `airtable_create` on the main base, Reports table:
+Call `airtable_create` (NOT patch — this is a new record) on the main base, Reports table:
 
 Fields:
 - `client_id`: [`<airtable_record_id>`] — linked record array
