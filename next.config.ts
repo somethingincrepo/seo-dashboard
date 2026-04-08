@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingIncludes: {
+    "/api/jobs/run": ["./sops/**/*"],
+    "/api/cron/dispatch": ["./sops/**/*"],
+  },
 };
 
 export default nextConfig;
