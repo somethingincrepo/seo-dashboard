@@ -169,7 +169,9 @@ export function PortalSidebar({
                   <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
                     {[
                       { label: "Pipeline", href: `${base}/content` },
+                      { label: "Title Proposals", href: `${base}/content/titles` },
                       { label: "Keywords", href: `${base}/content/keywords` },
+                      { label: "Content Profile", href: `${base}/content/profile` },
                     ].map(({ label, href }) => {
                       const subActive = label === "Pipeline"
                         ? pathname === `${base}/content`
