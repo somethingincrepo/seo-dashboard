@@ -8,6 +8,7 @@ tools:
   - http_fetch
   - drive_upload_html_as_pdf
   - drive_list_files
+  - drive_create_folder
 max_iterations: 50
 timeout_ms: 270000
 model: claude-sonnet-4-6
@@ -33,10 +34,11 @@ Record these fields:
 - `airtable_record_id` = the record ID returned
 
 **If `gsc_property` is absent**, proceed but mark GSC data as unavailable.
-**If `drive_folder_id` is absent**, stop and return:
-```
-{"status":"error","reason":"drive_folder_id not set on client record — cannot upload report"}
-```
+**If `drive_folder_id` is absent**, call `drive_create_folder`:
+- `name`: `<company_name> — SEO Reports`
+- `share_email`: `contact_email` (so the client can access their folder)
+
+Then call `airtable_patch` on the Clients table to write the returned `folder_id` into the `drive_folder_id` field. Use this folder ID for the rest of the job.
 
 The month number is in the payload as `month`. Derive the reporting month:
 - Month 1 = first calendar month after the client's onboarding date
@@ -284,7 +286,7 @@ Reply with ONLY a valid JSON object (no markdown, no code fences):
 
 | Situation | Action |
 |---|---|
-| `drive_folder_id` not set | Stop with error before generating the PDF |
+| `drive_folder_id` not set | Auto-create the folder, write ID back to Airtable, continue |
 | GSC property unavailable or API error | Use null for all GSC fields; note in report "GSC data temporarily unavailable" |
 | Drive upload fails | Stop and return `{"status":"error","reason":"Drive upload failed: ..."}` — do NOT write a partial Airtable record |
 | Airtable create fails | Retry once; if it fails again, return error with pdf_url included so the PDF isn't lost |

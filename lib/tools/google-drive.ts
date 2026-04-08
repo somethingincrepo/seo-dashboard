@@ -179,6 +179,98 @@ export async function executeDriveUploadHtmlAsPdf(
 }
 
 // ---------------------------------------------------------------------------
+// drive_create_folder — create a folder in Google Drive
+// ---------------------------------------------------------------------------
+
+export const driveCreateFolderDefinition: Anthropic.Messages.Tool = {
+  name: "drive_create_folder",
+  description:
+    "Create a folder in Google Drive. Optionally nest it inside a parent folder. " +
+    "Returns the new folder ID. Use during onboarding or report generation when a " +
+    "client does not yet have a Drive folder.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      name: {
+        type: "string",
+        description: "Folder name, e.g. 'Acme Corp — SEO Reports'",
+      },
+      parent_folder_id: {
+        type: "string",
+        description:
+          "Optional parent folder ID. If omitted, the folder is created in the service account's root Drive.",
+      },
+      share_email: {
+        type: "string",
+        description:
+          "Optional email address to share the folder with as a reader (e.g. the client's contact email).",
+      },
+    },
+    required: ["name"],
+  },
+};
+
+type DriveCreateFolderInput = {
+  name: string;
+  parent_folder_id?: string;
+  share_email?: string;
+};
+
+export async function executeDriveCreateFolder(
+  input: DriveCreateFolderInput
+): Promise<{ folder_id: string; web_view_link: string }> {
+  const { name, parent_folder_id, share_email } = input;
+  const token = await getGoogleAccessToken(DRIVE_SCOPE);
+
+  const metadata: Record<string, unknown> = {
+    name,
+    mimeType: "application/vnd.google-apps.folder",
+  };
+  if (parent_folder_id) {
+    metadata.parents = [parent_folder_id];
+  }
+
+  const res = await fetch(
+    "https://www.googleapis.com/drive/v3/files?fields=id,webViewLink",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(metadata),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`drive_create_folder error ${res.status}: ${await res.text()}`);
+  }
+
+  const data = await res.json();
+  const folder_id = data.id as string;
+  const web_view_link = (data.webViewLink as string) ?? "";
+
+  if (share_email) {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${folder_id}/permissions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        role: "reader",
+        type: "user",
+        emailAddress: share_email,
+      }),
+    }).catch(() => {
+      // Non-fatal — folder is created even if sharing fails
+    });
+  }
+
+  return { folder_id, web_view_link };
+}
+
+// ---------------------------------------------------------------------------
 // drive_list_files — list files in a folder (useful for finding report folders)
 // ---------------------------------------------------------------------------
 

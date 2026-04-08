@@ -28,8 +28,10 @@ import {
 import {
   driveUploadHtmlAsPdfDefinition,
   driveListFilesDefinition,
+  driveCreateFolderDefinition,
   executeDriveUploadHtmlAsPdf,
   executeDriveListFiles,
+  executeDriveCreateFolder,
 } from "./google-drive";
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -86,5 +88,9 @@ export const TOOL_REGISTRY: Record<string, ToolImpl> = {
   drive_list_files: {
     definition: driveListFilesDefinition,
     execute: (input) => executeDriveListFiles(input as Parameters<typeof executeDriveListFiles>[0]),
+  },
+  drive_create_folder: {
+    definition: driveCreateFolderDefinition,
+    execute: (input) => executeDriveCreateFolder(input as Parameters<typeof executeDriveCreateFolder>[0]),
   },
 };
