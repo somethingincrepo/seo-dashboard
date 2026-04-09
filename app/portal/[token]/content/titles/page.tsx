@@ -487,41 +487,65 @@ export default function TitlesPage() {
         </div>
       </div>
 
-      {/* Right — title list for active folder */}
+      {/* Right — proposals always at top, selected folder section below */}
       <div className="flex-1 min-w-0">
-        {/* Header */}
+        {/* Fixed header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Title Proposals</h1>
-          <p className="text-base text-slate-500 mt-1">
-            {activeFolder === "proposals" && "Review and approve blog title proposals."}
-            {activeFolder === "queued" && "Approved titles waiting to be written."}
-            {activeFolder === "inprogress" && "Titles currently being written or ready for your review."}
-            {activeFolder === "published" && "Titles that have been published to your site."}
-          </p>
+          <p className="text-base text-slate-500 mt-1">Review and approve blog title proposals.</p>
         </div>
 
         {loading && <div className="text-slate-400 text-sm">Loading…</div>}
         {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-4">{error}</div>}
 
-        {!loading && !error && activeTitles.length === 0 && (
-          <div className="text-center py-16 text-slate-400">
-            <div className="text-4xl mb-4">◆</div>
-            <div className="font-medium text-slate-500 mb-1">
-              {activeFolder === "proposals" ? "No proposals yet" : `Nothing ${activeFolder === "queued" ? "queued" : activeFolder === "inprogress" ? "in progress" : "published"} yet`}
-            </div>
-          </div>
-        )}
+        {/* Proposals — always shown */}
+        {!loading && !error && (
+          <>
+            {proposals.length === 0 ? (
+              <div className="text-center py-16 text-slate-400">
+                <div className="text-4xl mb-4">◆</div>
+                <div className="font-medium text-slate-500 mb-1">No proposals yet</div>
+                <div className="text-sm max-w-xs mx-auto">
+                  Title proposals are generated after your audit and monthly. Add your own using the panel on the left.
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {proposals.map((t) => (
+                  <ProposalCard key={t.id} title={t} keywordGroups={keywordGroups} token={token} onUpdate={handleUpdate} onRemove={handleRemove} />
+                ))}
+              </div>
+            )}
 
-        <div className="flex flex-col gap-3">
-          {activeFolder === "proposals"
-            ? proposals.map((t) => (
-                <ProposalCard key={t.id} title={t} keywordGroups={keywordGroups} token={token} onUpdate={handleUpdate} onRemove={handleRemove} />
-              ))
-            : activeTitles.map((t) => (
-                <PipelineItem key={t.id} title={t} folder={activeFolder} />
-              ))
-          }
-        </div>
+            {/* Secondary section — shows the folder selected at bottom-left, never replaces proposals */}
+            {activeFolder !== "proposals" && (
+              <div className="mt-10">
+                {/* Divider with label */}
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide px-1">
+                    {{
+                      queued: "Queued",
+                      inprogress: "In Progress",
+                      published: "Published",
+                    }[activeFolder]}
+                  </span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+
+                {({ queued, inprogress: inProgress, published }[activeFolder] ?? []).length === 0 ? (
+                  <p className="text-[13px] text-slate-400 text-center py-8">Nothing here yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {({ queued, inprogress: inProgress, published }[activeFolder] ?? []).map((t) => (
+                      <PipelineItem key={t.id} title={t} folder={activeFolder} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
