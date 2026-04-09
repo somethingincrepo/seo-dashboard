@@ -169,6 +169,21 @@ export async function PATCH(request: NextRequest) {
 
   await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, fields);
 
+  // Trigger n8n content pipeline immediately on approval
+  if (action === "approve") {
+    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/42b82c45-bb9e-4597-a0df-2b9ab9b2863f";
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_id, trigger: "portal_approval" }),
+      });
+    } catch {
+      // Non-fatal — Airtable record is already set to Queued, n8n will catch it on its next poll
+      console.error("[titles] Failed to ping n8n webhook after approval — Airtable Status=Queued is set as fallback");
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
 
