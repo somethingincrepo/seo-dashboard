@@ -59,6 +59,7 @@ function KanbanCard({
 }) {
   const keyword = job.fields.target_keyword;
   const intent = (job.fields["Search intent"] || "").toLowerCase();
+  const angle = job.fields.content_angle;
   const intentClass = INTENT_COLORS[intent] ?? "bg-slate-100 text-slate-500";
   const hasResult = job.fields.Status === "Completed" || job.fields.title_status === "completed";
 
@@ -76,11 +77,18 @@ function KanbanCard({
       {/* Column accent stripe */}
       <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl ${accent}`} />
 
-      <div className="pl-4 pr-3 py-3">
+      <div className="pl-4 pr-3 py-3.5">
         {/* Title */}
-        <p className={`text-[13px] font-semibold leading-snug line-clamp-3 mb-2 ${selected ? "text-indigo-900" : "text-slate-800 group-hover:text-slate-900"}`}>
+        <p className={`text-[13px] font-semibold leading-snug line-clamp-3 mb-2.5 ${selected ? "text-indigo-900" : "text-slate-800 group-hover:text-slate-900"}`}>
           {job.fields["Blog Title"]}
         </p>
+
+        {/* Content angle snippet */}
+        {angle && (
+          <p className="text-[11px] text-slate-400 italic leading-snug line-clamp-2 mb-2.5">
+            {angle}
+          </p>
+        )}
 
         {/* Chips row */}
         <div className="flex flex-wrap gap-1">

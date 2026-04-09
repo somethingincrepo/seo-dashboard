@@ -422,14 +422,25 @@ function AddTitlePanel({
         <button
           onClick={() => void handleGenerate()}
           disabled={!canGenerate || generating}
-          className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors"
+          className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          {generating ? "Generating…" : "Generate title"}
+          {generating ? "Generating…" : "Generate with AI"}
         </button>
-        {!canGenerate && (
+        {!canGenerate && idea.trim() && (
           <p className="text-[11px] text-slate-400 text-center -mt-1">
-            {!idea.trim() ? "Add a description" : "Select a keyword group"}
+            Select a keyword group to enable AI generation
           </p>
+        )}
+
+        {/* Direct-add: skip AI generation entirely */}
+        {idea.trim() && !generated && (
+          <button
+            onClick={() => void handleAdd()}
+            disabled={adding}
+            className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors"
+          >
+            {adding ? "Adding…" : success ? "Added!" : "Add as title (no AI)"}
+          </button>
         )}
 
         {/* Generated preview + edit */}
@@ -583,21 +594,34 @@ export default function TitlesPage() {
           </div>
         ))}
 
-        {/* Approved */}
+        {/* Approved — visually distinct section */}
         {approved.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide">
-                Approved — {approved.length}
-              </h2>
+          <div className="mt-10">
+            {/* Divider with label */}
+            <div className="flex items-center gap-4 mb-5">
+              <div className="flex-1 h-px bg-green-100" />
+              <div className="flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-green-50 border border-green-200">
+                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <span className="text-[12px] font-semibold text-green-700 uppercase tracking-wide">
+                  Approved ({approved.length})
+                </span>
+              </div>
+              <div className="flex-1 h-px bg-green-100" />
+            </div>
+
+            <div className="flex items-center justify-between mb-3 px-1">
+              <p className="text-[12px] text-slate-400">
+                These titles have been sent to the content pipeline for generation.
+              </p>
               <button
                 onClick={() => { router.refresh(); router.push(`/portal/${token}/content`); }}
-                className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+                className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors shrink-0 ml-4"
               >
                 View in Pipeline →
               </button>
             </div>
-            <div className="flex flex-col gap-3">
+
+            <div className="flex flex-col gap-3 opacity-80">
               {approvedGroups.flatMap(({ items }) =>
                 items.map((t) => (
                   <TitleCard
