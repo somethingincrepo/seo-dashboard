@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
 
   const contentClientId = contentClients[0].id;
 
-  // Fetch titled (pending approval) and approved jobs for this client
+  // Fetch titled (pending approval) and approved jobs for this client.
+  // Use the lookup field "Client Name (from Client ID)" — more reliable than ARRAYJOIN on linked fields.
   const jobs = await contentAirtableFetch<{
     id: string;
     fields: {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     };
   }>(CONTENT_JOBS_TABLE, {
     filterByFormula: `AND(
-      FIND("${contentClientId}", ARRAYJOIN({Client ID}, ",")),
+      FIND("${companyName}", ARRAYJOIN({Client Name (from Client ID)}, ",")),
       OR({title_status}="titled", {title_status}="approved")
     )`,
     sort: [{ field: "proposed_at", direction: "desc" }],
