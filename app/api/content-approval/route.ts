@@ -29,6 +29,19 @@ async function handleJobTitle(recordId: string, action: string) {
     const err = await res.text();
     throw new Error(`Failed to update job: ${err}`);
   }
+
+  if (action === "approved") {
+    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/42b82c45-bb9e-4597-a0df-2b9ab9b2863f";
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_id: recordId, trigger: "portal_approval" }),
+      });
+    } catch {
+      // Non-fatal — Status=Queued is already set in Airtable as fallback
+    }
+  }
 }
 
 /** Approve or skip a completed article */

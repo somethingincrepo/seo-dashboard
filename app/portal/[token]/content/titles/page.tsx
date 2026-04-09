@@ -335,15 +335,17 @@ function AddTitlePanel({
   const groupObj = keywordGroups.find((g) => g.group === group);
   const subkeywords = groupObj?.subkeywords ?? [];
 
+  const canGenerate = idea.trim().length > 0 && !!group && !!keyword;
+
   const handleGenerate = async () => {
-    if (!idea.trim() && !group && !keyword) return;
+    if (!canGenerate) return;
     setBusyGen(true);
     setGenerated("");
     try {
       const res = await fetch(`/api/portal/titles/generate?token=${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ suggestion: idea || `Write a title about ${keyword || group}`, keyword, group }),
+        body: JSON.stringify({ suggestion: idea, keyword, group }),
       });
       const data = await res.json() as { title?: string };
       if (data.title) setGenerated(data.title);
@@ -419,17 +421,26 @@ function AddTitlePanel({
         {/* Generate button */}
         <button
           onClick={() => void handleGenerate()}
-          disabled={(!idea.trim() && !group && !keyword) || generating}
+          disabled={!canGenerate || generating}
           className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors"
         >
           {generating ? "Generating…" : "Generate title"}
         </button>
+        {!canGenerate && (
+          <p className="text-[11px] text-slate-400 text-center -mt-1">
+            {!idea.trim() ? "Add a description" : !group ? "Select a keyword group" : "Select a target keyword"}
+          </p>
+        )}
 
         {/* Generated preview + edit */}
         {generated && (
           <div className="flex flex-col gap-2">
             <div className="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Generated</p>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Generated</p>
+                <span className="text-[10px] text-slate-300">·</span>
+                <p className="text-[10px] text-slate-400 truncate">{group} / {keyword}</p>
+              </div>
               <textarea
                 value={generated}
                 onChange={(e) => setGenerated(e.target.value)}
@@ -445,17 +456,6 @@ function AddTitlePanel({
               {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
             </button>
           </div>
-        )}
-
-        {/* Direct add if no generation yet */}
-        {!generated && idea.trim().length > 15 && (
-          <button
-            onClick={() => void handleAdd()}
-            disabled={adding}
-            className="w-full py-1.5 rounded-lg text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            Add as-is without generating
-          </button>
         )}
       </div>
     </div>

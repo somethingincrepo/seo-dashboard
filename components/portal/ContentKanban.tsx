@@ -39,44 +39,62 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
 
   const liveJobs = jobs.filter((j) => !locallyDecided.has(j.id));
 
+  // Priority-ordered column assignment — a job appears in exactly one column
+  const isPublished = (j: ContentJob) => j.fields.title_status === "published";
+  const isReadyForReview = (j: ContentJob) =>
+    !isPublished(j) &&
+    (j.fields.title_status === "completed" || j.fields.Status === "Completed");
+  const isInProgress = (j: ContentJob) =>
+    !isPublished(j) &&
+    !isReadyForReview(j) &&
+    (j.fields.title_status === "generating" || j.fields.Status === "In Progress");
+  const isApproved = (j: ContentJob) =>
+    !isPublished(j) &&
+    !isReadyForReview(j) &&
+    !isInProgress(j) &&
+    (j.fields.title_status === "approved" || j.fields.Status === "Queued");
+  const isTitled = (j: ContentJob) =>
+    !isPublished(j) &&
+    !isReadyForReview(j) &&
+    !isInProgress(j) &&
+    !isApproved(j) &&
+    j.fields.title_status === "titled";
+
   const columns: KanbanColumn[] = [
     {
       key: "titled",
       label: "Titles Proposed",
       countColor: "text-blue-600",
       gradientStyle: "linear-gradient(90deg, #3B82F6, #93C5FD)",
-      jobs: liveJobs.filter((j) => j.fields.title_status === "titled"),
+      jobs: liveJobs.filter(isTitled),
     },
     {
       key: "approved",
       label: "Approved",
       countColor: "text-emerald-600",
       gradientStyle: "linear-gradient(90deg, #10B981, #6EE7B7)",
-      jobs: liveJobs.filter((j) => j.fields.title_status === "approved"),
+      jobs: liveJobs.filter(isApproved),
     },
     {
       key: "generating",
       label: "In Progress",
       countColor: "text-amber-600",
       gradientStyle: "linear-gradient(90deg, #F59E0B, #FCD34D)",
-      jobs: liveJobs.filter((j) =>
-        j.fields.title_status === "generating" ||
-        (j.fields.Status === "In Progress" && j.fields.title_status !== "completed" && j.fields.title_status !== "published")
-      ),
+      jobs: liveJobs.filter(isInProgress),
     },
     {
       key: "completed",
       label: "Ready for Review",
       countColor: "text-indigo-600",
       gradientStyle: "linear-gradient(90deg, #4F46E5, #818CF8)",
-      jobs: liveJobs.filter((j) => j.fields.title_status === "completed" || (j.fields.Status === "Completed" && !j.fields.title_status)),
+      jobs: liveJobs.filter(isReadyForReview),
     },
     {
       key: "published",
       label: "Published",
       countColor: "text-teal-600",
       gradientStyle: "linear-gradient(90deg, #0D9488, #5EEAD4)",
-      jobs: liveJobs.filter((j) => j.fields.title_status === "published"),
+      jobs: liveJobs.filter(isPublished),
     },
   ];
 
