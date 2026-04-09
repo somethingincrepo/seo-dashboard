@@ -138,9 +138,11 @@ export function GroupCard({ group, style, index, token, canDelete }: {
   const [showAdd, setShowAdd] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(group.group);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descValue, setDescValue] = useState(group.description || "");
   const [optimisticKws, setOptimisticKws] = useState<OptimisticKw[]>([]);
 
-  const { editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, deleteGroup, renameGroup } =
+  const { editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, deleteGroup, renameGroup, updateDescription } =
     useKeywordActions(token || "");
 
   const handleAdd = async () => {
@@ -191,6 +193,13 @@ export function GroupCard({ group, style, index, token, canDelete }: {
     setEditingTitle(false);
   };
 
+  const saveDesc = async () => {
+    const newDesc = descValue.trim();
+    if (newDesc === (group.description || "")) { setEditingDesc(false); return; }
+    await updateDescription(group.group, newDesc);
+    setEditingDesc(false);
+  };
+
   const handleDeleteGroup = async () => {
     if (!confirm(`Delete the "${group.group}" group and all its keywords?`)) return;
     await deleteGroup(group.group);
@@ -204,44 +213,57 @@ export function GroupCard({ group, style, index, token, canDelete }: {
           <span className={`text-[10px] font-bold uppercase tracking-widest ${style.text}`}>
             Group {index + 1}
           </span>
-          {token && canDelete && (
-            <button onClick={handleDeleteGroup} className="text-[10px] text-slate-300 hover:text-red-400 transition-colors" title="Delete group">
-              Delete group
-            </button>
-          )}
-        </div>
-
-        {token && editingTitle ? (
           <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") { setEditingTitle(false); setTitleValue(group.group); } }}
-              autoFocus
-              maxLength={60}
-              className="flex-1 text-base font-semibold text-slate-900 bg-transparent border-b border-indigo-300 focus:outline-none pb-0.5"
-            />
-            <button onClick={saveTitle} className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors">Save</button>
-            <button onClick={() => { setEditingTitle(false); setTitleValue(group.group); }} className="text-[10px] px-2 py-0.5 rounded-md border border-slate-200 text-slate-500 transition-colors">Cancel</button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 group/title">
-            <h3 className="text-base font-semibold text-slate-900 leading-snug">{group.group}</h3>
             {token && (
               <button
-                onClick={() => setEditingTitle(true)}
-                className="text-[10px] text-slate-300 opacity-0 group-hover/title:opacity-100 hover:text-slate-500 transition-all"
-                title="Rename group"
+                onClick={() => { setEditingTitle(true); setEditingDesc(false); }}
+                className="text-[10px] text-slate-400 hover:text-slate-700 transition-colors"
               >
-                Rename
+                Edit
+              </button>
+            )}
+            {token && canDelete && (
+              <button onClick={handleDeleteGroup} className="text-[10px] text-slate-300 hover:text-red-400 transition-colors">
+                Delete
               </button>
             )}
           </div>
-        )}
+        </div>
 
-        {group.description && (
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed">{group.description}</p>
+        {token && editingTitle ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") { setEditingTitle(false); setTitleValue(group.group); } }}
+                autoFocus
+                maxLength={60}
+                placeholder="Group name"
+                className="flex-1 text-base font-semibold text-slate-900 bg-white border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              />
+            </div>
+            <textarea
+              value={descValue}
+              onChange={(e) => setDescValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") { setEditingTitle(false); setTitleValue(group.group); setDescValue(group.description || ""); } }}
+              placeholder="Description (optional)"
+              rows={2}
+              className="w-full text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-300"
+            />
+            <div className="flex items-center gap-2">
+              <button onClick={async () => { await saveTitle(); await saveDesc(); }} className="text-[10px] px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors">Save</button>
+              <button onClick={() => { setEditingTitle(false); setTitleValue(group.group); setDescValue(group.description || ""); }} className="text-[10px] px-2.5 py-1 rounded-md border border-slate-200 text-slate-500 transition-colors">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 leading-snug">{group.group}</h3>
+            {group.description && (
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{group.description}</p>
+            )}
+          </div>
         )}
       </div>
 

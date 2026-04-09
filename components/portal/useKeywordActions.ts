@@ -141,5 +141,22 @@ export function useKeywordActions(token: string) {
     [post, router, autoClear]
   );
 
-  return { adding, editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, createGroup, deleteGroup, renameGroup, clearError };
+  const updateDescription = useCallback(
+    async (groupName: string, description: string): Promise<boolean> => {
+      setError(null);
+      try {
+        const res = await post({ action: "updateDescription", groupName, description });
+        const data = await res.json();
+        if (!res.ok) { autoClear(data.error || "Failed to update description", true); return false; }
+        router.refresh();
+        return true;
+      } catch {
+        autoClear("Failed to update description", true);
+        return false;
+      }
+    },
+    [post, router, autoClear]
+  );
+
+  return { adding, editing, removing, feedback, error, addKeyword, editKeyword, removeKeyword, createGroup, deleteGroup, renameGroup, updateDescription, clearError };
 }

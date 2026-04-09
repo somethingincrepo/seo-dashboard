@@ -29,43 +29,47 @@ async function enrichKeyword(keyword: string): Promise<Subkeyword & { enriched: 
   try {
     const auth = Buffer.from(`${login}:${password}`).toString("base64");
 
-    const volRes = await fetch("https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live", {
+    const volRes = await fetch("https://api.dataforseo.com/v3/keywords_data/google/search_volume/live", {
       method: "POST",
       headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
       body: JSON.stringify([{ keywords: [keyword], location_code: 2840, language_code: "en" }]),
     });
 
-    if (!volRes.ok) {
-      return { keyword, volume: 0, difficulty: 0, intent, enriched: false };
+    let volume = 0;
+
+    if (volRes.ok) {
+      type DfsVol = { tasks?: Array<{ result?: Array<Record<string, unknown>> }> };
+      const volData = await volRes.json() as DfsVol;
+      const volResult = volData.tasks?.[0]?.result?.[0];
+      if (typeof volResult?.search_volume === "number") {
+        volume = volResult.search_volume;
+      }
     }
 
-    const volData = await volRes.json();
-    const volResult = volData.tasks?.[0]?.result?.[0];
-    if (!volResult || typeof volResult.search_volume !== "number") {
-      return { keyword, volume: 0, difficulty: 0, intent, enriched: false };
-    }
-
-    const volume = volResult.search_volume as number;
-
-    // Keyword difficulty via keywords_for_keywords endpoint
-    const kdRes = await fetch("https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live", {
+    // Keyword difficulty + intent via google/keywords/live
+    const kdRes = await fetch("https://api.dataforseo.com/v3/keywords_data/google/keywords/live", {
       method: "POST",
       headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
       body: JSON.stringify([{ keywords: [keyword], location_code: 2840, language_code: "en" }]),
     });
 
     let difficulty = 0;
+    let apiIntent = intent; // fallback to text-inferred
 
     if (kdRes.ok) {
-      const kdData = await kdRes.json();
+      type DfsKd = { tasks?: Array<{ result?: Array<{ items?: Record<string, unknown>[] }> }> };
+      const kdData = await kdRes.json() as DfsKd;
       const items = kdData.tasks?.[0]?.result?.[0]?.items;
       if (items && items.length > 0) {
-        const match = items.find((i: { keyword: string }) => i.keyword?.toLowerCase() === keyword.toLowerCase()) ?? items[0];
-        difficulty = Math.max(0, Math.min(100, (match?.keyword_info?.competition_level === "HIGH" ? 70 : match?.keyword_info?.competition_level === "MEDIUM" ? 40 : 20)));
+        const item = items[0];
+        const ki = item.keyword_info as Record<string, unknown> | undefined;
+        const si = item.search_intent_info as Record<string, unknown> | undefined;
+        difficulty = Math.max(0, Math.min(100, (ki?.keyword_difficulty as number) ?? 0));
+        apiIntent = (si?.main_intent as string) ?? intent;
       }
     }
 
-    return { keyword, volume, difficulty, intent, enriched: true };
+    return { keyword, volume, difficulty, intent: apiIntent, enriched: volume > 0 || difficulty > 0 };
   } catch {
     return { keyword, volume: 0, difficulty: 0, intent, enriched: false };
   }
@@ -162,6 +166,29 @@ export async function POST(req: NextRequest) {
       const aiTarget = aiGroups.find((g) => g.group === oldName);
       if (aiTarget) {
         aiTarget.group = newName;
+        await airtablePatch(TABLE, client.id, { keyword_groups: JSON.stringify(aiGroups) });
+        return NextResponse.json({ ok: true, source: "ai" });
+      }
+
+      return NextResponse.json({ error: "Group not found" }, { status: 404 });
+    }
+
+    // ── updateDescription ─────────────────────────────────────────────────────
+    if (action === "updateDescription") {
+      const groupName = (body.groupName as string)?.trim();
+      const description = (body.description as string) ?? "";
+      if (!groupName) return NextResponse.json({ error: "groupName required" }, { status: 400 });
+
+      const customTarget = customGroups.find((g) => g.group === groupName);
+      if (customTarget) {
+        customTarget.description = description;
+        await saveCustomGroups(client.id, customGroups);
+        return NextResponse.json({ ok: true, source: "custom" });
+      }
+
+      const aiTarget = aiGroups.find((g) => g.group === groupName);
+      if (aiTarget) {
+        aiTarget.description = description;
         await airtablePatch(TABLE, client.id, { keyword_groups: JSON.stringify(aiGroups) });
         return NextResponse.json({ ok: true, source: "ai" });
       }
