@@ -7,6 +7,7 @@ type Title = {
   id: string;
   title: string;
   title_status: string;
+  airtable_status: string;
   target_keyword: string;
   keyword_group: string;
   search_intent: string;
@@ -21,24 +22,29 @@ type KeywordGroup = {
   subkeywords: { keyword: string; intent?: string }[];
 };
 
+type Folder = "proposals" | "queued" | "inprogress" | "published";
+
+// ---------------------------------------------------------------------------
+// Categorisation helpers
+// ---------------------------------------------------------------------------
+
+function getFolder(t: Title): Folder {
+  const ts = t.title_status;
+  const st = t.airtable_status;
+  if (ts === "published") return "published";
+  if (ts === "generating" || st === "In Progress") return "inprogress";
+  if (ts === "completed" || st === "Completed") return "inprogress"; // ready for review counts as still in-pipeline
+  if (ts === "approved" || st === "Queued") return "queued";
+  return "proposals";
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatMonth(iso: string | null): string {
-  if (!iso) return "Unknown date";
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
-
-function groupByMonth(titles: Title[]): { label: string; items: Title[] }[] {
-  const map = new Map<string, Title[]>();
-  for (const t of titles) {
-    const label = formatMonth(t.proposed_at);
-    if (!map.has(label)) map.set(label, []);
-    map.get(label)!.push(t);
-  }
-  return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 const INTENT_STYLES: Record<string, string> = {
@@ -56,36 +62,22 @@ function IntentBadge({ intent }: { intent: string }) {
   );
 }
 
-function QualityScore({ score }: { score: number | null }) {
-  const [hovered, setHovered] = useState(false);
+function QualityDots({ score }: { score: number | null }) {
   if (!score) return null;
-
-  const labels = ["Poor", "Below average", "Acceptable", "Good", "Excellent"];
-  const label = labels[(score - 1)] ?? "";
-
   return (
-    <div className="relative inline-flex items-center gap-1.5" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <span className="text-[11px] font-medium text-slate-400">Quality</span>
-      <div className="inline-flex gap-0.5 items-center cursor-default">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <span key={i} className={`w-2 h-2 rounded-full transition-colors ${i <= score ? "bg-slate-700" : "bg-slate-200"}`} />
-        ))}
-      </div>
-      {hovered && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 w-56 bg-slate-900 text-white text-[11px] rounded-lg p-3 shadow-lg pointer-events-none">
-          <p className="font-semibold mb-1">{score}/5 — {label}</p>
-          <p className="text-slate-300 leading-relaxed">Scored on specificity, uniqueness, length (8–15 words), absence of anti-patterns, and tone fit for your industry.</p>
-        </div>
-      )}
+    <div className="inline-flex gap-0.5 items-center">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span key={i} className={`w-1.5 h-1.5 rounded-full ${i <= score ? "bg-slate-600" : "bg-slate-200"}`} />
+      ))}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Title Card
+// Proposal card — fully interactive
 // ---------------------------------------------------------------------------
 
-function TitleCard({
+function ProposalCard({
   title,
   keywordGroups,
   token,
@@ -107,9 +99,6 @@ function TitleCard({
   const [busy, setBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isApproved = title.title_status === "approved";
-
-  // Subkeywords for the selected group
   const groupObj = keywordGroups.find((g) => g.group === editGroup);
   const subkeywords = groupObj?.subkeywords ?? [];
 
@@ -117,14 +106,7 @@ function TitleCard({
     await fetch(`/api/portal/titles?token=${token}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        record_id: title.id,
-        action: "save",
-        title: editTitle,
-        target_keyword: editKeyword,
-        keyword_group: editGroup,
-        ...extraFields,
-      }),
+      body: JSON.stringify({ record_id: title.id, action: "save", title: editTitle, target_keyword: editKeyword, keyword_group: editGroup, ...extraFields }),
     });
   }, [token, title.id, editTitle, editKeyword, editGroup]);
 
@@ -133,15 +115,9 @@ function TitleCard({
     await fetch(`/api/portal/titles?token=${token}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        record_id: title.id,
-        action: "approve",
-        title: editTitle,
-        target_keyword: editKeyword,
-        keyword_group: editGroup,
-      }),
+      body: JSON.stringify({ record_id: title.id, action: "approve", title: editTitle, target_keyword: editKeyword, keyword_group: editGroup }),
     });
-    onUpdate(title.id, { title: editTitle, target_keyword: editKeyword, keyword_group: editGroup, title_status: "approved" });
+    onUpdate(title.id, { title: editTitle, target_keyword: editKeyword, keyword_group: editGroup, title_status: "approved", airtable_status: "Queued" });
     setBusy(false);
   };
 
@@ -163,150 +139,139 @@ function TitleCard({
       const res = await fetch(`/api/portal/titles/generate?token=${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          current_title: editTitle,
-          suggestion,
-          keyword: editKeyword,
-          group: editGroup,
-        }),
+        body: JSON.stringify({ current_title: editTitle, suggestion, keyword: editKeyword, group: editGroup }),
       });
       const data = await res.json() as { title?: string };
-      if (data.title) {
-        setEditTitle(data.title);
-        setSuggestion("");
-        await save({ title: data.title });
-      }
-    } finally {
-      setGenerating(false);
-    }
+      if (data.title) { setEditTitle(data.title); setSuggestion(""); await save({ title: data.title }); }
+    } finally { setGenerating(false); }
   };
 
   return (
-    <div className={`bg-white rounded-xl border transition-shadow ${isApproved ? "border-green-200" : "border-slate-200 hover:shadow-sm"}`}>
-      {/* Main row */}
+    <div className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all">
       <div className="p-4">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            {/* Group label */}
             <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
               {editGroup || "No group"}
             </div>
-
-            {/* Editable title */}
-            {!isApproved ? (
-              <textarea
-                ref={textareaRef}
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                onBlur={() => void save()}
-                rows={editTitle.length > 80 ? 2 : 1}
-                className="w-full text-[15px] font-semibold text-slate-900 leading-snug resize-none border-0 p-0 bg-transparent focus:outline-none focus:ring-0 placeholder-slate-300"
-                placeholder="Enter title…"
-              />
-            ) : (
-              <p className="text-[15px] font-semibold text-slate-900 leading-snug">{editTitle}</p>
-            )}
-
-            {/* Keyword + intent row — read-only display */}
+            <textarea
+              ref={textareaRef}
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={() => void save()}
+              rows={editTitle.length > 80 ? 2 : 1}
+              className="w-full text-[15px] font-semibold text-slate-900 leading-snug resize-none border-0 p-0 bg-transparent focus:outline-none focus:ring-0 placeholder-slate-300"
+              placeholder="Enter title…"
+            />
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {editKeyword && <span className="text-[12px] font-medium text-slate-500">{editKeyword}</span>}
               <IntentBadge intent={title.search_intent} />
             </div>
           </div>
-
-          {/* Right col: quality + status */}
           <div className="flex flex-col items-end gap-2 shrink-0">
-            <QualityScore score={title.quality_score} />
-            {isApproved && (
-              <span className="text-[11px] font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                Approved
-              </span>
-            )}
+            <QualityDots score={title.quality_score} />
           </div>
         </div>
-
-        {/* Angle */}
         {title.content_angle && (
           <p className="mt-2.5 text-[12px] text-slate-400 italic border-l-2 border-slate-100 pl-3 leading-relaxed">
             {title.content_angle}
           </p>
         )}
-
       </div>
 
-      {/* Suggestion / actions bar */}
-      {!isApproved && (
-        <div className="border-t border-slate-100 px-4 py-3">
-          {!expanded ? (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setExpanded(true)}
-                className="text-[12px] text-slate-400 hover:text-slate-700 transition-colors"
-              >
-                ✦ Suggest a direction and regenerate
-              </button>
+      <div className="border-t border-slate-100 px-4 py-3">
+        {!expanded ? (
+          <div className="flex items-center gap-3">
+            <button onClick={() => setExpanded(true)} className="text-[12px] text-slate-400 hover:text-slate-700 transition-colors">
+              ✦ Suggest a direction and regenerate
+            </button>
+            <div className="flex-1" />
+            <button onClick={handleSkip} disabled={busy} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
+              Skip
+            </button>
+            <button onClick={handleApprove} disabled={busy} className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
+              {busy ? "Saving…" : "Approve"}
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <textarea
+              autoFocus value={suggestion} onChange={(e) => setSuggestion(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleGenerate(); } }}
+              placeholder="e.g. make it more reassuring, focus on recovery time…"
+              rows={2}
+              className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
+            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-slate-400">Regenerate for:</span>
+              <select value={editGroup} onChange={(e) => { setEditGroup(e.target.value); setEditKeyword(""); }}
+                className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none">
+                <option value="">Same group</option>
+                {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
+              </select>
+              {subkeywords.length > 0 && (
+                <select value={editKeyword} onChange={(e) => setEditKeyword(e.target.value)}
+                  className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none">
+                  <option value="">Same keyword</option>
+                  {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
+                </select>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setExpanded(false); setSuggestion(""); }} className="text-[12px] text-slate-400 hover:text-slate-600">Cancel</button>
               <div className="flex-1" />
-              <button onClick={handleSkip} disabled={busy} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
-                Skip
-              </button>
-              <button onClick={handleApprove} disabled={busy} className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
-                {busy ? "Saving…" : "Approve"}
+              <button onClick={() => void handleGenerate()} disabled={!suggestion.trim() || generating}
+                className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors">
+                {generating ? "Generating…" : "Generate"}
               </button>
             </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <textarea
-                autoFocus
-                value={suggestion}
-                onChange={(e) => setSuggestion(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleGenerate(); } }}
-                placeholder="e.g. make it more reassuring, focus on recovery time, target anxious first-time patients…"
-                rows={2}
-                className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
-              />
-              {/* Group / keyword selectors — only shown here, in the regenerate panel */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] text-slate-400">Regenerate for:</span>
-                <select
-                  value={editGroup}
-                  onChange={(e) => { setEditGroup(e.target.value); setEditKeyword(""); }}
-                  className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300"
-                >
-                  <option value="">Same group</option>
-                  {keywordGroups.map((g) => (
-                    <option key={g.group} value={g.group}>{g.group}</option>
-                  ))}
-                </select>
-                {subkeywords.length > 0 && (
-                  <select
-                    value={editKeyword}
-                    onChange={(e) => setEditKeyword(e.target.value)}
-                    className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300"
-                  >
-                    <option value="">Same keyword</option>
-                    {subkeywords.map((sk) => (
-                      <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => { setExpanded(false); setSuggestion(""); }} className="text-[12px] text-slate-400 hover:text-slate-600">
-                  Cancel
-                </button>
-                <div className="flex-1" />
-                <button
-                  onClick={() => void handleGenerate()}
-                  disabled={!suggestion.trim() || generating}
-                  className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
-                >
-                  {generating ? "Generating…" : "Generate"}
-                </button>
-              </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Read-only pipeline item (for Queued / In Progress / Published folders)
+// ---------------------------------------------------------------------------
+
+const FOLDER_STYLES: Record<Folder, { border: string; badge: string; label: string; dot: string }> = {
+  proposals: { border: "border-slate-200", badge: "bg-slate-100 text-slate-500", label: "Proposed", dot: "bg-slate-400" },
+  queued: { border: "border-emerald-200", badge: "bg-emerald-50 text-emerald-700", label: "Queued", dot: "bg-emerald-400" },
+  inprogress: { border: "border-amber-200", badge: "bg-amber-50 text-amber-700", label: "In Progress", dot: "bg-amber-400" },
+  published: { border: "border-teal-200", badge: "bg-teal-50 text-teal-700", label: "Published", dot: "bg-teal-500" },
+};
+
+function PipelineItem({ title, folder }: { title: Title; folder: Folder }) {
+  const style = FOLDER_STYLES[folder];
+  return (
+    <div className={`bg-white rounded-xl border ${style.border} px-4 py-3.5`}>
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          {title.keyword_group && (
+            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
+              {title.keyword_group}
             </div>
           )}
+          <p className="text-[15px] font-semibold text-slate-800 leading-snug">{title.title}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {title.target_keyword && <span className="text-[12px] text-slate-500">{title.target_keyword}</span>}
+            <IntentBadge intent={title.search_intent} />
+          </div>
+          {title.content_angle && (
+            <p className="mt-2 text-[12px] text-slate-400 italic leading-relaxed line-clamp-2">{title.content_angle}</p>
+          )}
         </div>
-      )}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${style.badge}`}>
+            {style.label}
+          </span>
+          {title.approved_at && (
+            <span className="text-[11px] text-slate-400">{formatDate(title.approved_at)}</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -315,15 +280,8 @@ function TitleCard({
 // Add / Generate Title Panel
 // ---------------------------------------------------------------------------
 
-function AddTitlePanel({
-  keywordGroups,
-  token,
-  onAdded,
-}: {
-  keywordGroups: KeywordGroup[];
-  token: string;
-  onAdded: (t: Title) => void;
-}) {
+function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: KeywordGroup[]; token: string; onAdded: (t: Title) => void }) {
+  const [open, setOpen] = useState(false);
   const [idea, setIdea] = useState("");
   const [group, setGroup] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -334,7 +292,6 @@ function AddTitlePanel({
 
   const groupObj = keywordGroups.find((g) => g.group === group);
   const subkeywords = groupObj?.subkeywords ?? [];
-
   const canGenerate = idea.trim().length > 0 && !!group;
 
   const handleGenerate = async () => {
@@ -342,140 +299,117 @@ function AddTitlePanel({
     setBusyGen(true);
     setGenerated("");
     try {
-      const res = await fetch(`/api/portal/titles/generate?token=${token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ suggestion: idea, keyword, group }),
-      });
+      const res = await fetch(`/api/portal/titles/generate?token=${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ suggestion: idea, keyword, group }) });
       const data = await res.json() as { title?: string };
       if (data.title) setGenerated(data.title);
-    } finally {
-      setBusyGen(false);
-    }
+    } finally { setBusyGen(false); }
   };
 
-  const handleAdd = async () => {
-    const finalTitle = generated || idea;
-    if (!finalTitle.trim()) return;
+  const handleAdd = async (finalTitle?: string) => {
+    const t = (finalTitle ?? generated ?? idea).trim();
+    if (!t) return;
     setAdding(true);
-    const res = await fetch(`/api/portal/titles?token=${token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: finalTitle, target_keyword: keyword, keyword_group: group }),
-    });
+    const res = await fetch(`/api/portal/titles?token=${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: t, target_keyword: keyword, keyword_group: group }) });
     const data = await res.json() as { title?: Title };
     if (data.title) {
       onAdded(data.title);
-      setIdea("");
-      setGenerated("");
-      setGroup("");
-      setKeyword("");
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 2000);
+      setIdea(""); setGenerated(""); setGroup(""); setKeyword("");
+      setSuccess(true); setTimeout(() => { setSuccess(false); setOpen(false); }, 1500);
     }
     setAdding(false);
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-4 pt-4 pb-2 border-b border-slate-100">
-        <h3 className="text-[13px] font-semibold text-slate-800">Request a title</h3>
-        <p className="text-[11px] text-slate-400 mt-0.5">Describe an idea or topic — we&apos;ll generate a proper title.</p>
-      </div>
-      <div className="p-4 flex flex-col gap-3">
-        {/* Idea input */}
-        <textarea
-          value={idea}
-          onChange={(e) => setIdea(e.target.value)}
-          placeholder="e.g. make one about braces for teens, or comparing implants vs dentures…"
-          rows={3}
-          className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
-        />
+    <div className="border-t border-slate-100">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-3 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+        <span>+ Request a title</span>
+        <span className={`text-slate-400 transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+      </button>
 
-        {/* Group + keyword */}
-        <div className="flex flex-col gap-2">
-          <select
-            value={group}
-            onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
-            className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300 appearance-none"
-          >
+      {open && (
+        <div className="px-4 pb-4 flex flex-col gap-3">
+          <textarea value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="Describe a topic or idea…" rows={3}
+            className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300" />
+
+          <select value={group} onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
+            className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none">
             <option value="">Keyword group (optional)</option>
-            {keywordGroups.map((g) => (
-              <option key={g.group} value={g.group}>{g.group}</option>
-            ))}
+            {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
           </select>
           {subkeywords.length > 0 && (
-            <select
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300 appearance-none"
-            >
+            <select value={keyword} onChange={(e) => setKeyword(e.target.value)}
+              className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none">
               <option value="">Target keyword (optional)</option>
-              {subkeywords.map((sk) => (
-                <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
-              ))}
+              {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
             </select>
           )}
-        </div>
 
-        {/* Generate button */}
-        <button
-          onClick={() => void handleGenerate()}
-          disabled={!canGenerate || generating}
-          className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {generating ? "Generating…" : "Generate with AI"}
-        </button>
-        {!canGenerate && idea.trim() && (
-          <p className="text-[11px] text-slate-400 text-center -mt-1">
-            Select a keyword group to enable AI generation
-          </p>
-        )}
-
-        {/* Direct-add: skip AI generation entirely */}
-        {idea.trim() && !generated && (
-          <button
-            onClick={() => void handleAdd()}
-            disabled={adding}
-            className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors"
-          >
-            {adding ? "Adding…" : success ? "Added!" : "Add as title (no AI)"}
-          </button>
-        )}
-
-        {/* Generated preview + edit */}
-        {generated && (
-          <div className="flex flex-col gap-2 mt-1">
-            <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Generated title</span>
-              </div>
-              <textarea
-                autoFocus
-                value={generated}
-                onChange={(e) => setGenerated(e.target.value)}
-                rows={Math.max(3, Math.ceil(generated.length / 38))}
-                className="w-full text-[14px] font-semibold text-slate-900 bg-transparent resize-none focus:outline-none leading-snug"
-              />
-              <p className="text-[10px] text-indigo-400 mt-1">{group} / {keyword}</p>
+          {!generated ? (
+            <div className="flex flex-col gap-2">
+              <button onClick={() => void handleGenerate()} disabled={!canGenerate || generating}
+                className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                {generating ? "Generating…" : "Generate with AI"}
+              </button>
+              {idea.trim() && (
+                <button onClick={() => void handleAdd(idea.trim())} disabled={adding}
+                  className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors">
+                  {adding ? "Adding…" : success ? "Added!" : "Add as-is"}
+                </button>
+              )}
             </div>
-            <button
-              onClick={() => void handleAdd()}
-              disabled={adding || !generated.trim()}
-              className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
-            >
-              {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
-            </button>
-            <button
-              onClick={() => setGenerated("")}
-              className="w-full py-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              Regenerate with different direction
-            </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
+                <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Generated title</div>
+                <textarea autoFocus value={generated} onChange={(e) => setGenerated(e.target.value)}
+                  rows={Math.max(2, Math.ceil(generated.length / 38))}
+                  className="w-full text-[14px] font-semibold text-slate-900 bg-transparent resize-none focus:outline-none leading-snug" />
+              </div>
+              <button onClick={() => void handleAdd()} disabled={adding || !generated.trim()}
+                className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
+                {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
+              </button>
+              <button onClick={() => setGenerated("")} className="w-full py-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
+                Regenerate
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Folder nav
+// ---------------------------------------------------------------------------
+
+function FolderNav({ folders, active, onChange }: { folders: { key: Folder; label: string; count: number; icon: string; activeClass: string }[]; active: Folder; onChange: (f: Folder) => void }) {
+  return (
+    <nav className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-100">
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Your Titles</p>
+      </div>
+      {folders.map((f) => (
+        <button
+          key={f.key}
+          onClick={() => onChange(f.key)}
+          className={`w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors border-l-[3px] ${
+            active === f.key
+              ? `${f.activeClass} font-semibold text-slate-900`
+              : "border-transparent text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="text-[14px]">{f.icon}</span>
+            {f.label}
+          </div>
+          {f.count > 0 && (
+            <span className="text-[11px] font-bold text-slate-400 tabular-nums">{f.count}</span>
+          )}
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -492,6 +426,7 @@ export default function TitlesPage() {
   const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeFolder, setActiveFolder] = useState<Folder>("proposals");
 
   const load = useCallback(async () => {
     try {
@@ -512,131 +447,90 @@ export default function TitlesPage() {
   const handleUpdate = useCallback((id: string, changes: Partial<Title>) => {
     setTitles((prev) => prev.map((t) => t.id === id ? { ...t, ...changes } : t));
   }, []);
+  const handleRemove = useCallback((id: string) => { setTitles((prev) => prev.filter((t) => t.id !== id)); }, []);
+  const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
 
-  const handleRemove = useCallback((id: string) => {
-    setTitles((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const proposals = titles.filter((t) => getFolder(t) === "proposals");
+  const queued = titles.filter((t) => getFolder(t) === "queued");
+  const inProgress = titles.filter((t) => getFolder(t) === "inprogress");
+  const published = titles.filter((t) => getFolder(t) === "published");
 
-  const handleAdded = useCallback((t: Title) => {
-    setTitles((prev) => [t, ...prev]);
-  }, []);
+  const FOLDERS: { key: Folder; label: string; count: number; icon: string; activeClass: string }[] = [
+    { key: "proposals", label: "Proposals", count: proposals.length, icon: "○", activeClass: "bg-slate-50 border-slate-400" },
+    { key: "queued", label: "Queued", count: queued.length, icon: "◑", activeClass: "bg-emerald-50/60 border-emerald-400" },
+    { key: "inprogress", label: "In Progress", count: inProgress.length, icon: "◐", activeClass: "bg-amber-50/60 border-amber-400" },
+    { key: "published", label: "Published", count: published.length, icon: "◆", activeClass: "bg-teal-50/60 border-teal-400" },
+  ];
 
-  const pending = titles.filter((t) => t.title_status === "titled");
-  const approved = titles.filter((t) => t.title_status === "approved");
-  const pendingGroups = groupByMonth(pending);
-  const approvedGroups = groupByMonth(approved);
+  const activeTitles = { proposals, queued, inprogress: inProgress, published }[activeFolder];
 
   return (
     <div className="flex gap-6 min-h-full">
-      {/* Left panel */}
-      <div className="w-72 shrink-0">
-        <div className="sticky top-8 flex flex-col gap-4">
-          <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />
-
-          {/* Stats */}
+      {/* Left panel — folders + add panel */}
+      <div className="w-64 shrink-0">
+        <div className="sticky top-8 flex flex-col gap-3">
           {!loading && (
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col gap-2">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Overview</p>
-              <div className="flex justify-between text-[13px]">
-                <span className="text-slate-500">Awaiting review</span>
-                <span className="font-semibold text-slate-900">{pending.length}</span>
+            <FolderNav folders={FOLDERS} active={activeFolder} onChange={setActiveFolder} />
+          )}
+
+          {/* Add title — collapsible */}
+          {!loading && (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-4 pt-3 pb-1">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Request a Title</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Describe an idea and we'll propose a title</p>
               </div>
-              <div className="flex justify-between text-[13px]">
-                <span className="text-slate-500">Approved</span>
-                <span className="font-semibold text-green-700">{approved.length}</span>
-              </div>
+              <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />
             </div>
+          )}
+
+          {/* Pipeline link */}
+          {queued.length > 0 && (
+            <button
+              onClick={() => { router.refresh(); router.push(`/portal/${token}/content`); }}
+              className="w-full text-[12px] font-medium text-indigo-600 hover:text-indigo-700 text-center py-2 bg-indigo-50 rounded-xl border border-indigo-100 transition-colors"
+            >
+              View in Pipeline →
+            </button>
           )}
         </div>
       </div>
 
-      {/* Right: title list */}
+      {/* Right — title list for active folder */}
       <div className="flex-1 min-w-0">
+        {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Title Proposals</h1>
           <p className="text-base text-slate-500 mt-1">
-            Review, edit, and approve blog titles. Approved titles enter the content pipeline automatically.
+            {activeFolder === "proposals" && "Review and approve blog title proposals."}
+            {activeFolder === "queued" && "Approved titles waiting to be written."}
+            {activeFolder === "inprogress" && "Titles currently being written or ready for your review."}
+            {activeFolder === "published" && "Titles that have been published to your site."}
           </p>
         </div>
 
-        {loading && <div className="text-slate-400 text-sm">Loading proposals…</div>}
+        {loading && <div className="text-slate-400 text-sm">Loading…</div>}
         {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-4">{error}</div>}
 
-        {!loading && !error && pending.length === 0 && approved.length === 0 && (
+        {!loading && !error && activeTitles.length === 0 && (
           <div className="text-center py-16 text-slate-400">
             <div className="text-4xl mb-4">◆</div>
-            <div className="font-medium text-slate-500 mb-1">No proposals yet</div>
-            <div className="text-sm max-w-xs mx-auto">
-              Title proposals are generated after your audit and monthly. Add your own using the panel on the left.
+            <div className="font-medium text-slate-500 mb-1">
+              {activeFolder === "proposals" ? "No proposals yet" : `Nothing ${activeFolder === "queued" ? "queued" : activeFolder === "inprogress" ? "in progress" : "published"} yet`}
             </div>
           </div>
         )}
 
-        {/* Pending — grouped by month */}
-        {pendingGroups.map(({ label, items }) => (
-          <div key={label} className="mb-8">
-            <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide">{label}</h2>
-              <span className="text-[11px] text-slate-400">{items.length} proposal{items.length !== 1 ? "s" : ""}</span>
-            </div>
-            <div className="flex flex-col gap-3">
-              {items.map((t) => (
-                <TitleCard
-                  key={t.id}
-                  title={t}
-                  keywordGroups={keywordGroups}
-                  token={token}
-                  onUpdate={handleUpdate}
-                  onRemove={handleRemove}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Approved — visually distinct section */}
-        {approved.length > 0 && (
-          <div className="mt-10">
-            {/* Divider with label */}
-            <div className="flex items-center gap-4 mb-5">
-              <div className="flex-1 h-px bg-green-100" />
-              <div className="flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-green-50 border border-green-200">
-                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                <span className="text-[12px] font-semibold text-green-700 uppercase tracking-wide">
-                  Approved ({approved.length})
-                </span>
-              </div>
-              <div className="flex-1 h-px bg-green-100" />
-            </div>
-
-            <div className="flex items-center justify-between mb-3 px-1">
-              <p className="text-[12px] text-slate-400">
-                These titles have been sent to the content pipeline for generation.
-              </p>
-              <button
-                onClick={() => { router.refresh(); router.push(`/portal/${token}/content`); }}
-                className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors shrink-0 ml-4"
-              >
-                View in Pipeline →
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-3 opacity-80">
-              {approvedGroups.flatMap(({ items }) =>
-                items.map((t) => (
-                  <TitleCard
-                    key={t.id}
-                    title={t}
-                    keywordGroups={keywordGroups}
-                    token={token}
-                    onUpdate={handleUpdate}
-                    onRemove={handleRemove}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        )}
+        <div className="flex flex-col gap-3">
+          {activeFolder === "proposals"
+            ? proposals.map((t) => (
+                <ProposalCard key={t.id} title={t} keywordGroups={keywordGroups} token={token} onUpdate={handleUpdate} onRemove={handleRemove} />
+              ))
+            : activeTitles.map((t) => (
+                <PipelineItem key={t.id} title={t} folder={activeFolder} />
+              ))
+          }
+        </div>
       </div>
     </div>
   );

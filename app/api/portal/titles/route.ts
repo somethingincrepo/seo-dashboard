@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     fields: {
       "Blog Title": string;
       title_status: string;
+      Status: string;
       target_keyword: string;
       keyword_group: string;
       "Search intent": string;
@@ -51,18 +52,20 @@ export async function GET(request: NextRequest) {
       approved_at: string;
     };
   }>(CONTENT_JOBS_TABLE, {
+    // Fetch everything except skipped so the folder nav can show all stages
     filterByFormula: `AND(
       FIND("${companyName}", ARRAYJOIN({Client Name (from Client ID)}, ",")),
-      OR({title_status}="titled", {title_status}="approved")
+      {title_status}!="skipped"
     )`,
     sort: [{ field: "proposed_at", direction: "desc" }],
-    maxRecords: 100,
+    maxRecords: 200,
   });
 
   const titles = jobs.map((j) => ({
     id: j.id,
     title: j.fields["Blog Title"] ?? "",
     title_status: j.fields.title_status ?? "titled",
+    airtable_status: j.fields.Status ?? "",
     target_keyword: j.fields.target_keyword ?? "",
     keyword_group: j.fields.keyword_group ?? "",
     search_intent: j.fields["Search intent"] ?? "",

@@ -329,6 +329,111 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
         </div>
       </div>
 
+      {/* ── Pipeline summary ────────────────────────────────────────────────── */}
+      <div className="px-10 mt-6 pb-8">
+        <div className="grid grid-cols-2 gap-4">
+
+          {/* Queued titles — approved and waiting to generate */}
+          {(() => {
+            const queued = liveJobs.filter(isApproved);
+            return queued.length > 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-[13px] font-semibold text-slate-800">Awaiting Generation</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Approved titles queued to be written</p>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    {queued.length} queued
+                  </span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {queued.slice(0, 5).map((j) => (
+                    <button
+                      key={j.id}
+                      onClick={() => openJobDetail(j)}
+                      className="flex items-start gap-3 text-left p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors group"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium text-slate-800 group-hover:text-slate-900 leading-snug line-clamp-2">{j.fields["Blog Title"]}</p>
+                        {j.fields.target_keyword && (
+                          <p className="text-[11px] text-slate-400 mt-0.5">{j.fields.target_keyword}</p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                  {queued.length > 5 && (
+                    <p className="text-[11px] text-slate-400 text-center pt-1">+{queued.length - 5} more</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-5 flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-[13px] font-medium text-slate-400">No titles queued</p>
+                  <p className="text-[11px] text-slate-300 mt-1">Approve titles from the proposals page</p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Recently published */}
+          {(() => {
+            const published = liveJobs.filter(isPublished);
+            const inProg = liveJobs.filter(isInProgress);
+            const readyForReview = liveJobs.filter(isReadyForReview);
+
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-[13px] font-semibold text-slate-800">Pipeline Activity</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Current status across all content</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {[
+                    { label: "In Progress", items: inProg, dotClass: "bg-amber-400", badgeClass: "text-amber-700 bg-amber-50" },
+                    { label: "Ready for Review", items: readyForReview, dotClass: "bg-indigo-400", badgeClass: "text-indigo-700 bg-indigo-50" },
+                    { label: "Published", items: published, dotClass: "bg-teal-500", badgeClass: "text-teal-700 bg-teal-50" },
+                  ].map(({ label, items, dotClass, badgeClass }) => (
+                    <div key={label} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+                        <span className="text-[13px] text-slate-600">{label}</span>
+                      </div>
+                      <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${items.length > 0 ? badgeClass : "text-slate-300 bg-transparent"}`}>
+                        {items.length}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {published.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Recent Publications</p>
+                    <div className="flex flex-col gap-1.5">
+                      {published.slice(0, 3).map((j) => (
+                        <button
+                          key={j.id}
+                          onClick={() => openJobDetail(j)}
+                          className="flex items-center gap-2 text-left p-2 rounded-lg hover:bg-slate-50 group"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+                          <p className="text-[12px] text-slate-600 group-hover:text-slate-900 line-clamp-1">{j.fields["Blog Title"]}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
       {/* ── Drawer ─────────────────────────────────────────────────────────── */}
       {liveSelectedJob && (
         <div className="fixed inset-0 z-40" onClick={closeDrawer}>

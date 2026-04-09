@@ -14,69 +14,24 @@ type ContentProfile = {
   priority_pages: string;
 };
 
+// All sections use the same calm slate accent — no rainbow
+const SECTION_ACCENT = "border-l-slate-300";
+const SECTION_DOT_FILLED = "bg-slate-400";
+const SECTION_DOT_EMPTY = "bg-slate-200";
+
 const SECTIONS: {
   key: keyof ContentProfile;
   label: string;
   description: string;
-  accentBorder: string; // left-border color class
-  dotColor: string;     // sidebar dot
 }[] = [
-  {
-    key: "brand_voice",
-    label: "Brand Voice",
-    description: "Tone, personality, and how you communicate with patients",
-    accentBorder: "border-l-violet-400",
-    dotColor: "bg-violet-400",
-  },
-  {
-    key: "style_rules",
-    label: "Style Rules",
-    description: "Writing conventions applied to every piece of content",
-    accentBorder: "border-l-blue-400",
-    dotColor: "bg-blue-400",
-  },
-  {
-    key: "formatting_rules",
-    label: "Formatting",
-    description: "Structure, length, and layout guidelines",
-    accentBorder: "border-l-sky-400",
-    dotColor: "bg-sky-400",
-  },
-  {
-    key: "core_services",
-    label: "Core Services",
-    description: "Products and services to highlight in content",
-    accentBorder: "border-l-emerald-400",
-    dotColor: "bg-emerald-400",
-  },
-  {
-    key: "positioning",
-    label: "Positioning",
-    description: "What makes you different from competitors",
-    accentBorder: "border-l-amber-400",
-    dotColor: "bg-amber-400",
-  },
-  {
-    key: "primary_ctas",
-    label: "Primary CTAs",
-    description: "Calls to action used in content",
-    accentBorder: "border-l-orange-400",
-    dotColor: "bg-orange-400",
-  },
-  {
-    key: "restricted_language",
-    label: "Restricted Language",
-    description: "Claims and phrases to never use",
-    accentBorder: "border-l-red-400",
-    dotColor: "bg-red-400",
-  },
-  {
-    key: "priority_pages",
-    label: "Priority Pages",
-    description: "Internal pages to link to frequently",
-    accentBorder: "border-l-slate-300",
-    dotColor: "bg-slate-300",
-  },
+  { key: "brand_voice",        label: "Brand Voice",          description: "Tone, personality, and how you communicate with patients" },
+  { key: "style_rules",        label: "Style Rules",           description: "Writing conventions applied to every piece of content" },
+  { key: "formatting_rules",   label: "Formatting",            description: "Structure, length, and layout guidelines" },
+  { key: "core_services",      label: "Core Services",         description: "Products and services to highlight in content" },
+  { key: "positioning",        label: "Positioning",           description: "What makes you different from competitors" },
+  { key: "primary_ctas",       label: "Primary CTAs",          description: "Calls to action used in content" },
+  { key: "restricted_language",label: "Restricted Language",   description: "Claims and phrases to never use" },
+  { key: "priority_pages",     label: "Priority Pages",        description: "Internal pages to link to frequently" },
 ];
 
 function RichContent({ text }: { text: string }) {
@@ -145,7 +100,7 @@ function ProfileSection({
   recordId,
   token,
 }: {
-  section: typeof SECTIONS[number];
+  section: { key: keyof ContentProfile; label: string; description: string };
   value: string;
   recordId: string;
   token: string;
@@ -191,7 +146,7 @@ function ProfileSection({
   return (
     <div
       id={section.key}
-      className={`scroll-mt-6 bg-white rounded-xl border border-slate-200 overflow-hidden border-l-4 ${section.accentBorder} ${editing ? "ring-1 ring-slate-300" : ""}`}
+      className={`scroll-mt-6 bg-white rounded-xl border border-slate-200 overflow-hidden border-l-4 ${SECTION_ACCENT} ${editing ? "ring-1 ring-slate-300" : ""}`}
     >
       {/* Header */}
       <div className="px-5 pt-5 pb-4 flex items-start justify-between">
@@ -261,6 +216,9 @@ export default function ContentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].key);
+  // Tracks programmatic scrolls so IntersectionObserver doesn't override them
+  const scrollingToRef = useRef<string | null>(null);
+  const scrollClearRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     fetch(`/api/portal/content-profile?token=${token}`)
@@ -278,10 +236,14 @@ export default function ContentProfilePage() {
 
   const scrollTo = (key: string) => {
     setActiveSection(key);
+    scrollingToRef.current = key;
+    clearTimeout(scrollClearRef.current);
+    // Release lock after scroll animation finishes (~800ms)
+    scrollClearRef.current = setTimeout(() => { scrollingToRef.current = null; }, 900);
+
     const el = document.getElementById(key);
     if (!el) return;
-    // Offset scroll so sticky headers don't overlap
-    const top = el.getBoundingClientRect().top + window.scrollY - 24;
+    const top = el.getBoundingClientRect().top + window.scrollY - 32;
     window.scrollTo({ top, behavior: "smooth" });
   };
 
@@ -289,11 +251,13 @@ export default function ContentProfilePage() {
     if (!profile) return;
     const observer = new IntersectionObserver(
       (entries) => {
+        // Skip observer updates while we're programmatically scrolling
+        if (scrollingToRef.current) return;
         for (const entry of entries) {
           if (entry.isIntersecting) setActiveSection(entry.target.id);
         }
       },
-      { rootMargin: "-10% 0px -40% 0px" }
+      { rootMargin: "-10% 0px -50% 0px" }
     );
     SECTIONS.forEach((s) => {
       const el = document.getElementById(s.key);
@@ -339,7 +303,7 @@ export default function ContentProfilePage() {
                       : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                   }`}
                 >
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${hasContent ? s.dotColor : "bg-slate-200"}`} />
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${hasContent ? SECTION_DOT_FILLED : SECTION_DOT_EMPTY}`} />
                   {s.label}
                 </button>
               );
