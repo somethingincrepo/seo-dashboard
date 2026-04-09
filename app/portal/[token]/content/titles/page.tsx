@@ -466,32 +466,61 @@ export default function TitlesPage() {
 
   return (
     <div className="flex gap-6 min-h-full">
-      {/* Left panel — folders + add panel */}
+      {/* Left panel — add panel + stats at top, folder nav pinned to bottom */}
       <div className="w-64 shrink-0">
-        <div className="sticky top-8 flex flex-col gap-3">
-          {!loading && (
-            <FolderNav folders={FOLDERS} active={activeFolder} onChange={setActiveFolder} />
-          )}
+        <div className="sticky top-8 flex flex-col gap-3" style={{ height: "calc(100vh - 5rem - 2rem)" }}>
 
-          {/* Add title — collapsible */}
+          {/* TOP: request a title panel (same as before) */}
           {!loading && (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 pt-3 pb-1">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Request a Title</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Describe an idea and we'll propose a title</p>
+              <div className="px-4 pt-4 pb-2 border-b border-slate-100">
+                <h3 className="text-[13px] font-semibold text-slate-800">Request a title</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Describe an idea or topic — we&apos;ll generate a proper title.</p>
               </div>
               <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />
             </div>
           )}
 
-          {/* Pipeline link */}
-          {queued.length > 0 && (
-            <button
-              onClick={() => { router.refresh(); router.push(`/portal/${token}/content`); }}
-              className="w-full text-[12px] font-medium text-indigo-600 hover:text-indigo-700 text-center py-2 bg-indigo-50 rounded-xl border border-indigo-100 transition-colors"
-            >
-              View in Pipeline →
-            </button>
+          {/* Overview stats */}
+          {!loading && (
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col gap-2">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Overview</p>
+              <div className="flex justify-between text-[13px]">
+                <span className="text-slate-500">Awaiting review</span>
+                <span className="font-semibold text-slate-900">{proposals.length}</span>
+              </div>
+              <div className="flex justify-between text-[13px]">
+                <span className="text-slate-500">Approved</span>
+                <span className="font-semibold text-emerald-700">{queued.length}</span>
+              </div>
+              {inProgress.length > 0 && (
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-slate-500">In progress</span>
+                  <span className="font-semibold text-amber-700">{inProgress.length}</span>
+                </div>
+              )}
+              {published.length > 0 && (
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-slate-500">Published</span>
+                  <span className="font-semibold text-teal-700">{published.length}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* BOTTOM: folder nav pushed to bottom with mt-auto */}
+          {!loading && (
+            <div className="mt-auto flex flex-col gap-2">
+              <FolderNav folders={FOLDERS} active={activeFolder} onChange={setActiveFolder} />
+              {queued.length > 0 && (
+                <button
+                  onClick={() => { router.refresh(); router.push(`/portal/${token}/content`); }}
+                  className="w-full text-[12px] font-medium text-indigo-600 hover:text-indigo-700 text-center py-2 bg-indigo-50 rounded-xl border border-indigo-100 transition-colors"
+                >
+                  View in Pipeline →
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

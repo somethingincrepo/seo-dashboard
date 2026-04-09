@@ -137,6 +137,136 @@ function ColumnHeader({
   );
 }
 
+// ── Content activity feed ─────────────────────────────────────────────────────
+
+type ContentEvent = {
+  id: string;
+  title: string;
+  event: "proposed" | "approved" | "writing" | "ready" | "published";
+  date: string;
+  keyword?: string;
+  job?: ContentJob;
+};
+
+const EVENT_CONFIG: Record<ContentEvent["event"], { label: string; dot: string; badge: string }> = {
+  proposed:  { label: "Title Proposed",  dot: "bg-slate-300",   badge: "text-slate-500 bg-slate-100 border-slate-200" },
+  approved:  { label: "Title Approved",  dot: "bg-emerald-400", badge: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  writing:   { label: "Writing Started", dot: "bg-amber-400",   badge: "text-amber-700 bg-amber-50 border-amber-200" },
+  ready:     { label: "Article Ready",   dot: "bg-indigo-400",  badge: "text-indigo-700 bg-indigo-50 border-indigo-200" },
+  published: { label: "Published",       dot: "bg-teal-500",    badge: "text-teal-700 bg-teal-50 border-teal-200" },
+};
+
+function formatEventDate(iso: string): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch { return iso; }
+}
+
+function buildContentEvents(jobs: ContentJob[], results: ContentResult[]): ContentEvent[] {
+  const events: ContentEvent[] = [];
+
+  for (const job of jobs) {
+    const title = job.fields["Blog Title"] || "Untitled";
+    const keyword = job.fields.target_keyword || undefined;
+
+    if (job.fields.title_status === "published" && job.fields.approved_at) {
+      events.push({ id: `${job.id}-pub`, title, event: "published", date: job.fields.approved_at, keyword, job });
+    }
+    if (job.fields.Status === "In Progress" || job.fields.title_status === "generating") {
+      const d = job.fields.approved_at || job.fields.proposed_at;
+      if (d) events.push({ id: `${job.id}-writ`, title, event: "writing", date: d, keyword, job });
+    }
+    if (job.fields.approved_at) {
+      events.push({ id: `${job.id}-app`, title, event: "approved", date: job.fields.approved_at, keyword, job });
+    }
+    if (job.fields.proposed_at) {
+      events.push({ id: `${job.id}-prop`, title, event: "proposed", date: job.fields.proposed_at, keyword, job });
+    }
+  }
+
+  for (const result of results) {
+    const title = result.fields["Blog Title"] || "Untitled";
+    const d = result.fields["Created At"];
+    if (d) events.push({ id: `res-${result.id}`, title, event: "ready", date: d });
+  }
+
+  return events
+    .filter((e) => !!e.date)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 30);
+}
+
+function ContentActivityFeed({
+  jobs,
+  results,
+  onOpen,
+}: {
+  jobs: ContentJob[];
+  results: ContentResult[];
+  onOpen: (job: ContentJob) => void;
+}) {
+  const events = buildContentEvents(jobs, results);
+
+  return (
+    <div className="px-10 mt-6 pb-10">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-[14px] font-semibold text-slate-800">Content Activity</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">A log of every content event across your pipeline</p>
+          </div>
+          {events.length > 0 && (
+            <span className="text-[11px] text-slate-400 tabular-nums">{events.length} events</span>
+          )}
+        </div>
+
+        {events.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-[13px] text-slate-400">No content activity yet</p>
+            <p className="text-[11px] text-slate-300 mt-1">Events will appear here as titles are proposed, approved, and written</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {/* Column headers */}
+            <div className="grid grid-cols-[140px_1fr_180px_140px] gap-4 px-6 py-2.5 bg-slate-50">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Date</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Title</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Keyword</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Event</span>
+            </div>
+
+            {events.map((e) => {
+              const cfg = EVENT_CONFIG[e.event];
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => e.job && onOpen(e.job)}
+                  className={`grid grid-cols-[140px_1fr_180px_140px] gap-4 px-6 py-3 items-center ${e.job ? "hover:bg-slate-50 cursor-pointer group" : ""}`}
+                >
+                  <span className="text-[12px] text-slate-400">{formatEventDate(e.date)}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                    <span className="text-[13px] text-slate-700 font-medium truncate group-hover:text-slate-900">
+                      {e.title}
+                    </span>
+                  </div>
+                  <span className="text-[12px] text-slate-400 truncate">{e.keyword || "—"}</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${cfg.badge}`}>
+                    {cfg.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
@@ -329,110 +459,8 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
         </div>
       </div>
 
-      {/* ── Pipeline summary ────────────────────────────────────────────────── */}
-      <div className="px-10 mt-6 pb-8">
-        <div className="grid grid-cols-2 gap-4">
-
-          {/* Queued titles — approved and waiting to generate */}
-          {(() => {
-            const queued = liveJobs.filter(isApproved);
-            return queued.length > 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-slate-800">Awaiting Generation</h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Approved titles queued to be written</p>
-                  </div>
-                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    {queued.length} queued
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {queued.slice(0, 5).map((j) => (
-                    <button
-                      key={j.id}
-                      onClick={() => openJobDetail(j)}
-                      className="flex items-start gap-3 text-left p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors group"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-slate-800 group-hover:text-slate-900 leading-snug line-clamp-2">{j.fields["Blog Title"]}</p>
-                        {j.fields.target_keyword && (
-                          <p className="text-[11px] text-slate-400 mt-0.5">{j.fields.target_keyword}</p>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                  {queued.length > 5 && (
-                    <p className="text-[11px] text-slate-400 text-center pt-1">+{queued.length - 5} more</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-5 flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-[13px] font-medium text-slate-400">No titles queued</p>
-                  <p className="text-[11px] text-slate-300 mt-1">Approve titles from the proposals page</p>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Recently published */}
-          {(() => {
-            const published = liveJobs.filter(isPublished);
-            const inProg = liveJobs.filter(isInProgress);
-            const readyForReview = liveJobs.filter(isReadyForReview);
-
-            return (
-              <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-slate-800">Pipeline Activity</h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Current status across all content</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  {[
-                    { label: "In Progress", items: inProg, dotClass: "bg-amber-400", badgeClass: "text-amber-700 bg-amber-50" },
-                    { label: "Ready for Review", items: readyForReview, dotClass: "bg-indigo-400", badgeClass: "text-indigo-700 bg-indigo-50" },
-                    { label: "Published", items: published, dotClass: "bg-teal-500", badgeClass: "text-teal-700 bg-teal-50" },
-                  ].map(({ label, items, dotClass, badgeClass }) => (
-                    <div key={label} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                      <div className="flex items-center gap-2.5">
-                        <span className={`w-2 h-2 rounded-full ${dotClass}`} />
-                        <span className="text-[13px] text-slate-600">{label}</span>
-                      </div>
-                      <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full ${items.length > 0 ? badgeClass : "text-slate-300 bg-transparent"}`}>
-                        {items.length}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {published.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-slate-100">
-                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Recent Publications</p>
-                    <div className="flex flex-col gap-1.5">
-                      {published.slice(0, 3).map((j) => (
-                        <button
-                          key={j.id}
-                          onClick={() => openJobDetail(j)}
-                          className="flex items-center gap-2 text-left p-2 rounded-lg hover:bg-slate-50 group"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
-                          <p className="text-[12px] text-slate-600 group-hover:text-slate-900 line-clamp-1">{j.fields["Blog Title"]}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      </div>
+      {/* ── Content Activity Feed ───────────────────────────────────────────── */}
+      <ContentActivityFeed jobs={liveJobs} results={results} onOpen={openJobDetail} />
 
       {/* ── Drawer ─────────────────────────────────────────────────────────── */}
       {liveSelectedJob && (
