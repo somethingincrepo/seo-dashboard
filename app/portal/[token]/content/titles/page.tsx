@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
 
 type Title = {
   id: string;
@@ -22,30 +22,9 @@ type KeywordGroup = {
   subkeywords: { keyword: string; intent?: string }[];
 };
 
-type Folder = "proposals" | "queued" | "inprogress" | "published";
-
-// ---------------------------------------------------------------------------
-// Categorisation helpers
-// ---------------------------------------------------------------------------
-
-function getFolder(t: Title): Folder {
-  const ts = t.title_status;
-  const st = t.airtable_status;
-  if (ts === "published") return "published";
-  if (ts === "generating" || st === "In Progress") return "inprogress";
-  if (ts === "completed" || st === "Completed") return "inprogress"; // ready for review counts as still in-pipeline
-  if (ts === "approved" || st === "Queued") return "queued";
-  return "proposals";
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
 
 const INTENT_STYLES: Record<string, string> = {
   informational: "bg-blue-50 text-blue-700",
@@ -97,7 +76,6 @@ function ProposalCard({
   const [suggestion, setSuggestion] = useState("");
   const [generating, setGenerating] = useState(false);
   const [busy, setBusy] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const groupObj = keywordGroups.find((g) => g.group === editGroup);
   const subkeywords = groupObj?.subkeywords ?? [];
@@ -155,7 +133,6 @@ function ProposalCard({
               {editGroup || "No group"}
             </div>
             <textarea
-              ref={textareaRef}
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               onBlur={() => void save()}
@@ -233,58 +210,21 @@ function ProposalCard({
 }
 
 // ---------------------------------------------------------------------------
-// Read-only pipeline item (for Queued / In Progress / Published folders)
+// Request a Title panel — expanded, more thorough
 // ---------------------------------------------------------------------------
 
-const FOLDER_STYLES: Record<Folder, { border: string; badge: string; label: string; dot: string }> = {
-  proposals: { border: "border-slate-200", badge: "bg-slate-100 text-slate-500", label: "Proposed", dot: "bg-slate-400" },
-  queued: { border: "border-emerald-200", badge: "bg-emerald-50 text-emerald-700", label: "Queued", dot: "bg-emerald-400" },
-  inprogress: { border: "border-amber-200", badge: "bg-amber-50 text-amber-700", label: "In Progress", dot: "bg-amber-400" },
-  published: { border: "border-teal-200", badge: "bg-teal-50 text-teal-700", label: "Published", dot: "bg-teal-500" },
-};
+const INTENT_OPTIONS = [
+  { value: "", label: "Search intent (optional)" },
+  { value: "informational", label: "Informational — educate / answer questions" },
+  { value: "commercial", label: "Commercial — compare / research options" },
+  { value: "transactional", label: "Transactional — convert / drive action" },
+];
 
-function PipelineItem({ title, folder }: { title: Title; folder: Folder }) {
-  const style = FOLDER_STYLES[folder];
-  return (
-    <div className={`bg-white rounded-xl border ${style.border} px-4 py-3.5`}>
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          {title.keyword_group && (
-            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
-              {title.keyword_group}
-            </div>
-          )}
-          <p className="text-[15px] font-semibold text-slate-800 leading-snug">{title.title}</p>
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            {title.target_keyword && <span className="text-[12px] text-slate-500">{title.target_keyword}</span>}
-            <IntentBadge intent={title.search_intent} />
-          </div>
-          {title.content_angle && (
-            <p className="mt-2 text-[12px] text-slate-400 italic leading-relaxed line-clamp-2">{title.content_angle}</p>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${style.badge}`}>
-            {style.label}
-          </span>
-          {title.approved_at && (
-            <span className="text-[11px] text-slate-400">{formatDate(title.approved_at)}</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Add / Generate Title Panel
-// ---------------------------------------------------------------------------
-
-// Always-open, no toggle — form is permanently visible
 function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: KeywordGroup[]; token: string; onAdded: (t: Title) => void }) {
   const [idea, setIdea] = useState("");
   const [group, setGroup] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [intent, setIntent] = useState("");
   const [generated, setGenerated] = useState("");
   const [generating, setBusyGen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -299,7 +239,11 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
     setBusyGen(true);
     setGenerated("");
     try {
-      const res = await fetch(`/api/portal/titles/generate?token=${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ suggestion: idea, keyword, group }) });
+      const res = await fetch(`/api/portal/titles/generate?token=${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ suggestion: idea, keyword, group, search_intent: intent }),
+      });
       const data = await res.json() as { title?: string };
       if (data.title) setGenerated(data.title);
     } finally { setBusyGen(false); }
@@ -309,96 +253,141 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
     const t = (finalTitle ?? generated ?? idea).trim();
     if (!t) return;
     setAdding(true);
-    const res = await fetch(`/api/portal/titles?token=${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: t, target_keyword: keyword, keyword_group: group }) });
+    const res = await fetch(`/api/portal/titles?token=${token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: t, target_keyword: keyword, keyword_group: group, search_intent: intent }),
+    });
     const data = await res.json() as { title?: Title };
     if (data.title) {
       onAdded(data.title);
-      setIdea(""); setGenerated(""); setGroup(""); setKeyword("");
-      setSuccess(true); setTimeout(() => setSuccess(false), 2000);
+      setIdea(""); setGenerated(""); setGroup(""); setKeyword(""); setIntent("");
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2500);
     }
     setAdding(false);
   };
 
+  const reset = () => { setGenerated(""); };
+
+  if (generated) {
+    return (
+      <div className="p-4 flex flex-col gap-3">
+        <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
+          <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Generated title</div>
+          <textarea
+            autoFocus
+            value={generated}
+            onChange={(e) => setGenerated(e.target.value)}
+            rows={Math.max(3, Math.ceil(generated.length / 30))}
+            className="w-full text-[14px] font-semibold text-slate-900 bg-transparent resize-none focus:outline-none leading-snug"
+          />
+        </div>
+        {keyword && (
+          <div className="text-[12px] text-slate-500 px-1">
+            Keyword: <span className="font-medium text-slate-700">{keyword}</span>
+            {intent && <> · <IntentBadge intent={intent} /></>}
+          </div>
+        )}
+        <button
+          onClick={() => void handleAdd()}
+          disabled={adding || !generated.trim()}
+          className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+        >
+          {adding ? "Adding…" : success ? "Added ✓" : "Add to proposals"}
+        </button>
+        <button onClick={reset} className="w-full py-1.5 text-[12px] text-slate-400 hover:text-slate-600 transition-colors">
+          ← Try a different direction
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 flex flex-col gap-3">
-      {!generated ? (
-        <>
-          <textarea
-            value={idea}
-            onChange={(e) => setIdea(e.target.value)}
-            placeholder="e.g. a post about financing options for first-time buyers…"
-            rows={5}
-            className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
-          />
-          <select value={group} onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
-            className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none">
-            <option value="">Keyword group (optional)</option>
-            {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
-          </select>
-          {subkeywords.length > 0 && (
-            <select value={keyword} onChange={(e) => setKeyword(e.target.value)}
-              className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none">
-              <option value="">Target keyword (optional)</option>
-              {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
-            </select>
-          )}
-          <button onClick={() => void handleGenerate()} disabled={!canGenerate || generating}
-            className="w-full py-2.5 rounded-lg text-[13px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            {generating ? "Generating…" : "Generate with AI"}
-          </button>
-          {idea.trim() && (
-            <button onClick={() => void handleAdd(idea.trim())} disabled={adding}
-              className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors">
-              {adding ? "Adding…" : success ? "Added!" : "Add as-is"}
-            </button>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
-            <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Generated title</div>
-            <textarea autoFocus value={generated} onChange={(e) => setGenerated(e.target.value)}
-              rows={Math.max(3, Math.ceil(generated.length / 32))}
-              className="w-full text-[14px] font-semibold text-slate-900 bg-transparent resize-none focus:outline-none leading-snug" />
-          </div>
-          <button onClick={() => void handleAdd()} disabled={adding || !generated.trim()}
-            className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
-            {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
-          </button>
-          <button onClick={() => setGenerated("")} className="w-full py-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
-            Regenerate with different direction
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Folder nav
-// ---------------------------------------------------------------------------
-
-function FolderNav({ folders, active, onChange }: { folders: { key: Folder; label: string; count: number }[]; active: Folder; onChange: (f: Folder) => void }) {
-  return (
-    <nav className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-slate-100">
-        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Status</p>
+      {/* Topic / idea */}
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+          Topic or idea
+        </label>
+        <textarea
+          value={idea}
+          onChange={(e) => setIdea(e.target.value)}
+          placeholder="Describe what this article should cover — the more specific the better. e.g. a post explaining financing options for first-time LASIK patients who are worried about upfront cost."
+          rows={6}
+          className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
+        />
       </div>
-      {folders.map((f) => (
-        <button
-          key={f.key}
-          onClick={() => onChange(f.key)}
-          className={`w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors ${
-            active === f.key
-              ? "bg-slate-100 font-semibold text-slate-900"
-              : "text-slate-600 hover:bg-slate-50"
-          }`}
+
+      {/* Keyword group */}
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+          Keyword group
+        </label>
+        <select
+          value={group}
+          onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
+          className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
         >
-          <span>{f.label}</span>
-          <span className="text-[13px] tabular-nums text-slate-400">{f.count}</span>
+          <option value="">— select a group —</option>
+          {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
+        </select>
+      </div>
+
+      {/* Target keyword — only when group has subkeywords */}
+      {subkeywords.length > 0 && (
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+            Target keyword <span className="normal-case font-normal text-slate-300">(optional)</span>
+          </label>
+          <select
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+          >
+            <option value="">— pick a keyword —</option>
+            {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Search intent */}
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+          Search intent <span className="normal-case font-normal text-slate-300">(optional)</span>
+        </label>
+        <select
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+        >
+          {INTENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-col gap-2 pt-1">
+        <button
+          onClick={() => void handleGenerate()}
+          disabled={!canGenerate || generating}
+          className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {generating ? "Generating…" : "Generate with AI"}
         </button>
-      ))}
-    </nav>
+        {idea.trim() && (
+          <button
+            onClick={() => void handleAdd(idea.trim())}
+            disabled={adding}
+            className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors"
+          >
+            {adding ? "Adding…" : success ? "Added ✓" : "Add as-is (no AI)"}
+          </button>
+        )}
+        {!canGenerate && idea.trim() && !group && (
+          <p className="text-[11px] text-slate-400 text-center">Select a keyword group to enable AI generation</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -408,14 +397,12 @@ function FolderNav({ folders, active, onChange }: { folders: { key: Folder; labe
 
 export default function TitlesPage() {
   const params = useParams();
-  const router = useRouter();
   const token = params.token as string;
 
   const [titles, setTitles] = useState<Title[]>([]);
   const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeFolder, setActiveFolder] = useState<Folder>("proposals");
 
   const load = useCallback(async () => {
     try {
@@ -439,57 +426,25 @@ export default function TitlesPage() {
   const handleRemove = useCallback((id: string) => { setTitles((prev) => prev.filter((t) => t.id !== id)); }, []);
   const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
 
-  const proposals = titles.filter((t) => getFolder(t) === "proposals");
-  const queued = titles.filter((t) => getFolder(t) === "queued");
-  const inProgress = titles.filter((t) => getFolder(t) === "inprogress");
-  const published = titles.filter((t) => getFolder(t) === "published");
-
-  const FOLDERS: { key: Folder; label: string; count: number }[] = [
-    { key: "proposals", label: "Proposals",   count: proposals.length },
-    { key: "queued",    label: "Queued",       count: queued.length },
-    { key: "inprogress",label: "In Progress",  count: inProgress.length },
-    { key: "published", label: "Published",    count: published.length },
-  ];
-
-  const activeTitles = { proposals, queued, inprogress: inProgress, published }[activeFolder];
+  const proposals = titles.filter((t) => t.title_status === "titled" || (!t.title_status || t.title_status === "proposals"));
 
   return (
     <div className="flex gap-5 min-h-full">
-      {/* Left panel — wider, always-open form at top, folder nav at bottom */}
+      {/* Left panel — request form fills available height */}
       <div className="w-80 shrink-0">
-        <div className="sticky top-8 flex flex-col gap-3" style={{ height: "calc(100vh - 5rem - 2rem)" }}>
-
-          {/* Request a title — always open, prominent */}
-          {!loading && (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
-                <span className="text-[14px] font-semibold text-slate-800">Request a title</span>
-                <span className="text-slate-400 text-xl font-light leading-none">+</span>
-              </div>
-              <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />
+        <div className="sticky top-8">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+              <span className="text-[14px] font-semibold text-slate-800">Request a title</span>
+              <span className="text-slate-400 text-xl font-light leading-none">+</span>
             </div>
-          )}
-
-          {/* Folder nav — pinned to bottom */}
-          {!loading && (
-            <div className="mt-auto flex flex-col gap-2">
-              <FolderNav folders={FOLDERS} active={activeFolder} onChange={setActiveFolder} />
-              {queued.length > 0 && (
-                <button
-                  onClick={() => { router.refresh(); router.push(`/portal/${token}/content`); }}
-                  className="w-full text-[12px] font-medium text-indigo-600 hover:text-indigo-700 text-center py-2 bg-indigo-50 rounded-xl border border-indigo-100 transition-colors"
-                >
-                  View in Pipeline →
-                </button>
-              )}
-            </div>
-          )}
+            {!loading && <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />}
+          </div>
         </div>
       </div>
 
-      {/* Right — proposals always at top, selected folder section below */}
+      {/* Right — proposals */}
       <div className="flex-1 min-w-0">
-        {/* Fixed header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Title Proposals</h1>
           <p className="text-base text-slate-500 mt-1">Review and approve blog title proposals.</p>
@@ -498,53 +453,22 @@ export default function TitlesPage() {
         {loading && <div className="text-slate-400 text-sm">Loading…</div>}
         {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-4">{error}</div>}
 
-        {/* Proposals — always shown */}
         {!loading && !error && (
-          <>
-            {proposals.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
-                <div className="text-4xl mb-4">◆</div>
-                <div className="font-medium text-slate-500 mb-1">No proposals yet</div>
-                <div className="text-sm max-w-xs mx-auto">
-                  Title proposals are generated after your audit and monthly. Add your own using the panel on the left.
-                </div>
+          proposals.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <div className="text-4xl mb-4">◆</div>
+              <div className="font-medium text-slate-500 mb-1">No proposals yet</div>
+              <div className="text-sm max-w-xs mx-auto">
+                Title proposals are generated after your audit and monthly. Add your own using the panel on the left.
               </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {proposals.map((t) => (
-                  <ProposalCard key={t.id} title={t} keywordGroups={keywordGroups} token={token} onUpdate={handleUpdate} onRemove={handleRemove} />
-                ))}
-              </div>
-            )}
-
-            {/* Secondary section — shows the folder selected at bottom-left, never replaces proposals */}
-            {activeFolder !== "proposals" && (
-              <div className="mt-10">
-                {/* Divider with label */}
-                <div className="flex items-center gap-4 mb-5">
-                  <div className="flex-1 h-px bg-slate-200" />
-                  <span className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide px-1">
-                    {{
-                      queued: "Queued",
-                      inprogress: "In Progress",
-                      published: "Published",
-                    }[activeFolder]}
-                  </span>
-                  <div className="flex-1 h-px bg-slate-200" />
-                </div>
-
-                {({ queued, inprogress: inProgress, published }[activeFolder] ?? []).length === 0 ? (
-                  <p className="text-[13px] text-slate-400 text-center py-8">Nothing here yet.</p>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    {({ queued, inprogress: inProgress, published }[activeFolder] ?? []).map((t) => (
-                      <PipelineItem key={t.id} title={t} folder={activeFolder} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {proposals.map((t) => (
+                <ProposalCard key={t.id} title={t} keywordGroups={keywordGroups} token={token} onUpdate={handleUpdate} onRemove={handleRemove} />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>
