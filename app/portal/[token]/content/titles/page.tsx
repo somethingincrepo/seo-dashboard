@@ -313,7 +313,7 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
         <textarea
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
-          placeholder="Describe what this article should cover — the more specific the better. e.g. a post explaining financing options for first-time LASIK patients who are worried about upfront cost."
+          placeholder="Describe what this article should cover — the more specific, the better. e.g. a post targeting first-time buyers who have questions about pricing or a common objection your team hears frequently."
           rows={6}
           className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
         />

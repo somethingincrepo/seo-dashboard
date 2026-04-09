@@ -19,9 +19,10 @@ export async function POST(request: NextRequest) {
     suggestion?: string;
     keyword?: string;
     group?: string;
+    search_intent?: string;
   };
 
-  const { current_title, suggestion, keyword, group } = body;
+  const { current_title, suggestion, keyword, group, search_intent } = body;
   if (!suggestion?.trim()) return NextResponse.json({ error: "suggestion required" }, { status: 400 });
 
   const companyName = portalClient.fields.company_name;
@@ -64,6 +65,7 @@ Restricted language (NEVER use): ${restrictedLanguage || "(none specified)"}
 CURRENT TITLE: ${current_title || "(none)"}
 TARGET KEYWORD: ${keyword || "(not specified)"}
 KEYWORD GROUP / TOPIC PILLAR: ${group || "(not specified)"}
+SEARCH INTENT: ${search_intent || "(not specified)"}
 
 CLIENT DIRECTION / SUGGESTION: ${suggestion}
 
@@ -73,6 +75,9 @@ Rules:
 - Matches the ${tone || "professional"} tone
 - Does NOT violate restricted language
 - Does NOT use: "Complete Guide", "Everything You Need to Know", "Ultimate Guide", "Why X Matters"
+- If search intent is "informational", write a title that educates or answers a question
+- If search intent is "commercial", write a title that helps someone compare or evaluate options
+- If search intent is "transactional", write a title that drives action or a decision
 - If the direction and keyword don't perfectly align, lean toward the direction and use the keyword as context only
 
 Output ONLY the title text. No quotes, no markdown, no explanation, no commentary.`;
