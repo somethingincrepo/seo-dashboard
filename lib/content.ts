@@ -1,3 +1,5 @@
+import { contentAirtableFetch } from "./airtable";
+
 const BASE_URL = "https://api.airtable.com/v0";
 
 function getContentHeaders() {
@@ -109,16 +111,16 @@ export type ContentResult = {
 
 /**
  * Fetch all Content Jobs for a client.
+ * Uses contentAirtableFetch (same code path as the working /api/portal/titles GET endpoint).
  */
 export async function getContentJobsForClient(companyName: string): Promise<ContentJob[]> {
   if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) {
     return [];
   }
-  // Use FIND+ARRAYJOIN — {Client Name (from Client ID)} is a lookup array field,
-  // exact-match with LOWER() doesn't work reliably on array fields
   const escaped = companyName.replace(/"/g, '\\"');
+  // Same filter the titles GET endpoint uses — confirmed working
   const filter = `FIND("${escaped}", ARRAYJOIN({Client Name (from Client ID)}, ","))`;
-  return contentFetch<ContentJob>("Content Jobs", { filterByFormula: filter, sort: "{Created At} DESC" });
+  return contentAirtableFetch<ContentJob>("Content Jobs", { filterByFormula: filter });
 }
 
 /**

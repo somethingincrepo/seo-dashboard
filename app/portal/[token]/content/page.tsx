@@ -3,7 +3,7 @@ import { getClientByToken } from "@/lib/clients";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { ContentKanban } from "@/components/portal/ContentKanban";
 
-export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 export default async function ContentPage({
   params,

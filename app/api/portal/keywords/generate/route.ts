@@ -11,7 +11,7 @@ const anthropic = new Anthropic();
 type GeneratedGroup = {
   group: string;
   description: string;
-  subkeywords: { keyword: string; volume: number; difficulty: number; intent: string }[];
+  subkeywords: { keyword: string; volume: number; difficulty: number; intent: string; priority: string }[];
 };
 
 function inferIntent(keyword: string): string {
@@ -72,16 +72,16 @@ export async function POST(request: NextRequest) {
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-  const body = await request.json() as { suggestion?: string; save?: boolean; groups?: GeneratedGroup[] };
-  const { suggestion, save, groups: groupsToSave } = body;
+  const body = await request.json() as { suggestion?: string; save?: boolean; group?: GeneratedGroup };
+  const { suggestion, save, group: groupToSave } = body;
 
   // ── SAVE path — called after user approves the preview ────────────────────
-  if (save && groupsToSave) {
+  if (save && groupToSave) {
     const existing: GeneratedGroup[] = (() => {
       try { return client.fields.custom_keyword_groups ? JSON.parse(client.fields.custom_keyword_groups) : []; }
       catch { return []; }
     })();
-    const merged = [...existing, ...groupsToSave];
+    const merged = [...existing, groupToSave];
     await airtablePatch("Clients", client.id, { custom_keyword_groups: JSON.stringify(merged) });
     return NextResponse.json({ ok: true });
   }
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
   } catch { /* non-fatal */ }
 
-  const prompt = `You are an SEO keyword strategist. Generate keyword groups for a specific client's content strategy.
+  const prompt = `You are an SEO keyword strategist. Generate exactly ONE keyword group for a specific client's content strategy.
 
 CLIENT: ${companyName}
 WEBSITE: ${siteUrl}
@@ -129,24 +129,26 @@ EXISTING GROUPS (do NOT duplicate): ${existingGroupNames || "none"}
 
 CLIENT DIRECTION: ${suggestion}
 
-Generate 3–5 keyword groups. Each group should:
-- Target a distinct topic pillar with enough depth for 3–5 articles
+Generate exactly ONE keyword group with exactly 5 subkeywords. The group should:
+- Target a distinct topic pillar not already covered in existing groups
 - Have a descriptive name (topic phrase, not a single keyword)
-- Include 2–3 specific subkeywords per group
+- Include exactly 5 specific subkeywords ranked by opportunity (volume × inverse difficulty)
 - Mix intents: informational + commercial or transactional
 
 For each subkeyword, infer search intent: "informational", "commercial", or "transactional"
 
-Respond with ONLY valid JSON, no markdown, no explanation:
-[
-  {
-    "group": "Group Name",
-    "description": "One sentence describing this topic pillar and who it targets",
-    "subkeywords": [
-      { "keyword": "exact keyword phrase", "intent": "informational" }
-    ]
-  }
-]`;
+Respond with ONLY a valid JSON object (not an array), no markdown, no explanation:
+{
+  "group": "Group Name",
+  "description": "One sentence describing this topic pillar and who it targets",
+  "subkeywords": [
+    { "keyword": "exact keyword phrase", "intent": "informational" },
+    { "keyword": "exact keyword phrase", "intent": "commercial" },
+    { "keyword": "exact keyword phrase", "intent": "informational" },
+    { "keyword": "exact keyword phrase", "intent": "informational" },
+    { "keyword": "exact keyword phrase", "intent": "commercial" }
+  ]
+}`;
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
@@ -156,38 +158,41 @@ Respond with ONLY valid JSON, no markdown, no explanation:
 
   const raw = (message.content[0] as { type: string; text: string }).text?.trim() ?? "";
 
-  let groups: GeneratedGroup[];
+  let group: GeneratedGroup;
   try {
     const cleaned = raw.replace(/^```json?\s*/i, "").replace(/```\s*$/i, "").trim();
-    groups = JSON.parse(cleaned) as GeneratedGroup[];
-    if (!Array.isArray(groups)) throw new Error("not array");
+    const parsed = JSON.parse(cleaned) as GeneratedGroup | GeneratedGroup[];
+    // Accept either a single object or an array (take first element)
+    group = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (!group?.group || !Array.isArray(group.subkeywords)) throw new Error("invalid shape");
+    // Ensure exactly 5 subkeywords
+    group.subkeywords = group.subkeywords.slice(0, 5);
   } catch {
     return NextResponse.json({ error: "Failed to parse AI response", raw }, { status: 500 });
   }
 
-  // Enrich all subkeywords in parallel if DataForSEO is configured
+  // Enrich all 5 subkeywords in parallel if DataForSEO is configured
   const login = process.env.DATAFORSEO_LOGIN;
   const password = process.env.DATAFORSEO_PASSWORD;
 
   if (login && password) {
     const auth = Buffer.from(`${login}:${password}`).toString("base64");
     await Promise.all(
-      groups.flatMap((g) =>
-        g.subkeywords.map(async (sk) => {
-          const enriched = await enrichKeyword(sk.keyword, auth);
-          sk.volume = enriched.volume;
-          sk.difficulty = enriched.difficulty;
-          sk.intent = enriched.intent || sk.intent;
-        })
-      )
+      group.subkeywords.map(async (sk) => {
+        const enriched = await enrichKeyword(sk.keyword, auth);
+        sk.volume = enriched.volume;
+        sk.difficulty = enriched.difficulty;
+        sk.intent = enriched.intent || sk.intent;
+      })
     );
   } else {
-    // No DataForSEO — fill defaults
-    groups.forEach((g) => g.subkeywords.forEach((sk) => {
-      sk.volume = 0;
-      sk.difficulty = 0;
-    }));
+    group.subkeywords.forEach((sk) => { sk.volume = 0; sk.difficulty = 0; });
   }
 
-  return NextResponse.json({ groups });
+  // Assign priority: rank 1 → high, ranks 2–3 → medium, ranks 4–5 → low
+  group.subkeywords.forEach((sk, i) => {
+    sk.priority = i === 0 ? "high" : i < 3 ? "medium" : "low";
+  });
+
+  return NextResponse.json({ group });
 }

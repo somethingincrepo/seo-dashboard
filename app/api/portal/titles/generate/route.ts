@@ -50,9 +50,7 @@ export async function POST(request: NextRequest) {
     }
   } catch { /* non-fatal — continue without profile */ }
 
-  const prompt = `You are an SEO content strategist writing blog titles for a specific client. You must write a title that is unmistakably about THIS client and their specific business — not a generic title that any company could use.
-
-CLIENT: ${companyName}
+  const prompt = `CLIENT: ${companyName}
 WEBSITE: ${siteUrl}
 INDUSTRY TONE: ${tone || "professional"}
 TARGET AUDIENCE: ${audience || "their customers"}
@@ -69,29 +67,29 @@ KEYWORD GROUP / TOPIC PILLAR: ${group || "(not specified)"}
 
 CLIENT DIRECTION / SUGGESTION: ${suggestion}
 
-YOUR TASK:
-Generate ONE improved blog post title that:
-1. Directly incorporates the client's direction above
-2. Targets the keyword "${keyword || "the topic"}" naturally
-3. Reflects ${companyName}'s specific brand voice and differentiators — not generic advice
-4. Is 8–15 words
-5. Is specific and concrete — a reader should immediately know what they'll learn
-6. Matches the ${tone || "professional"} tone
-7. Does NOT violate any restricted language rules
-8. Does NOT use: "Complete Guide", "Everything You Need to Know", "Ultimate Guide", "Why X Matters"
+Rules:
+- 8–15 words
+- Specific and concrete
+- Matches the ${tone || "professional"} tone
+- Does NOT violate restricted language
+- Does NOT use: "Complete Guide", "Everything You Need to Know", "Ultimate Guide", "Why X Matters"
+- If the direction and keyword don't perfectly align, lean toward the direction and use the keyword as context only
 
-Output ONLY the title text. No quotes, no markdown, no explanation.`;
+Output ONLY the title text. No quotes, no markdown, no explanation, no commentary.`;
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 120,
+    system: "You are a blog title writer. You ALWAYS output exactly one blog post title and nothing else — no explanations, no refusals, no commentary, no punctuation other than what belongs in the title itself. If inputs seem mismatched, do your best with what you have and write a title anyway.",
     messages: [{ role: "user", content: prompt }],
   });
 
-  const generated = (message.content[0] as { type: string; text: string }).text
-    ?.trim()
-    .replace(/^["']|["']$/g, "") // strip any quotes the model adds
-    ?? "";
+  const raw = (message.content[0] as { type: string; text: string }).text?.trim() ?? "";
+  // Take only the first line in case the model outputs multiple lines
+  const generated = raw
+    .split("\n")[0]
+    .trim()
+    .replace(/^["']|["']$/g, "");
 
   return NextResponse.json({ title: generated });
 }
