@@ -196,3 +196,19 @@ export async function approveContentResult(recordId: string, action: "approved" 
     throw new Error(err.error || "Failed to update result");
   }
 }
+
+/**
+ * Revert an approved title back to "titled" (proposed).
+ * Only safe while Status is still "Queued" — not after n8n has set it to "In Progress".
+ */
+export async function revertContentJob(recordId: string) {
+  const res = await fetch("/api/content-approval", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recordId, action: "revert", type: "job" }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to revert job");
+  }
+}

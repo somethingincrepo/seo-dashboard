@@ -12,14 +12,26 @@ const CONTENT_BASE_ID = process.env.CONTENT_AIRTABLE_BASE_ID;
 const JOBS_TABLE = "Content Jobs";
 const RESULTS_TABLE = "Results";
 
-/** Approve or skip a content title */
+/** Approve, skip, or revert a content title */
 async function handleJobTitle(recordId: string, action: string) {
-  const fields: Record<string, unknown> = { title_status: action };
-  if (action === "approved") {
-    fields.approved_at = new Date().toISOString();
-    // Setting Status to "Queued" triggers the n8n content generation workflow
-    fields.Status = "Queued";
+  let fields: Record<string, unknown>;
+
+  if (action === "revert") {
+    // Move back to "titled" — only safe while Status is still "Queued" (not yet In Progress)
+    fields = {
+      title_status: "titled",
+      Status: null,       // clear the "Queued" select value
+      approved_at: null,
+    };
+  } else {
+    fields = { title_status: action };
+    if (action === "approved") {
+      fields.approved_at = new Date().toISOString();
+      // Setting Status to "Queued" triggers the n8n content generation workflow
+      fields.Status = "Queued";
+    }
   }
+
   const res = await fetch(`${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(JOBS_TABLE)}/${recordId}`, {
     method: "PATCH",
     headers: getContentHeaders(),
@@ -63,7 +75,7 @@ export async function POST(request: NextRequest) {
     if (!recordId || !action) {
       return NextResponse.json({ error: "Missing recordId or action" }, { status: 400 });
     }
-    if (!["approved", "skipped", "needs_revision"].includes(action)) {
+    if (!["approved", "skipped", "needs_revision", "revert"].includes(action)) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
     if (!CONTENT_BASE_ID) {

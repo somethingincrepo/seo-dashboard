@@ -22,11 +22,11 @@ export default async function ContentPage({
   ]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)]">
-      <div className="mb-5">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Content</h1>
+    <div className="-mx-10 flex flex-col min-h-[calc(100vh-5rem)]">
+      <div className="px-10 mb-6">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Content Pipeline</h1>
         <p className="text-base text-slate-500 mt-1">
-          Title proposals and generated articles
+          Track every piece of content from title approval through publication
         </p>
       </div>
 

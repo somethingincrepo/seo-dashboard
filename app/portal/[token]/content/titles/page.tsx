@@ -335,7 +335,7 @@ function AddTitlePanel({
   const groupObj = keywordGroups.find((g) => g.group === group);
   const subkeywords = groupObj?.subkeywords ?? [];
 
-  const canGenerate = idea.trim().length > 0 && !!group && !!keyword;
+  const canGenerate = idea.trim().length > 0 && !!group;
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -428,7 +428,7 @@ function AddTitlePanel({
         </button>
         {!canGenerate && (
           <p className="text-[11px] text-slate-400 text-center -mt-1">
-            {!idea.trim() ? "Add a description" : !group ? "Select a keyword group" : "Select a target keyword"}
+            {!idea.trim() ? "Add a description" : "Select a keyword group"}
           </p>
         )}
 

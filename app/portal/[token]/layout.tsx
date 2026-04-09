@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals } from "@/lib/changes";
-import { getContentResultsForClient } from "@/lib/content";
+import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
 
 export const revalidate = 0;
@@ -21,9 +21,10 @@ export default async function PortalLayout({
   const recordId = client.id;
   const companyName = client.fields.company_name || "";
 
-  const [pending, contentResults] = await Promise.all([
+  const [pending, contentResults, contentJobs] = await Promise.all([
     getPendingApprovals(clientId, recordId),
     getContentResultsForClient(companyName).catch(() => []),
+    getContentJobsForClient(companyName).catch(() => []),
   ]);
 
   const categoryBreakdown: Record<string, number> = {};
@@ -36,12 +37,17 @@ export default async function PortalLayout({
     (r) => !r.fields.portal_approval
   ).length;
 
+  const titleProposalCount = contentJobs.filter(
+    (j) => j.fields.title_status === "titled"
+  ).length;
+
   return (
     <PortalSidebar
       companyName={companyName || "Your Portal"}
       token={token}
       pendingCount={pending.length}
       contentReviewCount={contentReviewCount}
+      titleProposalCount={titleProposalCount}
       categoryBreakdown={categoryBreakdown}
     >
       {children}

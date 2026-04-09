@@ -9,6 +9,7 @@ interface PortalSidebarProps {
   token: string;
   pendingCount: number;
   contentReviewCount: number;
+  titleProposalCount: number;
   categoryBreakdown: Record<string, number>;
 }
 
@@ -75,6 +76,7 @@ export function PortalSidebar({
   token,
   pendingCount,
   contentReviewCount,
+  titleProposalCount,
   categoryBreakdown,
 }: PortalSidebarProps) {
   const pathname = usePathname();
@@ -168,11 +170,11 @@ export function PortalSidebar({
                 {item.suffix === "/content" && contentExpanded && (
                   <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
                     {[
-                      { label: "Pipeline", href: `${base}/content` },
-                      { label: "Title Proposals", href: `${base}/content/titles` },
-                      { label: "Keywords", href: `${base}/content/keywords` },
-                      { label: "Content Profile", href: `${base}/content/profile` },
-                    ].map(({ label, href }) => {
+                      { label: "Pipeline", href: `${base}/content`, badge: 0 },
+                      { label: "Title Proposals", href: `${base}/content/titles`, badge: titleProposalCount },
+                      { label: "Keywords", href: `${base}/content/keywords`, badge: 0 },
+                      { label: "Content Profile", href: `${base}/content/profile`, badge: 0 },
+                    ].map(({ label, href, badge }) => {
                       const subActive = label === "Pipeline"
                         ? pathname === `${base}/content`
                         : pathname.startsWith(href);
@@ -181,13 +183,18 @@ export function PortalSidebar({
                           key={label}
                           href={href}
                           className={cn(
-                            "flex items-center px-2 py-1 rounded text-[12px] transition-colors",
+                            "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
                             subActive
                               ? "text-slate-900 font-medium bg-slate-50"
                               : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                           )}
                         >
-                          {label}
+                          <span>{label}</span>
+                          {badge > 0 && (
+                            <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
+                              {badge}
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
