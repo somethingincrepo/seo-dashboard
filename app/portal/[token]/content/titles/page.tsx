@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 
 type Title = {
   id: string;
@@ -475,6 +474,7 @@ function AddTitlePanel({
 
 export default function TitlesPage() {
   const params = useParams();
+  const router = useRouter();
   const token = params.token as string;
 
   const [titles, setTitles] = useState<Title[]>([]);
@@ -590,12 +590,12 @@ export default function TitlesPage() {
               <h2 className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide">
                 Approved — {approved.length}
               </h2>
-              <Link
-                href={`/portal/${token}/content`}
+              <button
+                onClick={() => { router.refresh(); router.push(`/portal/${token}/content`); }}
                 className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
               >
                 View in Pipeline →
-              </Link>
+              </button>
             </div>
             <div className="flex flex-col gap-3">
               {approvedGroups.flatMap(({ items }) =>

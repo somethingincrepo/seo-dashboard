@@ -114,7 +114,10 @@ export async function getContentJobsForClient(companyName: string): Promise<Cont
   if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) {
     return [];
   }
-  const filter = `LOWER({Client Name (from Client ID)})='${companyName.toLowerCase().replace(/'/g, "\\'")}'`;
+  // Use FIND+ARRAYJOIN — {Client Name (from Client ID)} is a lookup array field,
+  // exact-match with LOWER() doesn't work reliably on array fields
+  const escaped = companyName.replace(/"/g, '\\"');
+  const filter = `FIND("${escaped}", ARRAYJOIN({Client Name (from Client ID)}, ","))`;
   return contentFetch<ContentJob>("Content Jobs", { filterByFormula: filter, sort: "{Created At} DESC" });
 }
 
