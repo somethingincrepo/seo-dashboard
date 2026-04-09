@@ -207,37 +207,9 @@ function TitleCard({
               <p className="text-[15px] font-semibold text-slate-900 leading-snug">{editTitle}</p>
             )}
 
-            {/* Keyword + intent row */}
+            {/* Keyword + intent row — read-only display */}
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              {!isApproved ? (
-                <div className="flex items-center gap-1">
-                  {subkeywords.length > 0 ? (
-                    <select
-                      value={editKeyword}
-                      onChange={(e) => { setEditKeyword(e.target.value); void save({ target_keyword: e.target.value }); }}
-                      className="text-[12px] text-slate-600 border-0 bg-transparent p-0 pr-4 focus:outline-none focus:ring-0 cursor-pointer"
-                    >
-                      <option value="">Select keyword…</option>
-                      {subkeywords.map((sk) => (
-                        <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
-                      ))}
-                      <option value={editKeyword !== "" && !subkeywords.find(sk => sk.keyword === editKeyword) ? editKeyword : "__custom__"}>
-                        {editKeyword !== "" && !subkeywords.find(sk => sk.keyword === editKeyword) ? editKeyword : "Custom keyword…"}
-                      </option>
-                    </select>
-                  ) : (
-                    <input
-                      value={editKeyword}
-                      onChange={(e) => setEditKeyword(e.target.value)}
-                      onBlur={() => void save()}
-                      placeholder="Target keyword"
-                      className="text-[12px] text-slate-600 border-0 bg-transparent p-0 focus:outline-none focus:ring-0 w-40"
-                    />
-                  )}
-                </div>
-              ) : (
-                editKeyword && <span className="text-[12px] font-medium text-slate-600">{editKeyword}</span>
-              )}
+              {editKeyword && <span className="text-[12px] font-medium text-slate-500">{editKeyword}</span>}
               <IntentBadge intent={title.search_intent} />
             </div>
           </div>
@@ -260,22 +232,6 @@ function TitleCard({
           </p>
         )}
 
-        {/* Group selector (below main content) */}
-        {!isApproved && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-[11px] text-slate-400">Group:</span>
-            <select
-              value={editGroup}
-              onChange={(e) => { setEditGroup(e.target.value); setEditKeyword(""); void save({ keyword_group: e.target.value, target_keyword: "" }); }}
-              className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300"
-            >
-              <option value="">No group</option>
-              {keywordGroups.map((g) => (
-                <option key={g.group} value={g.group}>{g.group}</option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* Suggestion / actions bar */}
@@ -298,16 +254,42 @@ function TitleCard({
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <textarea
                 autoFocus
                 value={suggestion}
                 onChange={(e) => setSuggestion(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleGenerate(); } }}
-                placeholder="e.g. make it more conversational, focus on cost, target new parents…"
+                placeholder="e.g. make it more reassuring, focus on recovery time, target anxious first-time patients…"
                 rows={2}
                 className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
               />
+              {/* Group / keyword selectors — only shown here, in the regenerate panel */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] text-slate-400">Regenerate for:</span>
+                <select
+                  value={editGroup}
+                  onChange={(e) => { setEditGroup(e.target.value); setEditKeyword(""); }}
+                  className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300"
+                >
+                  <option value="">Same group</option>
+                  {keywordGroups.map((g) => (
+                    <option key={g.group} value={g.group}>{g.group}</option>
+                  ))}
+                </select>
+                {subkeywords.length > 0 && (
+                  <select
+                    value={editKeyword}
+                    onChange={(e) => setEditKeyword(e.target.value)}
+                    className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  >
+                    <option value="">Same keyword</option>
+                    {subkeywords.map((sk) => (
+                      <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => { setExpanded(false); setSuggestion(""); }} className="text-[12px] text-slate-400 hover:text-slate-600">
                   Cancel
@@ -330,7 +312,7 @@ function TitleCard({
 }
 
 // ---------------------------------------------------------------------------
-// Add Custom Title Panel
+// Add / Generate Title Panel
 // ---------------------------------------------------------------------------
 
 function AddTitlePanel({
@@ -342,88 +324,140 @@ function AddTitlePanel({
   token: string;
   onAdded: (t: Title) => void;
 }) {
-  const [title, setTitle] = useState("");
+  const [idea, setIdea] = useState("");
   const [group, setGroup] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [generated, setGenerated] = useState("");
+  const [generating, setBusyGen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const groupObj = keywordGroups.find((g) => g.group === group);
   const subkeywords = groupObj?.subkeywords ?? [];
 
-  const handleSubmit = async () => {
-    if (!title.trim()) return;
-    setBusy(true);
+  const handleGenerate = async () => {
+    if (!idea.trim() && !group && !keyword) return;
+    setBusyGen(true);
+    setGenerated("");
+    try {
+      const res = await fetch(`/api/portal/titles/generate?token=${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ suggestion: idea || `Write a title about ${keyword || group}`, keyword, group }),
+      });
+      const data = await res.json() as { title?: string };
+      if (data.title) setGenerated(data.title);
+    } finally {
+      setBusyGen(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    const finalTitle = generated || idea;
+    if (!finalTitle.trim()) return;
+    setAdding(true);
     const res = await fetch(`/api/portal/titles?token=${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, target_keyword: keyword, keyword_group: group }),
+      body: JSON.stringify({ title: finalTitle, target_keyword: keyword, keyword_group: group }),
     });
     const data = await res.json() as { title?: Title };
     if (data.title) {
       onAdded(data.title);
-      setTitle("");
+      setIdea("");
+      setGenerated("");
       setGroup("");
       setKeyword("");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
     }
-    setBusy(false);
+    setAdding(false);
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3">
-      <h3 className="text-[13px] font-semibold text-slate-800">Add a title</h3>
-      <p className="text-[11px] text-slate-400 -mt-2">Suggest your own blog title for review.</p>
-
-      <textarea
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Your blog title idea…"
-        rows={3}
-        className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
-      />
-
-      <select
-        value={group}
-        onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
-        className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300"
-      >
-        <option value="">Select keyword group…</option>
-        {keywordGroups.map((g) => (
-          <option key={g.group} value={g.group}>{g.group}</option>
-        ))}
-      </select>
-
-      {subkeywords.length > 0 && (
-        <select
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300"
-        >
-          <option value="">Select keyword…</option>
-          {subkeywords.map((sk) => (
-            <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
-          ))}
-        </select>
-      )}
-
-      {!subkeywords.length && group === "" && (
-        <input
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          placeholder="Target keyword (optional)"
-          className="text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300 placeholder-slate-300"
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-4 pt-4 pb-2 border-b border-slate-100">
+        <h3 className="text-[13px] font-semibold text-slate-800">Request a title</h3>
+        <p className="text-[11px] text-slate-400 mt-0.5">Describe an idea or topic — we&apos;ll generate a proper title.</p>
+      </div>
+      <div className="p-4 flex flex-col gap-3">
+        {/* Idea input */}
+        <textarea
+          value={idea}
+          onChange={(e) => setIdea(e.target.value)}
+          placeholder="e.g. make one about braces for teens, or comparing implants vs dentures…"
+          rows={3}
+          className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
         />
-      )}
 
-      <button
-        onClick={() => void handleSubmit()}
-        disabled={!title.trim() || busy}
-        className="w-full py-2 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
-      >
-        {busy ? "Adding…" : success ? "Added!" : "Add title"}
-      </button>
+        {/* Group + keyword */}
+        <div className="flex flex-col gap-2">
+          <select
+            value={group}
+            onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
+            className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300 appearance-none"
+          >
+            <option value="">Keyword group (optional)</option>
+            {keywordGroups.map((g) => (
+              <option key={g.group} value={g.group}>{g.group}</option>
+            ))}
+          </select>
+          {subkeywords.length > 0 && (
+            <select
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300 appearance-none"
+            >
+              <option value="">Target keyword (optional)</option>
+              {subkeywords.map((sk) => (
+                <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Generate button */}
+        <button
+          onClick={() => void handleGenerate()}
+          disabled={(!idea.trim() && !group && !keyword) || generating}
+          className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors"
+        >
+          {generating ? "Generating…" : "Generate title"}
+        </button>
+
+        {/* Generated preview + edit */}
+        {generated && (
+          <div className="flex flex-col gap-2">
+            <div className="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Generated</p>
+              <textarea
+                value={generated}
+                onChange={(e) => setGenerated(e.target.value)}
+                rows={2}
+                className="w-full text-[13px] font-medium text-slate-800 bg-transparent resize-none focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={() => void handleAdd()}
+              disabled={adding || !generated.trim()}
+              className="w-full py-2 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+            >
+              {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
+            </button>
+          </div>
+        )}
+
+        {/* Direct add if no generation yet */}
+        {!generated && idea.trim().length > 15 && (
+          <button
+            onClick={() => void handleAdd()}
+            disabled={adding}
+            className="w-full py-1.5 rounded-lg text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            Add as-is without generating
+          </button>
+        )}
+      </div>
     </div>
   );
 }
