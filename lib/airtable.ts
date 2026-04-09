@@ -154,6 +154,24 @@ export async function contentAirtableFetch<T>(
   return records;
 }
 
+export async function contentAirtableCreate(
+  tableId: string,
+  fields: Record<string, unknown>
+): Promise<{ id: string }> {
+  const baseId = process.env.CONTENT_AIRTABLE_BASE_ID;
+  const res = await fetch(`${BASE_URL}/${baseId}/${tableId}`, {
+    method: "POST",
+    headers: getContentHeaders(),
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Content Airtable create error ${res.status}: ${err}`);
+  }
+  const data = await res.json();
+  return { id: data.id };
+}
+
 export async function contentAirtablePatch(
   tableId: string,
   recordId: string,

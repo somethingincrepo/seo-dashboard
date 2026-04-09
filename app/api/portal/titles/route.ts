@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
-import { contentAirtableFetch, contentAirtablePatch } from "@/lib/airtable";
+import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate } from "@/lib/airtable";
 
 const CONTENT_JOBS_TABLE = "Content Jobs";
 const CONTENT_CLIENTS_TABLE = "Clients";
 
 export const dynamic = "force-dynamic";
 
+async function getContentClientId(companyName: string): Promise<string | null> {
+  const records = await contentAirtableFetch<{ id: string }>(
+    CONTENT_CLIENTS_TABLE,
+    { filterByFormula: `{Client Name}="${companyName}"` }
+  );
+  return records[0]?.id ?? null;
+}
+
 // ---------------------------------------------------------------------------
-// GET — fetch pending titles for this portal client
+// GET — fetch titles + keyword_groups for this portal client
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -19,20 +27,16 @@ export async function GET(request: NextRequest) {
 
   const companyName = client.fields.company_name;
 
-  // Find the content base client record
-  const contentClients = await contentAirtableFetch<{ id: string; fields: { "Client Name": string } }>(
-    CONTENT_CLIENTS_TABLE,
-    { filterByFormula: `{Client Name}="${companyName}"` }
-  );
+  // Parse keyword groups for dropdowns
+  let keywordGroups: { group: string; subkeywords: { keyword: string }[] }[] = [];
+  try {
+    const ai = client.fields.keyword_groups ? JSON.parse(client.fields.keyword_groups) : [];
+    const custom = client.fields.custom_keyword_groups ? JSON.parse(client.fields.custom_keyword_groups) : [];
+    keywordGroups = [...ai, ...custom];
+  } catch { /* ignore */ }
 
-  if (!contentClients.length) {
-    return NextResponse.json({ titles: [] });
-  }
+  if (!companyName) return NextResponse.json({ titles: [], keyword_groups: keywordGroups });
 
-  const contentClientId = contentClients[0].id;
-
-  // Fetch titled (pending approval) and approved jobs for this client.
-  // Use the lookup field "Client Name (from Client ID)" — more reliable than ARRAYJOIN on linked fields.
   const jobs = await contentAirtableFetch<{
     id: string;
     fields: {
@@ -52,7 +56,7 @@ export async function GET(request: NextRequest) {
       OR({title_status}="titled", {title_status}="approved")
     )`,
     sort: [{ field: "proposed_at", direction: "desc" }],
-    maxRecords: 50,
+    maxRecords: 100,
   });
 
   const titles = jobs.map((j) => ({
@@ -68,11 +72,70 @@ export async function GET(request: NextRequest) {
     approved_at: j.fields.approved_at ?? null,
   }));
 
-  return NextResponse.json({ titles });
+  return NextResponse.json({ titles, keyword_groups: keywordGroups });
 }
 
 // ---------------------------------------------------------------------------
-// PATCH — approve (with optional title edit)
+// POST — create a custom title
+// ---------------------------------------------------------------------------
+export async function POST(request: NextRequest) {
+  const token = request.nextUrl.searchParams.get("token");
+  if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
+
+  const client = await getClientByToken(token);
+  if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+
+  const body = await request.json() as {
+    title?: string;
+    target_keyword?: string;
+    keyword_group?: string;
+    search_intent?: string;
+  };
+
+  const { title, target_keyword, keyword_group, search_intent } = body;
+  if (!title?.trim()) return NextResponse.json({ error: "title required" }, { status: 400 });
+
+  const companyName = client.fields.company_name;
+  let contentClientId = await getContentClientId(companyName);
+
+  // Auto-create content client record if missing
+  if (!contentClientId) {
+    const created = await contentAirtableCreate(CONTENT_CLIENTS_TABLE, { "Client Name": companyName });
+    contentClientId = created.id;
+  }
+
+  const fields: Record<string, unknown> = {
+    "Blog Title": title.trim(),
+    "Client ID": [contentClientId],
+    title_status: "titled",
+    proposed_at: new Date().toISOString(),
+  };
+  if (target_keyword) fields.target_keyword = target_keyword;
+  if (keyword_group) fields.keyword_group = keyword_group;
+  if (search_intent) fields["Search intent"] = search_intent;
+
+  const created = await contentAirtableCreate(CONTENT_JOBS_TABLE, fields);
+
+  return NextResponse.json({
+    ok: true,
+    id: created.id,
+    title: {
+      id: created.id,
+      title: title.trim(),
+      title_status: "titled",
+      target_keyword: target_keyword ?? "",
+      keyword_group: keyword_group ?? "",
+      search_intent: search_intent ?? "",
+      content_angle: "",
+      quality_score: null,
+      proposed_at: new Date().toISOString(),
+      approved_at: null,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// PATCH — approve (with optional title/keyword/group edits)
 // ---------------------------------------------------------------------------
 export async function PATCH(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -81,20 +144,28 @@ export async function PATCH(request: NextRequest) {
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-  const body = await request.json() as { record_id?: string; title?: string };
-  const { record_id, title } = body;
+  const body = await request.json() as {
+    record_id?: string;
+    title?: string;
+    target_keyword?: string;
+    keyword_group?: string;
+    action?: "approve" | "save";
+  };
+  const { record_id, title, target_keyword, keyword_group, action = "approve" } = body;
 
   if (!record_id) return NextResponse.json({ error: "record_id required" }, { status: 400 });
 
-  const fields: Record<string, unknown> = {
-    title_status: "approved",
-    approved_at: new Date().toISOString(),
-    Status: "Queued", // triggers n8n content pipeline
-  };
+  const fields: Record<string, unknown> = {};
 
-  if (title && title.trim()) {
-    fields["Blog Title"] = title.trim();
+  if (action === "approve") {
+    fields.title_status = "approved";
+    fields.approved_at = new Date().toISOString();
+    fields.Status = "Queued";
   }
+
+  if (title?.trim()) fields["Blog Title"] = title.trim();
+  if (target_keyword !== undefined) fields.target_keyword = target_keyword;
+  if (keyword_group !== undefined) fields.keyword_group = keyword_group;
 
   await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, fields);
 

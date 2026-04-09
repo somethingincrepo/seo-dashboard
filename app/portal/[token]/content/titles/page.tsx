@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 
 type Title = {
@@ -16,150 +16,428 @@ type Title = {
   approved_at: string | null;
 };
 
+type KeywordGroup = {
+  group: string;
+  subkeywords: { keyword: string; intent?: string }[];
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatMonth(iso: string | null): string {
+  if (!iso) return "Unknown date";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function groupByMonth(titles: Title[]): { label: string; items: Title[] }[] {
+  const map = new Map<string, Title[]>();
+  for (const t of titles) {
+    const label = formatMonth(t.proposed_at);
+    if (!map.has(label)) map.set(label, []);
+    map.get(label)!.push(t);
+  }
+  return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
+}
+
+const INTENT_STYLES: Record<string, string> = {
+  informational: "bg-blue-50 text-blue-700",
+  commercial: "bg-amber-50 text-amber-700",
+  transactional: "bg-green-50 text-green-700",
+};
+
 function IntentBadge({ intent }: { intent: string }) {
-  const map: Record<string, string> = {
-    informational: "bg-blue-50 text-blue-700",
-    commercial: "bg-amber-50 text-amber-700",
-    transactional: "bg-green-50 text-green-700",
-  };
+  if (!intent) return null;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${map[intent] ?? "bg-slate-100 text-slate-600"}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${INTENT_STYLES[intent] ?? "bg-slate-100 text-slate-600"}`}>
       {intent}
     </span>
   );
 }
 
-function QualityDots({ score }: { score: number | null }) {
+function QualityScore({ score }: { score: number | null }) {
+  const [hovered, setHovered] = useState(false);
   if (!score) return null;
-  return (
-    <span className="inline-flex gap-0.5 items-center">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <span
-          key={i}
-          className={`w-1.5 h-1.5 rounded-full ${i <= score ? "bg-slate-700" : "bg-slate-200"}`}
-        />
-      ))}
-    </span>
-  );
-}
 
-function TitleCard({
-  title,
-  onApprove,
-  onSkip,
-}: {
-  title: Title;
-  onApprove: (id: string, editedTitle: string) => Promise<void>;
-  onSkip: (id: string) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(title.title);
-  const [busy, setBusy] = useState(false);
-
-  const handleApprove = async () => {
-    setBusy(true);
-    await onApprove(title.id, editedTitle);
-    setBusy(false);
-  };
-
-  const handleSkip = async () => {
-    setBusy(true);
-    await onSkip(title.id);
-    setBusy(false);
-  };
-
-  const isApproved = title.title_status === "approved";
+  const labels = ["Poor", "Below average", "Acceptable", "Good", "Excellent"];
+  const label = labels[(score - 1)] ?? "";
 
   return (
-    <div className={`bg-white rounded-xl border p-5 flex flex-col gap-3 ${isApproved ? "border-green-200 opacity-70" : "border-slate-200"}`}>
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wide mb-1">
-            {title.keyword_group}
-          </div>
-          {editing && !isApproved ? (
-            <textarea
-              className="w-full text-base font-semibold text-slate-900 border border-slate-300 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400"
-              rows={2}
-              value={editedTitle}
-              onChange={(e) => setEditedTitle(e.target.value)}
-            />
-          ) : (
-            <p className="text-base font-semibold text-slate-900 leading-snug">
-              {isApproved ? title.title : editedTitle}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <QualityDots score={title.quality_score} />
-          {isApproved && (
-            <span className="text-[11px] font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded">
-              Approved
-            </span>
-          )}
-        </div>
+    <div className="relative inline-flex items-center gap-1.5" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <span className="text-[11px] font-medium text-slate-400">Quality</span>
+      <div className="inline-flex gap-0.5 items-center cursor-default">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <span key={i} className={`w-2 h-2 rounded-full transition-colors ${i <= score ? "bg-slate-700" : "bg-slate-200"}`} />
+        ))}
       </div>
-
-      {/* Meta */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-[12px] text-slate-500">
-          <span className="font-medium text-slate-700">{title.target_keyword}</span>
-        </span>
-        {title.search_intent && <IntentBadge intent={title.search_intent} />}
-      </div>
-
-      {/* Angle */}
-      {title.content_angle && (
-        <p className="text-[12px] text-slate-500 italic border-l-2 border-slate-200 pl-3">
-          {title.content_angle}
-        </p>
-      )}
-
-      {/* Actions */}
-      {!isApproved && (
-        <div className="flex items-center gap-2 pt-1">
-          {!editing ? (
-            <button
-              onClick={() => setEditing(true)}
-              className="text-[12px] text-slate-500 hover:text-slate-700 underline"
-            >
-              Edit title
-            </button>
-          ) : (
-            <button
-              onClick={() => { setEditing(false); setEditedTitle(title.title); }}
-              className="text-[12px] text-slate-500 hover:text-slate-700 underline"
-            >
-              Cancel edit
-            </button>
-          )}
-          <div className="flex-1" />
-          <button
-            onClick={handleSkip}
-            disabled={busy}
-            className="px-3 py-1.5 rounded-lg text-[13px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors"
-          >
-            Skip
-          </button>
-          <button
-            onClick={handleApprove}
-            disabled={busy || !editedTitle.trim()}
-            className="px-4 py-1.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
-          >
-            {busy ? "Saving…" : editing ? "Approve edited" : "Approve"}
-          </button>
+      {hovered && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 w-56 bg-slate-900 text-white text-[11px] rounded-lg p-3 shadow-lg pointer-events-none">
+          <p className="font-semibold mb-1">{score}/5 — {label}</p>
+          <p className="text-slate-300 leading-relaxed">Scored on specificity, uniqueness, length (8–15 words), absence of anti-patterns, and tone fit for your industry.</p>
         </div>
       )}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Title Card
+// ---------------------------------------------------------------------------
+
+function TitleCard({
+  title,
+  keywordGroups,
+  token,
+  onUpdate,
+  onRemove,
+}: {
+  title: Title;
+  keywordGroups: KeywordGroup[];
+  token: string;
+  onUpdate: (id: string, changes: Partial<Title>) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [editTitle, setEditTitle] = useState(title.title);
+  const [editKeyword, setEditKeyword] = useState(title.target_keyword);
+  const [editGroup, setEditGroup] = useState(title.keyword_group);
+  const [expanded, setExpanded] = useState(false);
+  const [suggestion, setSuggestion] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isApproved = title.title_status === "approved";
+
+  // Subkeywords for the selected group
+  const groupObj = keywordGroups.find((g) => g.group === editGroup);
+  const subkeywords = groupObj?.subkeywords ?? [];
+
+  const save = useCallback(async (extraFields?: Record<string, unknown>) => {
+    await fetch(`/api/portal/titles?token=${token}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        record_id: title.id,
+        action: "save",
+        title: editTitle,
+        target_keyword: editKeyword,
+        keyword_group: editGroup,
+        ...extraFields,
+      }),
+    });
+  }, [token, title.id, editTitle, editKeyword, editGroup]);
+
+  const handleApprove = async () => {
+    setBusy(true);
+    await fetch(`/api/portal/titles?token=${token}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        record_id: title.id,
+        action: "approve",
+        title: editTitle,
+        target_keyword: editKeyword,
+        keyword_group: editGroup,
+      }),
+    });
+    onUpdate(title.id, { title: editTitle, target_keyword: editKeyword, keyword_group: editGroup, title_status: "approved" });
+    setBusy(false);
+  };
+
+  const handleSkip = async () => {
+    setBusy(true);
+    await fetch(`/api/portal/titles?token=${token}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ record_id: title.id }),
+    });
+    onRemove(title.id);
+    setBusy(false);
+  };
+
+  const handleGenerate = async () => {
+    if (!suggestion.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/portal/titles/generate?token=${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_title: editTitle,
+          suggestion,
+          keyword: editKeyword,
+          group: editGroup,
+        }),
+      });
+      const data = await res.json() as { title?: string };
+      if (data.title) {
+        setEditTitle(data.title);
+        setSuggestion("");
+        await save({ title: data.title });
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className={`bg-white rounded-xl border transition-shadow ${isApproved ? "border-green-200" : "border-slate-200 hover:shadow-sm"}`}>
+      {/* Main row */}
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            {/* Group label */}
+            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+              {editGroup || "No group"}
+            </div>
+
+            {/* Editable title */}
+            {!isApproved ? (
+              <textarea
+                ref={textareaRef}
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={() => void save()}
+                rows={editTitle.length > 80 ? 2 : 1}
+                className="w-full text-[15px] font-semibold text-slate-900 leading-snug resize-none border-0 p-0 bg-transparent focus:outline-none focus:ring-0 placeholder-slate-300"
+                placeholder="Enter title…"
+              />
+            ) : (
+              <p className="text-[15px] font-semibold text-slate-900 leading-snug">{editTitle}</p>
+            )}
+
+            {/* Keyword + intent row */}
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              {!isApproved ? (
+                <div className="flex items-center gap-1">
+                  {subkeywords.length > 0 ? (
+                    <select
+                      value={editKeyword}
+                      onChange={(e) => { setEditKeyword(e.target.value); void save({ target_keyword: e.target.value }); }}
+                      className="text-[12px] text-slate-600 border-0 bg-transparent p-0 pr-4 focus:outline-none focus:ring-0 cursor-pointer"
+                    >
+                      <option value="">Select keyword…</option>
+                      {subkeywords.map((sk) => (
+                        <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
+                      ))}
+                      <option value={editKeyword !== "" && !subkeywords.find(sk => sk.keyword === editKeyword) ? editKeyword : "__custom__"}>
+                        {editKeyword !== "" && !subkeywords.find(sk => sk.keyword === editKeyword) ? editKeyword : "Custom keyword…"}
+                      </option>
+                    </select>
+                  ) : (
+                    <input
+                      value={editKeyword}
+                      onChange={(e) => setEditKeyword(e.target.value)}
+                      onBlur={() => void save()}
+                      placeholder="Target keyword"
+                      className="text-[12px] text-slate-600 border-0 bg-transparent p-0 focus:outline-none focus:ring-0 w-40"
+                    />
+                  )}
+                </div>
+              ) : (
+                editKeyword && <span className="text-[12px] font-medium text-slate-600">{editKeyword}</span>
+              )}
+              <IntentBadge intent={title.search_intent} />
+            </div>
+          </div>
+
+          {/* Right col: quality + status */}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <QualityScore score={title.quality_score} />
+            {isApproved && (
+              <span className="text-[11px] font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                Approved
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Angle */}
+        {title.content_angle && (
+          <p className="mt-2.5 text-[12px] text-slate-400 italic border-l-2 border-slate-100 pl-3 leading-relaxed">
+            {title.content_angle}
+          </p>
+        )}
+
+        {/* Group selector (below main content) */}
+        {!isApproved && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-[11px] text-slate-400">Group:</span>
+            <select
+              value={editGroup}
+              onChange={(e) => { setEditGroup(e.target.value); setEditKeyword(""); void save({ keyword_group: e.target.value, target_keyword: "" }); }}
+              className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300"
+            >
+              <option value="">No group</option>
+              {keywordGroups.map((g) => (
+                <option key={g.group} value={g.group}>{g.group}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Suggestion / actions bar */}
+      {!isApproved && (
+        <div className="border-t border-slate-100 px-4 py-3">
+          {!expanded ? (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setExpanded(true)}
+                className="text-[12px] text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                ✦ Suggest a direction and regenerate
+              </button>
+              <div className="flex-1" />
+              <button onClick={handleSkip} disabled={busy} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
+                Skip
+              </button>
+              <button onClick={handleApprove} disabled={busy} className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
+                {busy ? "Saving…" : "Approve"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <textarea
+                autoFocus
+                value={suggestion}
+                onChange={(e) => setSuggestion(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleGenerate(); } }}
+                placeholder="e.g. make it more conversational, focus on cost, target new parents…"
+                rows={2}
+                className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
+              />
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setExpanded(false); setSuggestion(""); }} className="text-[12px] text-slate-400 hover:text-slate-600">
+                  Cancel
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={() => void handleGenerate()}
+                  disabled={!suggestion.trim() || generating}
+                  className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+                >
+                  {generating ? "Generating…" : "Generate"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Custom Title Panel
+// ---------------------------------------------------------------------------
+
+function AddTitlePanel({
+  keywordGroups,
+  token,
+  onAdded,
+}: {
+  keywordGroups: KeywordGroup[];
+  token: string;
+  onAdded: (t: Title) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [group, setGroup] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const groupObj = keywordGroups.find((g) => g.group === group);
+  const subkeywords = groupObj?.subkeywords ?? [];
+
+  const handleSubmit = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    const res = await fetch(`/api/portal/titles?token=${token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, target_keyword: keyword, keyword_group: group }),
+    });
+    const data = await res.json() as { title?: Title };
+    if (data.title) {
+      onAdded(data.title);
+      setTitle("");
+      setGroup("");
+      setKeyword("");
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3">
+      <h3 className="text-[13px] font-semibold text-slate-800">Add a title</h3>
+      <p className="text-[11px] text-slate-400 -mt-2">Suggest your own blog title for review.</p>
+
+      <textarea
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Your blog title idea…"
+        rows={3}
+        className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
+      />
+
+      <select
+        value={group}
+        onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
+        className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300"
+      >
+        <option value="">Select keyword group…</option>
+        {keywordGroups.map((g) => (
+          <option key={g.group} value={g.group}>{g.group}</option>
+        ))}
+      </select>
+
+      {subkeywords.length > 0 && (
+        <select
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300"
+        >
+          <option value="">Select keyword…</option>
+          {subkeywords.map((sk) => (
+            <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>
+          ))}
+        </select>
+      )}
+
+      {!subkeywords.length && group === "" && (
+        <input
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="Target keyword (optional)"
+          className="text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300 placeholder-slate-300"
+        />
+      )}
+
+      <button
+        onClick={() => void handleSubmit()}
+        disabled={!title.trim() || busy}
+        className="w-full py-2 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+      >
+        {busy ? "Adding…" : success ? "Added!" : "Add title"}
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 export default function TitlesPage() {
   const params = useParams();
   const token = params.token as string;
 
   const [titles, setTitles] = useState<Title[]>([]);
+  const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,8 +445,9 @@ export default function TitlesPage() {
     try {
       const res = await fetch(`/api/portal/titles?token=${token}`);
       if (!res.ok) throw new Error("Failed to load titles");
-      const data = await res.json() as { titles: Title[] };
+      const data = await res.json() as { titles: Title[]; keyword_groups: KeywordGroup[] };
       setTitles(data.titles);
+      setKeywordGroups(data.keyword_groups ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error loading titles");
     } finally {
@@ -178,79 +457,114 @@ export default function TitlesPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleApprove = useCallback(async (id: string, editedTitle: string) => {
-    await fetch(`/api/portal/titles?token=${token}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ record_id: id, title: editedTitle }),
-    });
-    setTitles((prev) => prev.map((t) => t.id === id ? { ...t, title: editedTitle, title_status: "approved" } : t));
-  }, [token]);
+  const handleUpdate = useCallback((id: string, changes: Partial<Title>) => {
+    setTitles((prev) => prev.map((t) => t.id === id ? { ...t, ...changes } : t));
+  }, []);
 
-  const handleSkip = useCallback(async (id: string) => {
-    await fetch(`/api/portal/titles?token=${token}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ record_id: id }),
-    });
+  const handleRemove = useCallback((id: string) => {
     setTitles((prev) => prev.filter((t) => t.id !== id));
-  }, [token]);
+  }, []);
+
+  const handleAdded = useCallback((t: Title) => {
+    setTitles((prev) => [t, ...prev]);
+  }, []);
 
   const pending = titles.filter((t) => t.title_status === "titled");
   const approved = titles.filter((t) => t.title_status === "approved");
+  const pendingGroups = groupByMonth(pending);
+  const approvedGroups = groupByMonth(approved);
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Title Proposals</h1>
-        <p className="text-base text-slate-500 mt-1">
-          Review and approve blog title proposals. Approved titles enter the content pipeline automatically.
-        </p>
+    <div className="flex gap-6 min-h-full">
+      {/* Left panel */}
+      <div className="w-64 shrink-0">
+        <div className="sticky top-8 flex flex-col gap-4">
+          <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />
+
+          {/* Stats */}
+          {!loading && (
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col gap-2">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Overview</p>
+              <div className="flex justify-between text-[13px]">
+                <span className="text-slate-500">Awaiting review</span>
+                <span className="font-semibold text-slate-900">{pending.length}</span>
+              </div>
+              <div className="flex justify-between text-[13px]">
+                <span className="text-slate-500">Approved</span>
+                <span className="font-semibold text-green-700">{approved.length}</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {loading && (
-        <div className="text-slate-400 text-sm">Loading proposals…</div>
-      )}
-
-      {error && (
-        <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-4">{error}</div>
-      )}
-
-      {!loading && !error && pending.length === 0 && approved.length === 0 && (
-        <div className="text-center py-16">
-          <div className="text-3xl mb-4 text-slate-300">◆</div>
-          <div className="font-medium text-slate-500 mb-2">No title proposals yet</div>
-          <div className="text-sm text-slate-400 max-w-xs mx-auto">
-            Title proposals are generated after your audit completes and on a monthly basis.
-          </div>
+      {/* Right: title list */}
+      <div className="flex-1 min-w-0">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Title Proposals</h1>
+          <p className="text-base text-slate-500 mt-1">
+            Review, edit, and approve blog titles. Approved titles enter the content pipeline automatically.
+          </p>
         </div>
-      )}
 
-      {pending.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Awaiting Review — {pending.length}
-          </h2>
-          <div className="flex flex-col gap-4">
-            {pending.map((t) => (
-              <TitleCard key={t.id} title={t} onApprove={handleApprove} onSkip={handleSkip} />
-            ))}
-          </div>
-        </div>
-      )}
+        {loading && <div className="text-slate-400 text-sm">Loading proposals…</div>}
+        {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-4">{error}</div>}
 
-      {approved.length > 0 && (
-        <div>
-          <h2 className="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Approved — {approved.length}
-          </h2>
-          <div className="flex flex-col gap-3">
-            {approved.map((t) => (
-              <TitleCard key={t.id} title={t} onApprove={handleApprove} onSkip={handleSkip} />
-            ))}
+        {!loading && !error && pending.length === 0 && approved.length === 0 && (
+          <div className="text-center py-16 text-slate-400">
+            <div className="text-4xl mb-4">◆</div>
+            <div className="font-medium text-slate-500 mb-1">No proposals yet</div>
+            <div className="text-sm max-w-xs mx-auto">
+              Title proposals are generated after your audit and monthly. Add your own using the panel on the left.
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Pending — grouped by month */}
+        {pendingGroups.map(({ label, items }) => (
+          <div key={label} className="mb-8">
+            <div className="flex items-center gap-3 mb-3">
+              <h2 className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide">{label}</h2>
+              <span className="text-[11px] text-slate-400">{items.length} proposal{items.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {items.map((t) => (
+                <TitleCard
+                  key={t.id}
+                  title={t}
+                  keywordGroups={keywordGroups}
+                  token={token}
+                  onUpdate={handleUpdate}
+                  onRemove={handleRemove}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Approved */}
+        {approved.length > 0 && (
+          <div>
+            <h2 className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Approved — {approved.length}
+            </h2>
+            <div className="flex flex-col gap-3">
+              {approvedGroups.flatMap(({ items }) =>
+                items.map((t) => (
+                  <TitleCard
+                    key={t.id}
+                    title={t}
+                    keywordGroups={keywordGroups}
+                    token={token}
+                    onUpdate={handleUpdate}
+                    onRemove={handleRemove}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
