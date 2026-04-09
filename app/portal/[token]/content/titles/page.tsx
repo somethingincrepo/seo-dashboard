@@ -280,8 +280,8 @@ function PipelineItem({ title, folder }: { title: Title; folder: Folder }) {
 // Add / Generate Title Panel
 // ---------------------------------------------------------------------------
 
+// Always-open, no toggle — form is permanently visible
 function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: KeywordGroup[]; token: string; onAdded: (t: Title) => void }) {
-  const [open, setOpen] = useState(false);
   const [idea, setIdea] = useState("");
   const [group, setGroup] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -314,23 +314,22 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
     if (data.title) {
       onAdded(data.title);
       setIdea(""); setGenerated(""); setGroup(""); setKeyword("");
-      setSuccess(true); setTimeout(() => { setSuccess(false); setOpen(false); }, 1500);
+      setSuccess(true); setTimeout(() => setSuccess(false), 2000);
     }
     setAdding(false);
   };
 
   return (
-    <div className="border-t border-slate-100">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-3 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-        <span>+ Request a title</span>
-        <span className={`text-slate-400 transition-transform ${open ? "rotate-90" : ""}`}>›</span>
-      </button>
-
-      {open && (
-        <div className="px-4 pb-4 flex flex-col gap-3">
-          <textarea value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="Describe a topic or idea…" rows={3}
-            className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300" />
-
+    <div className="p-4 flex flex-col gap-3">
+      {!generated ? (
+        <>
+          <textarea
+            value={idea}
+            onChange={(e) => setIdea(e.target.value)}
+            placeholder="e.g. a post about financing options for first-time buyers…"
+            rows={5}
+            className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
+          />
           <select value={group} onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
             className="w-full text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none">
             <option value="">Keyword group (optional)</option>
@@ -343,38 +342,33 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
               {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
             </select>
           )}
-
-          {!generated ? (
-            <div className="flex flex-col gap-2">
-              <button onClick={() => void handleGenerate()} disabled={!canGenerate || generating}
-                className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                {generating ? "Generating…" : "Generate with AI"}
-              </button>
-              {idea.trim() && (
-                <button onClick={() => void handleAdd(idea.trim())} disabled={adding}
-                  className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors">
-                  {adding ? "Adding…" : success ? "Added!" : "Add as-is"}
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
-                <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Generated title</div>
-                <textarea autoFocus value={generated} onChange={(e) => setGenerated(e.target.value)}
-                  rows={Math.max(2, Math.ceil(generated.length / 38))}
-                  className="w-full text-[14px] font-semibold text-slate-900 bg-transparent resize-none focus:outline-none leading-snug" />
-              </div>
-              <button onClick={() => void handleAdd()} disabled={adding || !generated.trim()}
-                className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
-                {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
-              </button>
-              <button onClick={() => setGenerated("")} className="w-full py-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
-                Regenerate
-              </button>
-            </div>
+          <button onClick={() => void handleGenerate()} disabled={!canGenerate || generating}
+            className="w-full py-2.5 rounded-lg text-[13px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            {generating ? "Generating…" : "Generate with AI"}
+          </button>
+          {idea.trim() && (
+            <button onClick={() => void handleAdd(idea.trim())} disabled={adding}
+              className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors">
+              {adding ? "Adding…" : success ? "Added!" : "Add as-is"}
+            </button>
           )}
-        </div>
+        </>
+      ) : (
+        <>
+          <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
+            <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Generated title</div>
+            <textarea autoFocus value={generated} onChange={(e) => setGenerated(e.target.value)}
+              rows={Math.max(3, Math.ceil(generated.length / 32))}
+              className="w-full text-[14px] font-semibold text-slate-900 bg-transparent resize-none focus:outline-none leading-snug" />
+          </div>
+          <button onClick={() => void handleAdd()} disabled={adding || !generated.trim()}
+            className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
+            {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
+          </button>
+          <button onClick={() => setGenerated("")} className="w-full py-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
+            Regenerate with different direction
+          </button>
+        </>
       )}
     </div>
   );
@@ -384,29 +378,24 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
 // Folder nav
 // ---------------------------------------------------------------------------
 
-function FolderNav({ folders, active, onChange }: { folders: { key: Folder; label: string; count: number; icon: string; activeClass: string }[]; active: Folder; onChange: (f: Folder) => void }) {
+function FolderNav({ folders, active, onChange }: { folders: { key: Folder; label: string; count: number }[]; active: Folder; onChange: (f: Folder) => void }) {
   return (
     <nav className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100">
-        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Your Titles</p>
+      <div className="px-4 py-2.5 border-b border-slate-100">
+        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Status</p>
       </div>
       {folders.map((f) => (
         <button
           key={f.key}
           onClick={() => onChange(f.key)}
-          className={`w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors border-l-[3px] ${
+          className={`w-full flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors ${
             active === f.key
-              ? `${f.activeClass} font-semibold text-slate-900`
-              : "border-transparent text-slate-600 hover:bg-slate-50"
+              ? "bg-slate-100 font-semibold text-slate-900"
+              : "text-slate-600 hover:bg-slate-50"
           }`}
         >
-          <div className="flex items-center gap-2.5">
-            <span className="text-[14px]">{f.icon}</span>
-            {f.label}
-          </div>
-          {f.count > 0 && (
-            <span className="text-[11px] font-bold text-slate-400 tabular-nums">{f.count}</span>
-          )}
+          <span>{f.label}</span>
+          <span className="text-[13px] tabular-nums text-slate-400">{f.count}</span>
         </button>
       ))}
     </nav>
@@ -455,60 +444,33 @@ export default function TitlesPage() {
   const inProgress = titles.filter((t) => getFolder(t) === "inprogress");
   const published = titles.filter((t) => getFolder(t) === "published");
 
-  const FOLDERS: { key: Folder; label: string; count: number; icon: string; activeClass: string }[] = [
-    { key: "proposals", label: "Proposals", count: proposals.length, icon: "○", activeClass: "bg-slate-50 border-slate-400" },
-    { key: "queued", label: "Queued", count: queued.length, icon: "◑", activeClass: "bg-emerald-50/60 border-emerald-400" },
-    { key: "inprogress", label: "In Progress", count: inProgress.length, icon: "◐", activeClass: "bg-amber-50/60 border-amber-400" },
-    { key: "published", label: "Published", count: published.length, icon: "◆", activeClass: "bg-teal-50/60 border-teal-400" },
+  const FOLDERS: { key: Folder; label: string; count: number }[] = [
+    { key: "proposals", label: "Proposals",   count: proposals.length },
+    { key: "queued",    label: "Queued",       count: queued.length },
+    { key: "inprogress",label: "In Progress",  count: inProgress.length },
+    { key: "published", label: "Published",    count: published.length },
   ];
 
   const activeTitles = { proposals, queued, inprogress: inProgress, published }[activeFolder];
 
   return (
-    <div className="flex gap-6 min-h-full">
-      {/* Left panel — add panel + stats at top, folder nav pinned to bottom */}
-      <div className="w-64 shrink-0">
+    <div className="flex gap-5 min-h-full">
+      {/* Left panel — wider, always-open form at top, folder nav at bottom */}
+      <div className="w-80 shrink-0">
         <div className="sticky top-8 flex flex-col gap-3" style={{ height: "calc(100vh - 5rem - 2rem)" }}>
 
-          {/* TOP: request a title panel (same as before) */}
+          {/* Request a title — always open, prominent */}
           {!loading && (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 pt-4 pb-2 border-b border-slate-100">
-                <h3 className="text-[13px] font-semibold text-slate-800">Request a title</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">Describe an idea or topic — we&apos;ll generate a proper title.</p>
+              <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+                <span className="text-[14px] font-semibold text-slate-800">Request a title</span>
+                <span className="text-slate-400 text-xl font-light leading-none">+</span>
               </div>
               <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />
             </div>
           )}
 
-          {/* Overview stats */}
-          {!loading && (
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col gap-2">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Overview</p>
-              <div className="flex justify-between text-[13px]">
-                <span className="text-slate-500">Awaiting review</span>
-                <span className="font-semibold text-slate-900">{proposals.length}</span>
-              </div>
-              <div className="flex justify-between text-[13px]">
-                <span className="text-slate-500">Approved</span>
-                <span className="font-semibold text-emerald-700">{queued.length}</span>
-              </div>
-              {inProgress.length > 0 && (
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-slate-500">In progress</span>
-                  <span className="font-semibold text-amber-700">{inProgress.length}</span>
-                </div>
-              )}
-              {published.length > 0 && (
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-slate-500">Published</span>
-                  <span className="font-semibold text-teal-700">{published.length}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* BOTTOM: folder nav pushed to bottom with mt-auto */}
+          {/* Folder nav — pinned to bottom */}
           {!loading && (
             <div className="mt-auto flex flex-col gap-2">
               <FolderNav folders={FOLDERS} active={activeFolder} onChange={setActiveFolder} />
