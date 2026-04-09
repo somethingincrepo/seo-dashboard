@@ -170,15 +170,54 @@ export async function PATCH(request: NextRequest) {
   if (target_keyword !== undefined) fields.target_keyword = target_keyword;
   if (keyword_group !== undefined) fields.keyword_group = keyword_group;
 
+  // For approval, fetch the current record first so we can send the right payload to n8n
+  let jobRecord: {
+    fields: {
+      "Blog Title": string;
+      "Client ID"?: string[];
+      "Search intent"?: string;
+    };
+  } | null = null;
+  if (action === "approve") {
+    const jobs = await contentAirtableFetch<{
+      id: string;
+      fields: {
+        "Blog Title": string;
+        "Client ID"?: string[];
+        "Search intent"?: string;
+      };
+    }>(CONTENT_JOBS_TABLE, {
+      filterByFormula: `RECORD_ID()="${record_id}"`,
+      maxRecords: 1,
+    });
+    jobRecord = jobs[0] ?? null;
+  }
+
   await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, fields);
 
-  // Fire-and-forget n8n webhook — do NOT await, Airtable Status=Queued is the reliable trigger
+  // Fire-and-forget n8n webhook with the payload format the workflow actually expects.
+  // Content type and Desired length range are hardcoded defaults since the portal
+  // doesn't collect them — the n8n Article Drafting node needs them to avoid .name errors.
   if (action === "approve") {
-    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/42b82c45-bb9e-4597-a0df-2b9ab9b2863f";
+    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
+    const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
+    const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
+    const searchIntent = jobRecord?.fields["Search intent"] || "informational";
     fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ record_id, trigger: "portal_approval" }),
+      body: JSON.stringify({
+        body: {
+          recordId: record_id,
+          fields: {
+            "Blog Title": blogTitle,
+            "Client ID": clientIds,
+            "Search intent": searchIntent,
+            "Content type": { id: "Blog Post", name: "Blog Post" },
+            "Desired length range": "1,500-2,500 words",
+          },
+        },
+      }),
     }).catch(() => {/* non-fatal */});
   }
 
