@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { type KeywordGroup, GroupCard, CreateGroupCard } from "@/components/portal/KeywordGroups";
 import { GROUP_STYLES, CUSTOM_STYLE } from "@/components/portal/keyword-styles";
+import { GenerateKeywordGroups } from "@/components/portal/GenerateKeywordGroups";
 
 export const revalidate = 0;
 
@@ -48,15 +49,17 @@ export default async function KeywordsPage({
         </p>
       </div>
 
+      {/* Generate with AI — always visible */}
+      <GenerateKeywordGroups token={token} />
+
       {!hasKeywords ? (
         <div className="flex-1 flex items-center justify-center py-16">
           <div className="text-center max-w-sm">
             <div className="text-3xl mb-4 text-slate-300">◈</div>
             <div className="font-medium text-slate-500 mb-2">Keyword research in progress</div>
             <div className="text-sm text-slate-400 leading-relaxed mb-6">
-              Your keyword groups will appear here once your Month 1 audit is complete.
+              Your keyword groups will appear here once your Month 1 audit is complete. Or generate groups above.
             </div>
-            {/* Allow creating groups even before AI groups are ready */}
             <div className="grid grid-cols-1 gap-4">
               <CreateGroupCard token={token} style={GROUP_STYLES[0]} />
             </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
 type Title = {
   id: string;
@@ -434,26 +435,32 @@ function AddTitlePanel({
 
         {/* Generated preview + edit */}
         {generated && (
-          <div className="flex flex-col gap-2">
-            <div className="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Generated</p>
-                <span className="text-[10px] text-slate-300">·</span>
-                <p className="text-[10px] text-slate-400 truncate">{group} / {keyword}</p>
+          <div className="flex flex-col gap-2 mt-1">
+            <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Generated title</span>
               </div>
               <textarea
+                autoFocus
                 value={generated}
                 onChange={(e) => setGenerated(e.target.value)}
-                rows={2}
-                className="w-full text-[13px] font-medium text-slate-800 bg-transparent resize-none focus:outline-none"
+                rows={Math.max(3, Math.ceil(generated.length / 38))}
+                className="w-full text-[14px] font-semibold text-slate-900 bg-transparent resize-none focus:outline-none leading-snug"
               />
+              <p className="text-[10px] text-indigo-400 mt-1">{group} / {keyword}</p>
             </div>
             <button
               onClick={() => void handleAdd()}
               disabled={adding || !generated.trim()}
-              className="w-full py-2 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+              className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
             >
               {adding ? "Adding…" : success ? "Added!" : "Add to proposals"}
+            </button>
+            <button
+              onClick={() => setGenerated("")}
+              className="w-full py-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Regenerate with different direction
             </button>
           </div>
         )}
@@ -511,7 +518,7 @@ export default function TitlesPage() {
   return (
     <div className="flex gap-6 min-h-full">
       {/* Left panel */}
-      <div className="w-64 shrink-0">
+      <div className="w-72 shrink-0">
         <div className="sticky top-8 flex flex-col gap-4">
           <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />
 
@@ -579,9 +586,17 @@ export default function TitlesPage() {
         {/* Approved */}
         {approved.length > 0 && (
           <div>
-            <h2 className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Approved — {approved.length}
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide">
+                Approved — {approved.length}
+              </h2>
+              <Link
+                href={`/portal/${token}/content`}
+                className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+              >
+                View in Pipeline →
+              </Link>
+            </div>
             <div className="flex flex-col gap-3">
               {approvedGroups.flatMap(({ items }) =>
                 items.map((t) => (
