@@ -132,9 +132,9 @@ export function PortalSidebar({
                       {pendingCount}
                     </span>
                   )}
-                  {item.suffix === "/content" && contentReviewCount > 0 && (
-                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/60">
-                      {contentReviewCount}
+                  {item.suffix === "/content" && (contentReviewCount > 0 || titleProposalCount > 0) && (
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
+                      {contentReviewCount > 0 ? contentReviewCount : titleProposalCount}
                     </span>
                   )}
                 </Link>
