@@ -612,10 +612,11 @@ function ApprovalMasterDetailInner({
             {/* Triage card — bulk approve safe types before reviewing the rest */}
             {activeTab === "pending" && safeIds.length >= 5 && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4" style={{ boxShadow: "var(--shadow-xs)" }}>
-                <div className="text-sm font-medium text-slate-800 mb-1">Technical Fixes</div>
+                <div className="text-sm font-medium text-slate-800 mb-1">Pre-screened Fixes</div>
                 <div className="text-xs text-slate-500 mb-3 leading-relaxed">
-                  {safeIds.length} under-the-hood improvements — metadata, schema markup, image
-                  labels, and link fixes. These won&apos;t change how your site looks or reads.
+                  {safeIds.length} changes that are safe to approve without individual review —
+                  metadata tags, schema markup, image alt labels, and canonical links.
+                  None of these affect how your site looks or functions.
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-4">
                   {safeTypeBreakdown.map(({ type, count }) => (
