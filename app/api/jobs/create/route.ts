@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { airtableFetch, airtablePatch } from "@/lib/airtable";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,24 @@ export async function POST(request: NextRequest) {
 
   if (!sop_name) {
     return NextResponse.json({ error: "sop_name is required" }, { status: 400 });
+  }
+
+  // Auto-generate portal token when an audit_parent job is created for a client
+  if (sop_name === "audit_parent" && client_id) {
+    try {
+      const records = await airtableFetch<{ id: string; fields: { portal_token?: string } }>(
+        "Clients",
+        { filterByFormula: `RECORD_ID()="${client_id}"`, maxRecords: 1 }
+      );
+      const client = records[0];
+      if (client && !client.fields.portal_token) {
+        const token = crypto.randomUUID();
+        await airtablePatch("Clients", client_id, { portal_token: token });
+      }
+    } catch (e) {
+      // Non-fatal — log and continue so the job still gets created
+      console.error("[jobs/create] portal token auto-gen failed:", e);
+    }
   }
 
   const supabase = getSupabase();
