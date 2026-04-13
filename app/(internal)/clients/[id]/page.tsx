@@ -330,13 +330,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             {reports.map((report) => (
               <GlassCard key={report.id} className="p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="font-medium text-sm">Month {report.fields.month}</div>
-                  {report.fields.pdf_url && (
-                    <a href={report.fields.pdf_url} target="_blank" rel="noreferrer"
-                      className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors">
-                      PDF ↗
-                    </a>
-                  )}
+                  <div className="font-medium text-sm">
+                    {report.fields.report_month_label ?? `Month ${report.fields.month}`}
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
@@ -352,8 +348,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                     <div className="text-slate-400 text-xs">Impressions</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-blue-600">{report.fields.ai_citation_score ?? "—"}</div>
-                    <div className="text-slate-400 text-xs">AI Score</div>
+                    <div className={`text-lg font-bold ${(report.fields.ga4_sessions_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {(report.fields.ga4_sessions_delta ?? 0) >= 0 ? "+" : ""}{report.fields.ga4_sessions_delta ?? "—"}
+                    </div>
+                    <div className="text-slate-400 text-xs">Sessions</div>
                   </div>
                 </div>
               </GlassCard>

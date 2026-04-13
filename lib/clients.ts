@@ -43,6 +43,7 @@ export type ClientFields = {
   sheet_id: string;
   drive_folder_id: string;
   gsc_property: string;
+  ga4_property: string;  // numeric GA4 property ID (e.g. "123456789")
   creds_ref: string;
   portal_token: string;
 
