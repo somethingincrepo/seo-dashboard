@@ -218,7 +218,7 @@ export function PortalSidebar({
           <Link
             href={`${base}/guide`}
             className={cn(
-              "flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] transition-colors",
+              "w-full flex items-center justify-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] transition-colors",
               pathname === `${base}/guide`
                 ? "text-slate-700 bg-slate-100"
                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
