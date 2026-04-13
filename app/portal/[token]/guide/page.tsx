@@ -44,7 +44,7 @@ export default async function GuidePage({
   if (!client) notFound();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full">
 
       {/* Header */}
       <div>
