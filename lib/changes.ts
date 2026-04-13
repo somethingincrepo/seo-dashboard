@@ -22,6 +22,9 @@ export type ChangeFields = {
   identified_at: string;
   approved_at: string;
   implemented_at: string;
+  reverted_at: string;
+  revert_note: string;
+  revert_payload: string;
   job_id: string;
   change_title: string;  // Agent-written short title — e.g. "Fix meta description on Pricing page"
   month: number;
@@ -104,7 +107,7 @@ export async function revertDecision(recordId: string): Promise<{ ok: boolean; e
   if (implStatus === "complete" || implAt) {
     return {
       ok: false,
-      error: "This change has already been implemented and can't be undone from here. Contact us if you need to revert it.",
+      error: "This change has already been implemented. If you'd like it reverted, let your account manager know and we'll restore the original.",
     };
   }
 
@@ -112,6 +115,29 @@ export async function revertDecision(recordId: string): Promise<{ ok: boolean; e
     approval: "pending",
     approved_at: null,
     client_notes: change.fields.client_notes,
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Reset a reverted or revert_failed change back to pending so it can be re-implemented.
+ * Clears revert_payload so the implement SOP captures a fresh snapshot.
+ */
+export async function resetChange(recordId: string): Promise<{ ok: boolean; error?: string }> {
+  const change = await getChangeById(recordId);
+  if (!change) return { ok: false, error: "Change not found" };
+
+  const status = change.fields.execution_status;
+  if (status !== "reverted" && status !== "revert_failed") {
+    return { ok: false, error: `Cannot reset — execution_status is "${status}". Only reverted or revert_failed changes can be reset.` };
+  }
+
+  await airtablePatch(TABLE, recordId, {
+    execution_status: "pending",
+    revert_payload: null,
+    reverted_at: null,
+    revert_note: null,
   });
 
   return { ok: true };

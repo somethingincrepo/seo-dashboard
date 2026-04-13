@@ -15,8 +15,9 @@ type ChangelogEntry =
       date: string;
       title: string;
       pageUrl: string;
-      status: "implemented" | "approved" | "skipped" | "pending";
+      status: "implemented" | "reverting" | "reverted" | "approved" | "skipped" | "pending";
       cat: string;
+      note?: string;
     }
   | { kind: "report"; date: string; month: number | string }
   | { kind: "content"; date: string; title: string; event: "proposed" | "approved" | "completed" | "published" };
@@ -49,7 +50,37 @@ export default async function ActivityPage({
     const title = getChangeTitle(changeType, c.fields.page_url);
     const cat = c.fields.cat || c.fields.category || "Other";
 
-    if (c.fields.implemented_at) {
+    if (c.fields.reverted_at) {
+      // Show the original implementation first, then the revert event
+      if (c.fields.implemented_at) {
+        entries.push({
+          kind: "change",
+          date: c.fields.implemented_at,
+          title,
+          pageUrl: c.fields.page_url || "",
+          status: "implemented",
+          cat,
+        });
+      }
+      entries.push({
+        kind: "change",
+        date: c.fields.reverted_at,
+        title,
+        pageUrl: c.fields.page_url || "",
+        status: "reverted",
+        cat,
+        note: c.fields.revert_note || undefined,
+      });
+    } else if (c.fields.execution_status === "reverting") {
+      entries.push({
+        kind: "change",
+        date: c.fields.implemented_at || "",
+        title,
+        pageUrl: c.fields.page_url || "",
+        status: "reverting",
+        cat,
+      });
+    } else if (c.fields.implemented_at) {
       entries.push({
         kind: "change",
         date: c.fields.implemented_at,
@@ -144,6 +175,8 @@ export default async function ActivityPage({
   function statusLabel(status: string) {
     switch (status) {
       case "implemented": return "Implemented";
+      case "reverting": return "Reverting…";
+      case "reverted": return "Reverted";
       case "approved": return "Approved";
       case "skipped": return "Skipped";
       default: return "Pending";
@@ -153,6 +186,8 @@ export default async function ActivityPage({
   function statusColor(status: string) {
     switch (status) {
       case "implemented": return "bg-indigo-50 border-indigo-200 text-indigo-700";
+      case "reverting": return "bg-amber-50 border-amber-200 text-amber-700";
+      case "reverted": return "bg-slate-100 border-slate-300 text-slate-500";
       case "approved": return "bg-emerald-50 border-emerald-200 text-emerald-700";
       case "skipped": return "bg-slate-100 border-slate-200 text-slate-600";
       default: return "bg-amber-50 border-amber-200 text-amber-700";
@@ -226,9 +261,19 @@ export default async function ActivityPage({
               }
 
               return (
-                <div key={i} className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">
+                <div key={i} className={`grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center${entry.status === "reverted" ? " opacity-60" : ""}`}>
                   <span className="text-xs text-slate-500">{formatDate(entry.date)}</span>
-                  <span className="text-sm font-semibold text-slate-800 truncate">{entry.title}</span>
+                  <div className="min-w-0">
+                    <span className={`text-sm font-semibold truncate block${entry.status === "reverted" ? " line-through text-slate-400" : " text-slate-800"}`}>
+                      {entry.title}
+                    </span>
+                    {entry.status === "reverted" && (
+                      <span className="text-xs text-slate-400 italic">{entry.note || "Restored to original state"}</span>
+                    )}
+                    {entry.status === "reverting" && (
+                      <span className="text-xs text-amber-600 italic">Restoring original — changes will disappear shortly</span>
+                    )}
+                  </div>
                   <a
                     href={entry.pageUrl}
                     target="_blank"
