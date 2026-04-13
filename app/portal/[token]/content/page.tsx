@@ -30,13 +30,13 @@ export default async function ContentPage({
         </p>
       </div>
 
-      {jobs.length === 0 && results.length === 0 ? (
+      {jobs.filter((j) => j.fields.title_status !== "titled").length === 0 && results.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-3xl mb-4 text-slate-300">◆</div>
-            <div className="font-medium text-slate-500 mb-2">No content yet</div>
+            <div className="font-medium text-slate-500 mb-2">No content in progress</div>
             <div className="text-sm text-slate-400 max-w-xs mx-auto">
-              Title proposals and articles will appear here once your content pipeline is active.
+              Articles appear here once a title is approved. Approve titles in the Title Proposals section.
             </div>
           </div>
         </div>

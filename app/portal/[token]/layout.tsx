@@ -27,11 +27,15 @@ export default async function PortalLayout({
     getContentJobsForClient(companyName).catch(() => []),
   ]);
 
+  const KNOWN_CATS = ["Technical", "On-Page", "Content", "AI-GEO"];
   const categoryBreakdown: Record<string, number> = {};
   for (const c of pending) {
-    const cat = c.fields.cat || c.fields.category || "Other";
-    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
+    const raw = c.fields.cat || c.fields.category || "";
+    const cat = KNOWN_CATS.includes(raw) ? raw : null;
+    if (cat) categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
   }
+  // Badge count = only items in known navigable categories (matches sub-nav sum)
+  const navigablePendingCount = Object.values(categoryBreakdown).reduce((a, b) => a + b, 0);
 
   const contentReviewCount = contentResults.filter(
     (r) => !r.fields.portal_approval
@@ -45,7 +49,7 @@ export default async function PortalLayout({
     <PortalSidebar
       companyName={companyName || "Your Portal"}
       token={token}
-      pendingCount={pending.length}
+      pendingCount={navigablePendingCount}
       contentReviewCount={contentReviewCount}
       titleProposalCount={titleProposalCount}
       categoryBreakdown={categoryBreakdown}

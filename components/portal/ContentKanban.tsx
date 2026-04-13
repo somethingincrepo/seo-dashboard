@@ -181,9 +181,7 @@ function buildContentEvents(jobs: ContentJob[], results: ContentResult[]): Conte
     if (job.fields.approved_at) {
       events.push({ id: `${job.id}-app`, title, event: "approved", date: job.fields.approved_at, keyword, job });
     }
-    if (job.fields.proposed_at) {
-      events.push({ id: `${job.id}-prop`, title, event: "proposed", date: job.fields.proposed_at, keyword, job });
-    }
+    // "proposed" events belong to the Title Proposals section, not the pipeline feed
   }
 
   for (const result of results) {
@@ -303,14 +301,6 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
     j.fields.title_status === "titled";
 
   const columns: KanbanColumn[] = [
-    {
-      key: "titled",
-      label: "Titles Proposed",
-      accent: "bg-blue-400",
-      headerColor: "text-blue-600",
-      gradientStyle: "linear-gradient(90deg, #3B82F6, #93C5FD)",
-      jobs: liveJobs.filter(isTitled),
-    },
     {
       key: "approved",
       label: "Approved",
@@ -596,7 +586,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
             {/* ── Sticky action bar ───────────────────────────────────────── */}
             {(() => {
               const result = findResultForJob(liveSelectedJob);
-              const isTitlePhase = !result && liveSelectedJob.fields.title_status === "titled";
+              const isTitlePhase = false; // Titles are managed in the Title Proposals section
               const isApprovedPhase =
                 !result &&
                 (liveSelectedJob.fields.title_status === "approved" || liveSelectedJob.fields.Status === "Queued") &&
