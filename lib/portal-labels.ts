@@ -115,6 +115,21 @@ function extractPageName(url: string): string {
  */
 export function getMetadataAction(currentValue?: string, proposedValue?: string): string {
   const proposed = proposedValue || "";
+
+  // JSON-first: new format {"title": "...", "meta_description": "..."}
+  if (proposed.trim().startsWith("{")) {
+    try {
+      const p = JSON.parse(proposed.trim());
+      if (typeof p === "object" && p !== null) {
+        const hasTitle = !!p.title;
+        const hasDesc = !!p.meta_description;
+        if (hasTitle && hasDesc) return "Update search listing";
+        if (hasTitle) return "Update page title";
+        if (hasDesc) return "Update meta description";
+      }
+    } catch { /* fall through to regex */ }
+  }
+
   const proposedHasTitle = /title\s*(?:tag)?\s*[:=]/i.test(proposed);
   const proposedHasDesc = /(?:meta\s*)?desc(?:ription)?\s*[:=]/i.test(proposed);
   if (proposedHasTitle && proposedHasDesc) return "Update search listing";
