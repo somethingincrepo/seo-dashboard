@@ -93,6 +93,7 @@ function ApprovalMasterDetailInner({
   const [pageFilterOpen, setPageFilterOpen] = useState(false);
   // Track which page groups are collapsed (by "cat::pageUrl")
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [showSafeList, setShowSafeList] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const pageFilterRef = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
@@ -610,9 +611,17 @@ function ApprovalMasterDetailInner({
 
           <div className="space-y-6">
             {/* Triage card — bulk approve safe types before reviewing the rest */}
-            {activeTab === "pending" && safeIds.length >= 5 && (
+            {activeTab === "pending" && safeIds.length > 0 && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4" style={{ boxShadow: "var(--shadow-xs)" }}>
-                <div className="text-sm font-medium text-slate-800 mb-1">Pre-screened Fixes</div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-sm font-medium text-slate-800">Pre-screened Fixes</div>
+                  <button
+                    onClick={() => setShowSafeList((p) => !p)}
+                    className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                  >
+                    {showSafeList ? "Hide ▲" : "Review ▼"}
+                  </button>
+                </div>
                 <div className="text-xs text-slate-500 mb-3 leading-relaxed">
                   {safeIds.length} changes that are safe to approve without individual review —
                   metadata tags, schema markup, image alt labels, and canonical links.
@@ -628,6 +637,48 @@ function ApprovalMasterDetailInner({
                     </span>
                   ))}
                 </div>
+
+                {/* Expandable list so the user can review each item before bulk-approving */}
+                {showSafeList && (
+                  <div className="mb-4 rounded-xl overflow-hidden border border-emerald-100 bg-white divide-y divide-slate-50">
+                    {effectivePending
+                      .filter((c) => safeIds.includes(c.id))
+                      .map((c) => {
+                        const changeType = normalizeType(c.fields.type || c.fields.change_type);
+                        const isSelected = selectedChangeId === c.id;
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedChangeId(c.id);
+                              clearFeedback();
+                              setShowQuestion(false);
+                              setQuestionText("");
+                              setShowTechnical(false);
+                              setConfirmApprove(false);
+                            }}
+                            className={`w-full text-left px-3 py-2.5 transition-colors ${isSelected ? "bg-indigo-50" : "hover:bg-slate-50"}`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${priorityDotColor(c.fields.priority)}`} />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-medium text-slate-800 truncate">
+                                  {getListItemTitle(changeType, c.fields.page_url, 40, c.fields.change_title, false, c.fields)}
+                                </div>
+                                <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                                  {truncateUrl(c.fields.page_url || "")}
+                                </div>
+                              </div>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 flex-shrink-0 mt-0.5">
+                                {changeType}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
                 <BatchApproveButton
                   recordIds={safeIds}
                   token={token}
