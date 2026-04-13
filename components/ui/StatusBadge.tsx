@@ -48,7 +48,13 @@ const CATEGORY: Record<string, string> = {
   "AI-GEO":  "text-pink-700 bg-pink-50 ring-pink-100",
 };
 
-type BadgeVariant = "plan_status" | "job_status" | "confidence" | "approval" | "category";
+const PRIORITY: Record<string, string> = {
+  High:   "text-red-700 bg-red-50 ring-red-100",
+  Medium: "text-amber-700 bg-amber-50 ring-amber-100",
+  Low:    "text-slate-600 bg-slate-50 ring-slate-200",
+};
+
+type BadgeVariant = "plan_status" | "job_status" | "confidence" | "approval" | "category" | "priority";
 
 interface StatusBadgeProps {
   value: string;
@@ -63,6 +69,7 @@ function getStyle(variant: BadgeVariant, value: string): string {
     confidence: CONFIDENCE,
     approval: APPROVAL,
     category: CATEGORY,
+    priority: PRIORITY,
   };
   return map[variant][value] ?? "text-slate-700 bg-slate-50 ring-slate-200";
 }
