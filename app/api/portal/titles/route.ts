@@ -200,7 +200,7 @@ export async function PATCH(request: NextRequest) {
   // doesn't collect them — the n8n Article Drafting node needs them to avoid .name errors.
   // If the webhook fails, mark the job "Webhook Failed" in Airtable so it's visible.
   if (action === "approve") {
-    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/42b82c45-bb9e-4597-a0df-2b9ab9b2863f";
+    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
     const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
     const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
     const searchIntent = jobRecord?.fields["Search intent"] || "informational";

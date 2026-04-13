@@ -50,11 +50,17 @@ async function handleJobTitle(recordId: string, action: string) {
     });
     const jobRecord = jobRes.ok ? await jobRes.json() : { fields: {} };
 
-    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/42b82c45-bb9e-4597-a0df-2b9ab9b2863f";
+    // Airtable REST API returns linked records as plain string IDs ["recXXX"].
+    // n8n's Get Client node reads fields['Client ID'][0].id, so we must convert to [{ id }] objects.
+    const rawFields = jobRecord.fields as Record<string, unknown>;
+    const clientIds = ((rawFields["Client ID"] as string[] | undefined) ?? []).map((id) => ({ id }));
+    const webhookFields = { ...rawFields, "Client ID": clientIds };
+
+    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
     fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recordId, fields: jobRecord.fields }),
+      body: JSON.stringify({ recordId, fields: webhookFields }),
     }).catch(() => {/* non-fatal */});
   }
 }
