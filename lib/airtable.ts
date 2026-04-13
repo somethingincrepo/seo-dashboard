@@ -7,6 +7,7 @@ export type AirtableParams = {
   maxRecords?: number;
   sort?: SortItem[];
   view?: string;
+  fields?: string[];
 };
 
 function getHeaders() {
@@ -36,6 +37,11 @@ function buildUrl(tableId: string, params?: AirtableParams, offset?: string): st
     params.sort.forEach((s, i) => {
       url.searchParams.set(`sort[${i}][field]`, s.field);
       url.searchParams.set(`sort[${i}][direction]`, s.direction ?? "asc");
+    });
+  }
+  if (params?.fields) {
+    params.fields.forEach((f, i) => {
+      url.searchParams.set(`fields[${i}]`, f);
     });
   }
   if (offset) {
