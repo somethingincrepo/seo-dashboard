@@ -87,7 +87,6 @@ export async function POST(request: NextRequest) {
     competitors: competitors || "",
     notes: notes || "",
     client_id,
-    status: "form_submitted",
     plan_status: "form_submitted",
   };
 
