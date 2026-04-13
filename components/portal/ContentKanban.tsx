@@ -302,6 +302,14 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
 
   const columns: KanbanColumn[] = [
     {
+      key: "titled",
+      label: "Proposed",
+      accent: "bg-slate-300",
+      headerColor: "text-slate-500",
+      gradientStyle: "linear-gradient(90deg, #94A3B8, #CBD5E1)",
+      jobs: liveJobs.filter(isTitled),
+    },
+    {
       key: "approved",
       label: "Approved",
       accent: "bg-emerald-400",
@@ -586,7 +594,10 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
             {/* ── Sticky action bar ───────────────────────────────────────── */}
             {(() => {
               const result = findResultForJob(liveSelectedJob);
-              const isTitlePhase = false; // Titles are managed in the Title Proposals section
+              const isTitlePhase =
+                !result &&
+                liveSelectedJob.fields.title_status === "titled" &&
+                liveSelectedJob.fields.Status !== "In Progress";
               const isApprovedPhase =
                 !result &&
                 (liveSelectedJob.fields.title_status === "approved" || liveSelectedJob.fields.Status === "Queued") &&
