@@ -464,9 +464,9 @@ function ApprovalMasterDetailInner({
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 flex-shrink-0">nav</span>
                   )}
                   {hasCritical && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 flex-shrink-0">!</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 flex-shrink-0">Critical</span>
                   )}
-                  <span className="text-[10px] text-slate-400 flex-shrink-0">{pageChanges.length}</span>
+                  <span className="text-[10px] text-slate-400 flex-shrink-0">{pageChanges.length} {pageChanges.length === 1 ? "item" : "items"}</span>
                 </button>
 
                 {/* Page group items */}

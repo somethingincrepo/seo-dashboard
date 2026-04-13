@@ -16,6 +16,7 @@ interface PortalSidebarProps {
 const CATEGORY_ROUTES: Record<string, string> = {
   Technical: "technical",
   "On-Page": "on-page",
+  Content: "content",
   "AI-GEO": "ai-geo",
 };
 

@@ -41,13 +41,24 @@ function IntentBadge({ intent }: { intent: string }) {
   );
 }
 
+const QUALITY_LABELS: Record<number, string> = {
+  3: "Good — meets minimum quality bar",
+  4: "Strong — specific, unique angle",
+  5: "Excellent — high specificity + differentiated from SERP",
+};
+
 function QualityDots({ score }: { score: number | null }) {
   if (!score) return null;
   return (
-    <div className="inline-flex gap-0.5 items-center">
+    <div className="relative group inline-flex gap-0.5 items-center cursor-default">
       {[1, 2, 3, 4, 5].map((i) => (
         <span key={i} className={`w-1.5 h-1.5 rounded-full ${i <= score ? "bg-slate-600" : "bg-slate-200"}`} />
       ))}
+      <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block pointer-events-none">
+        <div className="bg-slate-900 text-white text-[11px] font-medium rounded-md px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+          Quality {score}/5 — {QUALITY_LABELS[score] ?? "Scored by AI"}
+        </div>
+      </div>
     </div>
   );
 }
