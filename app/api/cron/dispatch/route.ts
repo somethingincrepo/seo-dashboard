@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
 
   const supabase = getSupabase();
 
-  // Find up to 5 pending Vercel-routed jobs, oldest first.
+  // Claim and run ONE pending Vercel-routed job per dispatch cycle.
+  // Running serially with limit=1 guarantees the job completes within the 290s Vercel cap.
   // Jobs with runner='fly' are handled by the Fly.io worker — skip them here.
   const { data: pending } = await supabase
     .from("jobs")
@@ -28,31 +29,28 @@ export async function GET(request: NextRequest) {
     .eq("status", "pending")
     .eq("runner", "vercel")
     .order("created_at", { ascending: true })
-    .limit(5);
+    .limit(1);
 
   if (!pending || pending.length === 0) {
     return NextResponse.json({ ok: true, dispatched: 0 });
   }
 
-  let dispatched = 0;
+  const job = pending[0] as SupabaseJob;
 
-  for (const job of pending as SupabaseJob[]) {
-    // Claim atomically — skip if another dispatch already claimed it
-    const claimed = await claimJob(job.id);
-    if (!claimed) continue;
+  // Claim atomically — bail if another dispatch already claimed it
+  const claimed = await claimJob(job.id);
+  if (!claimed) return NextResponse.json({ ok: true, dispatched: 0 });
 
-    // Re-fetch to get the claimed row
-    const { data: fresh } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("id", job.id)
-      .single();
+  // Re-fetch to get the claimed row
+  const { data: fresh } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("id", job.id)
+    .single();
 
-    if (!fresh) continue;
+  if (!fresh) return NextResponse.json({ ok: true, dispatched: 0 });
 
-    await runJob(fresh as SupabaseJob);
-    dispatched++;
-  }
+  await runJob(fresh as SupabaseJob);
 
-  return NextResponse.json({ ok: true, dispatched });
+  return NextResponse.json({ ok: true, dispatched: 1 });
 }

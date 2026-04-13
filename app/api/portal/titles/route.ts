@@ -195,30 +195,38 @@ export async function PATCH(request: NextRequest) {
 
   await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, fields);
 
-  // Fire-and-forget n8n webhook with the payload format the workflow actually expects.
+  // Fire n8n webhook with the payload format the workflow actually expects.
   // Content type and Desired length range are hardcoded defaults since the portal
   // doesn't collect them — the n8n Article Drafting node needs them to avoid .name errors.
+  // If the webhook fails, mark the job "Webhook Failed" in Airtable so it's visible.
   if (action === "approve") {
     const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
     const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
     const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
     const searchIntent = jobRecord?.fields["Search intent"] || "informational";
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        body: {
-          recordId: record_id,
-          fields: {
-            "Blog Title": blogTitle,
-            "Client ID": clientIds,
-            "Search intent": searchIntent,
-            "Content type": { id: "Blog Post", name: "Blog Post" },
-            "Desired length range": "1,500-2,500 words",
+    try {
+      const webhookRes = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: {
+            recordId: record_id,
+            fields: {
+              "Blog Title": blogTitle,
+              "Client ID": clientIds,
+              "Search intent": searchIntent,
+              "Content type": { id: "Blog Post", name: "Blog Post" },
+              "Desired length range": "1,500-2,500 words",
+            },
           },
-        },
-      }),
-    }).catch(() => {/* non-fatal */});
+        }),
+      });
+      if (!webhookRes.ok) {
+        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" });
+      }
+    } catch {
+      await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
+    }
   }
 
   return NextResponse.json({ ok: true });

@@ -44,18 +44,19 @@ export async function POST(request: NextRequest) {
         params: JSON.stringify({ change_id: recordId }),
       });
 
-      // Dual-write to Supabase for visibility in the new dashboard.
-      // Fire-and-forget: a Supabase failure must not break the approval flow.
+      // Write to Supabase — picked up by the Fly.io worker's implement SOP.
+      // runner='fly' is required: implement is a long-running job that needs the worker, not Vercel.
       try {
         const supabase = getSupabase();
         await supabase.from("jobs").insert({
           sop_name: "implement",
+          runner: "fly",
           client_id: client.id,
           status: "pending",
           payload: { change_id: recordId, triggered_by: "portal_approval" },
         });
       } catch (err) {
-        console.error("Supabase dual-write failed (non-fatal):", err);
+        console.error("Supabase job insert failed (non-fatal):", err);
       }
     }
 

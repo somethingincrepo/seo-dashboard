@@ -331,25 +331,25 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <GlassCard key={report.id} className="p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="font-medium text-sm">
-                    {report.fields.report_month_label ?? `Month ${report.fields.month}`}
+                    {report.report_month_label ?? `Month ${report.month}`}
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
-                    <div className={`text-lg font-bold ${(report.fields.gsc_clicks_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                      {(report.fields.gsc_clicks_delta ?? 0) >= 0 ? "+" : ""}{report.fields.gsc_clicks_delta ?? "—"}
+                    <div className={`text-lg font-bold ${(report.gsc_clicks_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {(report.gsc_clicks_delta ?? 0) >= 0 ? "+" : ""}{report.gsc_clicks_delta ?? "—"}
                     </div>
                     <div className="text-slate-400 text-xs">Clicks</div>
                   </div>
                   <div>
-                    <div className={`text-lg font-bold ${(report.fields.gsc_impressions_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                      {(report.fields.gsc_impressions_delta ?? 0) >= 0 ? "+" : ""}{report.fields.gsc_impressions_delta ?? "—"}
+                    <div className={`text-lg font-bold ${(report.gsc_impressions_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {(report.gsc_impressions_delta ?? 0) >= 0 ? "+" : ""}{report.gsc_impressions_delta ?? "—"}
                     </div>
                     <div className="text-slate-400 text-xs">Impressions</div>
                   </div>
                   <div>
-                    <div className={`text-lg font-bold ${(report.fields.ga4_sessions_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                      {(report.fields.ga4_sessions_delta ?? 0) >= 0 ? "+" : ""}{report.fields.ga4_sessions_delta ?? "—"}
+                    <div className={`text-lg font-bold ${(report.ga4_sessions_delta ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {(report.ga4_sessions_delta ?? 0) >= 0 ? "+" : ""}{report.ga4_sessions_delta ?? "—"}
                     </div>
                     <div className="text-slate-400 text-xs">Sessions</div>
                   </div>

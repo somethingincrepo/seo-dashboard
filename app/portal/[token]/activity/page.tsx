@@ -94,8 +94,8 @@ export default async function ActivityPage({
   for (const r of reports) {
     entries.push({
       kind: "report",
-      date: r.fields.report_generated_at || "",
-      month: r.fields.month,
+      date: r.report_generated_at || "",
+      month: r.month,
     });
   }
 
