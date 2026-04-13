@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { HowToUseModal } from "./HowToUseModal";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -91,7 +89,6 @@ export function PortalSidebar({
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const base = `/portal/${token}`;
-  const [showHowToUse, setShowHowToUse] = useState(false);
 
   const approvalsExpanded = pathname.startsWith(`${base}/approvals`);
   const contentExpanded = pathname.startsWith(`${base}/content`);
@@ -217,14 +214,19 @@ export function PortalSidebar({
         </nav>
 
         {/* Bottom CTA */}
-        <div className="px-3 py-3 border-t border-slate-100 space-y-2">
-          <button
-            onClick={() => setShowHowToUse(true)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all"
+        <div className="px-3 py-3 border-t border-slate-100 space-y-1">
+          <Link
+            href={`${base}/guide`}
+            className={cn(
+              "flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] transition-colors",
+              pathname === `${base}/guide`
+                ? "text-slate-700 bg-slate-100"
+                : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+            )}
           >
-            <IconBook className="w-4 h-4 shrink-0" />
-            How to Use
-          </button>
+            <IconBook className="w-3.5 h-3.5 shrink-0" />
+            How to use
+          </Link>
           <a
             href="https://calendly.com/somethinginc/something-inc-touchbase-1"
             target="_blank"
@@ -236,7 +238,6 @@ export function PortalSidebar({
           </a>
         </div>
       </aside>
-      {showHowToUse && <HowToUseModal onClose={() => setShowHowToUse(false)} />}
 
       {/* Main content */}
       <main className="flex-1 flex flex-col ml-[240px] p-10 min-h-screen">{children}</main>
