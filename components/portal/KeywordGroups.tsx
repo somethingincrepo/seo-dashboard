@@ -58,7 +58,8 @@ export function SubkeywordRow({ kw, index, onRemove, onEdit, token, showPriority
 }) {
   const router = useRouter();
   const diff = getDifficultyStyle(kw.difficulty);
-  const p: Priority = (kw.priority as Priority) || "medium";
+  const rawPriority = kw.priority?.toLowerCase();
+  const p: Priority = (rawPriority === "high" || rawPriority === "medium" || rawPriority === "low") ? rawPriority : "medium";
   const ps = PRIORITY_STYLES[p];
 
   const handlePriorityChange = async (newPriority: string) => {

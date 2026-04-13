@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { airtableCreate } from "@/lib/airtable";
+import { airtableCreate, airtableFetch } from "@/lib/airtable";
 import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +55,22 @@ export async function POST(request: NextRequest) {
 
   const client_id = slugify(company_name as string);
 
+  // Idempotency check — reject if a client with the same site_url already exists
+  try {
+    const existing = await airtableFetch<{ id: string; fields: { site_url?: string } }>(
+      "Clients",
+      { filterByFormula: `{site_url} = "${(site_url as string).replace(/\/$/, "")}"`, maxRecords: 1 }
+    );
+    if (existing.length > 0) {
+      return NextResponse.json(
+        { error: `A client with site_url "${site_url}" already exists (record: ${existing[0].id}). Delete it first or use the existing record.` },
+        { status: 409 }
+      );
+    }
+  } catch {
+    // Non-fatal — proceed if check fails
+  }
+
   // Build nav_pages JSON — accept array or JSON string
   let navPagesJson = "[]";
   if (Array.isArray(nav_pages)) {
@@ -87,7 +103,7 @@ export async function POST(request: NextRequest) {
     competitors: competitors || "",
     notes: notes || "",
     client_id,
-    plan_status: "form_submitted",
+    plan_status: run_audit ? "month1_audit" : "form_submitted",
   };
 
   let record: { id: string };

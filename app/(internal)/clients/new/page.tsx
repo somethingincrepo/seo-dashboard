@@ -15,20 +15,6 @@ const CMS_OPTIONS = [
   "Custom / Other",
 ];
 
-const DEFAULT_NAV_PAGES = [
-  "https://tidaltreasureschartersbvi.com/",
-  "https://tidaltreasureschartersbvi.com/full-day-charters/",
-  "https://tidaltreasureschartersbvi.com/half-day-charters/",
-  "https://tidaltreasureschartersbvi.com/sunset-dinner-charters/",
-  "https://tidaltreasureschartersbvi.com/water-taxi/",
-  "https://tidaltreasureschartersbvi.com/charters/",
-  "https://tidaltreasureschartersbvi.com/about-us/",
-  "https://tidaltreasureschartersbvi.com/request-booking/",
-  "https://tidaltreasureschartersbvi.com/contact/",
-  "https://tidaltreasureschartersbvi.com/testimonials/",
-  "https://tidaltreasureschartersbvi.com/gallery/",
-  "https://tidaltreasureschartersbvi.com/blog/",
-];
 
 function Field({
   label,
@@ -58,17 +44,17 @@ const inputClass =
 export default function NewClientPage() {
   const router = useRouter();
   const [form, setForm] = useState({
-    company_name: "Tidal Treasures Charters & Water Taxi",
+    company_name: "",
     contact_name: "",
     contact_email: "",
-    site_url: "https://tidaltreasureschartersbvi.com/",
-    domain: "tidaltreasureschartersbvi.com",
+    site_url: "",
+    domain: "",
     cms: "WordPress",
-    gsc_property: "sc-domain:tidaltreasureschartersbvi.com",
-    nav_pages: DEFAULT_NAV_PAGES.join("\n"),
-    keywords: "BVI boat charters, British Virgin Islands water taxi, Tortola charter, private charter BVI, sunset charters Tortola",
+    gsc_property: "",
+    nav_pages: "",
+    keywords: "",
     competitors: "",
-    notes: "Charter and water taxi service based in Tortola, BVI. WordPress/Elementor site.",
+    notes: "",
     run_audit: true,
   });
 
@@ -77,8 +63,36 @@ export default function NewClientPage() {
   const [result, setResult] = useState<{ record_id: string; client_id: string; job_id: string | null } | null>(null);
 
   const handleChange = (key: string, value: string | boolean) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      // Auto-derive domain and gsc_property when site_url changes
+      if (key === "site_url" && typeof value === "string") {
+        try {
+          const domain = new URL(value).hostname.replace(/^www\./, "");
+          if (domain) {
+            if (!prev.domain || prev.domain === deriveField(prev.site_url, "domain")) {
+              next.domain = domain;
+            }
+            if (!prev.gsc_property || prev.gsc_property === deriveField(prev.site_url, "gsc")) {
+              next.gsc_property = `sc-domain:${domain}`;
+            }
+          }
+        } catch {
+          // invalid URL — leave fields alone
+        }
+      }
+      return next;
+    });
   };
+
+  function deriveField(url: string, kind: "domain" | "gsc"): string {
+    try {
+      const domain = new URL(url).hostname.replace(/^www\./, "");
+      return kind === "domain" ? domain : `sc-domain:${domain}`;
+    } catch {
+      return "";
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
