@@ -185,8 +185,8 @@ function buildContentEvents(jobs: ContentJob[], results: ContentResult[]): Conte
   }
 
   for (const result of results) {
-    const title = result.fields["Blog Title"] || "Untitled";
-    const d = result.fields["Created At"];
+    const title = result.fields["Article title"] || "Untitled";
+    const d = result.createdTime;
     if (d) events.push({ id: `res-${result.id}`, title, event: "ready", date: d });
   }
 
@@ -344,7 +344,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
   ];
 
   const findResultForJob = (job: ContentJob): ContentResult | undefined =>
-    results.find((r) => r.fields["Blog Title"] === job.fields["Blog Title"]);
+    results.find((r) => r.fields["Job ID"]?.includes(job.id));
 
   const openJobDetail = (job: ContentJob) => {
     setSelectedJob(job);
@@ -562,7 +562,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                             [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-500
                             [&_code]:text-sm [&_code]:bg-slate-100 [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono
                           "
-                          dangerouslySetInnerHTML={{ __html: result.fields.Body }}
+                          dangerouslySetInnerHTML={{ __html: result.fields["Article body"] }}
                         />
                       </div>
                     </div>
@@ -574,15 +574,15 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                       <div className="space-y-2">
                         <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3">
                           <div className="text-[11px] text-slate-400 mb-1">
-                            Meta Title ({(result.fields["Meta Title"] || "").length} chars)
+                            Meta Title ({(result.fields["Meta title"] || "").length} chars)
                           </div>
-                          <div className="text-sm text-slate-700">{result.fields["Meta Title"] || "—"}</div>
+                          <div className="text-sm text-slate-700">{result.fields["Meta title"] || "—"}</div>
                         </div>
                         <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3">
                           <div className="text-[11px] text-slate-400 mb-1">
-                            Meta Description ({(result.fields["Meta Description"] || "").length} chars)
+                            Meta Description ({(result.fields["Meta description"] || "").length} chars)
                           </div>
-                          <div className="text-sm text-slate-700">{result.fields["Meta Description"] || "—"}</div>
+                          <div className="text-sm text-slate-700">{result.fields["Meta description"] || "—"}</div>
                         </div>
                       </div>
                     </div>

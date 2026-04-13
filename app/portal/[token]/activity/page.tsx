@@ -144,8 +144,8 @@ export default async function ActivityPage({
 
   // Completed articles from Results
   for (const result of contentResults) {
-    const blogTitle = result.fields["Blog Title"] || "Untitled";
-    const createdAt = result.fields["Created At"] || "";
+    const blogTitle = result.fields["Article title"] || "Untitled";
+    const createdAt = result.createdTime || "";
     if (createdAt) {
       entries.push({ kind: "content", date: createdAt, title: blogTitle, event: "completed" });
     }

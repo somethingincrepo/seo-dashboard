@@ -86,25 +86,26 @@ export type ContentJob = {
 // ── Content Results Types ───────────────────────────────────────────────────
 
 export type ContentResultFields = {
-  "Client Name": string;
-  "Blog Title": string;
-  Slug: string;
-  Body: string;
-  "Meta Title": string;
-  "Meta Description": string;
-  Status: string;
+  "Job ID": string[];                          // linked record — returns plain string[] of record IDs
+  "Article title": string;
+  "URL slug": string;
+  "Article body": string;
+  "Meta title": string;
+  "Meta description": string;
+  Excerpt: string;
+  Outline: string;
+  "Internal link recommendations": string;
+  "Source URLs": string;
+  "Client Name (from Client ID) (from Job ID)": string[];
   portal_approval: string | null;
   portal_notes: string | null;
   portal_approved_at: string | null;
-  "Content Type": string;
-  Intent: string;
-  "Target Persona": string;
-  "Created At": string;
   DocumentUrl: string | null;
 };
 
 export type ContentResult = {
   id: string;
+  createdTime: string;
   fields: ContentResultFields;
 };
 
@@ -131,8 +132,9 @@ export async function getContentResultsForClient(companyName: string): Promise<C
   if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) {
     return [];
   }
-  const filter = `AND({Status}='Completed',LOWER({Client Name})='${companyName.toLowerCase().replace(/'/g, "\\'")}')`;
-  return contentFetch<ContentResult>("Results", { filterByFormula: filter, sort: "{Created At} DESC" });
+  const escaped = companyName.replace(/"/g, '\\"');
+  const filter = `FIND("${escaped}", ARRAYJOIN({Client Name (from Client ID) (from Job ID)}, ","))`;
+  return contentFetch<ContentResult>("Results", { filterByFormula: filter });
 }
 
 /**
@@ -142,8 +144,8 @@ export async function getResultByJobTitle(companyName: string, blogTitle: string
   if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) {
     return null;
   }
-  const filter = `AND({Status}='Completed',{Blog Title}='${blogTitle.replace(/'/g, "\\'")}')`;
-  const results = await contentFetch<ContentResult>("Results", { filterByFormula: filter, sort: "{Created At} DESC" });
+  const filter = `{Article title}='${blogTitle.replace(/'/g, "\\'")}'`;
+  const results = await contentFetch<ContentResult>("Results", { filterByFormula: filter });
   return results[0] || null;
 }
 
