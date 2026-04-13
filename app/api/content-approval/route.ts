@@ -43,11 +43,18 @@ async function handleJobTitle(recordId: string, action: string) {
   }
 
   if (action === "approved") {
+    // Fetch the full job record so we can send the fields n8n's "Get Client" node needs.
+    // n8n expects: { recordId, fields: { "Blog Title": "...", "Client ID": [{ id: "rec..." }] } }
+    const jobRes = await fetch(`${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(JOBS_TABLE)}/${recordId}`, {
+      headers: getContentHeaders(),
+    });
+    const jobRecord = jobRes.ok ? await jobRes.json() : { fields: {} };
+
     const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/42b82c45-bb9e-4597-a0df-2b9ab9b2863f";
     fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ record_id: recordId, trigger: "portal_approval" }),
+      body: JSON.stringify({ recordId, fields: jobRecord.fields }),
     }).catch(() => {/* non-fatal */});
   }
 }

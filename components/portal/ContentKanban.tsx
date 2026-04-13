@@ -533,6 +533,17 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                 if (!result) return null;
                 return (
                   <>
+                    {result.fields.DocumentUrl && (
+                      <a
+                        href={result.fields.DocumentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition-colors"
+                      >
+                        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
+                        View Google Doc
+                      </a>
+                    )}
                     <div>
                       <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">
                         Article Preview

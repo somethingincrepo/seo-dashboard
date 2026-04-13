@@ -100,6 +100,7 @@ export type ContentResultFields = {
   Intent: string;
   "Target Persona": string;
   "Created At": string;
+  DocumentUrl: string | null;
 };
 
 export type ContentResult = {
