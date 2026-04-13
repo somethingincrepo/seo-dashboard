@@ -104,7 +104,15 @@ export function useApprovalActions({
         }
 
         if (decision === "approved") {
-          setFeedback("Approved — we'll implement this within 24 hours.");
+          const body = await res.json().catch(() => ({}));
+          const outcome = body.outcome as string | undefined;
+          let approvedMsg = "Approved — we'll implement this within 24 hours.";
+          if (outcome === "manual_required") {
+            approvedMsg = "Approved — our team will implement this manually and confirm when done.";
+          } else if (outcome === "design_review_required") {
+            approvedMsg = "Approved — our team will review the design impact and implement shortly.";
+          }
+          setFeedback(approvedMsg);
           setConfirmApprove(false);
           if (undoTimerRef.current) clearInterval(undoTimerRef.current);
           setUndoTarget({ changeId, remaining: 30 });

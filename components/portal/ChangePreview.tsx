@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { ChangeFields } from "@/lib/changes";
 import { isAwarenessFlag, isInstruction } from "@/lib/portal-labels";
+// React imported for JSX in InternalLinkPreview
+import React from "react";
 // isInstruction is used by ElementPreview for heading direction detection
 
 // Returns true if a proposed_value is implementation code (JSON-LD, robots.txt rules, etc.)
@@ -163,15 +165,14 @@ export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
     if (isAgentAnalysis(current) && isAgentAnalysis(effectiveProposed)) return null;
     return <GeoPreview current={current} proposed={effectiveProposed} />;
   }
-  if (cat === "Content" || type === "FAQ") {
-    // Content changes often have agent analysis in current/proposed — don't show those
-    // Only show the preview if the values look like actual page content
+  // FAQ — render Q&A pairs if JSON array
+  if (type === "FAQ") {
     const currentIsAnalysis = isAgentAnalysis(current);
     const proposedIsAnalysis = isAgentAnalysis(effectiveProposed);
     if (currentIsAnalysis && proposedIsAnalysis) return null;
-    if (currentIsAnalysis && !effectiveProposed) return null;
-    // If proposed is implementation code (JSON-LD schema), route to TechnicalPreview
-    // so it renders collapsed rather than dumping raw JSON into the content panel
+    if (effectiveProposed.trim().startsWith("[")) {
+      return <FAQPreview proposed={effectiveProposed} current={currentIsAnalysis ? "" : current} />;
+    }
     if (isCodeValue(effectiveProposed)) {
       return <TechnicalPreview current={currentIsAnalysis ? "" : current} proposed={effectiveProposed} />;
     }
@@ -181,14 +182,56 @@ export function ChangePreview({ fields, cat, type }: ChangePreviewProps) {
       type={type}
     />;
   }
-  // On-Page non-metadata (Heading, Alt Text, Internal Link)
+
+  if (cat === "Content") {
+    const currentIsAnalysis = isAgentAnalysis(current);
+    const proposedIsAnalysis = isAgentAnalysis(effectiveProposed);
+    if (currentIsAnalysis && proposedIsAnalysis) return null;
+    if (currentIsAnalysis && !effectiveProposed) return null;
+    if (isCodeValue(effectiveProposed)) {
+      return <TechnicalPreview current={currentIsAnalysis ? "" : current} proposed={effectiveProposed} />;
+    }
+    return <ContentPreview
+      current={currentIsAnalysis ? "" : current}
+      proposed={proposedIsAnalysis ? "" : effectiveProposed}
+      type={type}
+    />;
+  }
+
+  // Alt Text — JSON array format
+  if (type === "Alt Text" && effectiveProposed.trim().startsWith("[")) {
+    return <AltTextPreview proposed={effectiveProposed} current={current} />;
+  }
+
+  // Internal Link — JSON object format
+  if (type === "Internal Link" && effectiveProposed.trim().startsWith("{")) {
+    return <InternalLinkPreview proposed={effectiveProposed} current={current} />;
+  }
+
+  // On-Page non-metadata (Heading, Alt Text, Internal Link — legacy/fallback)
   return <ElementPreview current={current} proposed={effectiveProposed} type={type} />;
 }
 
 // ─── Redirect: Flow Card ───────────────────────────────────────
 
 function parseRedirectUrls(proposed: string): { from: string; to: string; code: string } {
-  // Try to parse "301 redirect:\n/from\n→ /to" format
+  // JSON-first: new format {"from": "/old/", "to": "/new/", "type": 301}
+  if (proposed.trim().startsWith("{")) {
+    try {
+      const p = JSON.parse(proposed.trim());
+      if (typeof p === "object" && p !== null && (p.from || p.to)) {
+        return {
+          from: p.from || "",
+          to: p.to || "",
+          code: String(p.type || 301),
+        };
+      }
+    } catch {
+      // fall through to text parsing
+    }
+  }
+
+  // Legacy text format fallback
   const lines = proposed.split("\n").map(l => l.trim()).filter(Boolean);
   let from = "";
   let to = "";
@@ -282,11 +325,24 @@ function parseMetadata(value: string): { title: string | null; description: stri
     return { title: null, description: null };
   }
 
-  // Normalize newlines to ". " so regexes can match across lines.
-  // "Title Tag: Foo\nMeta Description: Bar" → "Title Tag: Foo. Meta Description: Bar"
+  // JSON-first: new audit SOP format {"title": "...", "meta_description": "..."}
+  if (raw.startsWith("{")) {
+    try {
+      const p = JSON.parse(raw);
+      if (typeof p === "object" && p !== null && (p.title || p.meta_description)) {
+        return {
+          title: typeof p.title === "string" && p.title.length > 0 ? p.title : null,
+          description: typeof p.meta_description === "string" && p.meta_description.length > 0 ? p.meta_description : null,
+        };
+      }
+    } catch {
+      // fall through to legacy text parsing
+    }
+  }
+
+  // Legacy text format fallback — "Title Tag: Foo\nMeta Description: Bar"
   const v = raw.replace(/\s*\n+\s*/g, ". ").replace(/\.\s*\./g, ".");
 
-  // Detect analyst shorthand (single-word assessment, not real content)
   if (v.match(/^Title:\s*(acceptable|too short|ok|good|missing|needs)\s*\.?\s*$/i)) {
     return { title: null, description: null };
   }
@@ -297,7 +353,6 @@ function parseMetadata(value: string): { title: string | null; description: stri
   let title: string | null = null;
   let description: string | null = null;
 
-  // Extract "Title Tag: ..." or "Title: ..." — everything up to the next field label or end
   const titleMatch = v.match(/Title\s*(?:Tag)?\s*[:=]\s*(.+?)(?=\.\s*(?:Meta\s*)?Desc(?:ription)?|$)/i);
   if (titleMatch) {
     const t = titleMatch[1].trim().replace(/\.$/, "");
@@ -306,7 +361,6 @@ function parseMetadata(value: string): { title: string | null; description: stri
     }
   }
 
-  // Extract "Meta Description: ..." or "Description: ..." or "Desc: ..."
   const descMatch = v.match(/(?:Meta\s*)?Desc(?:ription)?\s*[:=]\s*(.+?)$/i);
   if (descMatch) {
     const d = descMatch[1].trim().replace(/\.$/, "");
@@ -315,10 +369,8 @@ function parseMetadata(value: string): { title: string | null; description: stri
     }
   }
 
-  // If no structured labels found, classify the raw text
   if (!title && !description) {
     if (v.match(/^(Nav page|Critical)/i)) return { title: null, description: null };
-
     if (v.length < 80 && !v.match(/^(Title|Desc|Meta)/i)) {
       title = v;
     } else if (v.length >= 80 && !v.match(/[:=]/) && !v.match(/^(Title|Desc|Meta)/i)) {
@@ -686,6 +738,127 @@ function ContentPreview({ current, proposed, type }: { current: string; proposed
           <p className="text-xs text-slate-400 mt-2">Content changes may be visible to site visitors.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Alt Text: JSON Array Preview ──────────────────────────────
+
+function AltTextPreview({ proposed, current }: { proposed: string; current: string }) {
+  let items: { url: string; alt: string }[] = [];
+  try {
+    const parsed = JSON.parse(proposed);
+    if (Array.isArray(parsed)) items = parsed;
+  } catch {
+    // Fall back to technical preview if not valid JSON
+    return <TechnicalPreview current={current} proposed={proposed} />;
+  }
+
+  if (items.length === 0) return <TechnicalPreview current={current} proposed={proposed} />;
+
+  return (
+    <div className="mt-4 space-y-2">
+      <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Alt Text Updates</div>
+      {items.map((item, i) => (
+        <div key={i} className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+          <code className="text-sm text-emerald-800 block" style={{ overflowWrap: "anywhere" }}>
+            <span className="text-emerald-500">alt=</span>&quot;{item.alt}&quot;
+          </code>
+          <div className="text-[10px] text-slate-400 mt-1 font-mono" style={{ overflowWrap: "anywhere" }}>{item.url}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Internal Link: JSON Preview ───────────────────────────────
+
+function InternalLinkPreview({ proposed, current }: { proposed: string; current: string }) {
+  let parsed: { source_url?: string; anchor_text?: string; target_url?: string; context?: string } = {};
+  try {
+    if (proposed.trim().startsWith("{")) {
+      parsed = JSON.parse(proposed.trim());
+    }
+  } catch {
+    return <ElementPreview current={current} proposed={proposed} type="Internal Link" />;
+  }
+
+  if (!parsed.anchor_text && !parsed.target_url) {
+    return <ElementPreview current={current} proposed={proposed} type="Internal Link" />;
+  }
+
+  const { anchor_text, target_url, context } = parsed;
+
+  // Highlight anchor_text within context sentence
+  let contextParts: React.ReactNode = null;
+  if (context && anchor_text) {
+    const idx = context.indexOf(anchor_text);
+    if (idx !== -1) {
+      contextParts = (
+        <>
+          {context.slice(0, idx)}
+          <strong className="text-emerald-700 underline decoration-emerald-400">{anchor_text}</strong>
+          {context.slice(idx + anchor_text.length)}
+        </>
+      );
+    } else {
+      contextParts = context;
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      {context && (
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Context</div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+            <p className="text-sm text-slate-700 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
+              {contextParts || context}
+            </p>
+          </div>
+        </div>
+      )}
+      {target_url && (
+        <div className="text-xs text-slate-500" style={{ overflowWrap: "anywhere" }}>
+          <span className="font-medium">Links to:</span> {target_url}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── FAQ: Q&A Pairs Preview ────────────────────────────────────
+
+function FAQPreview({ proposed, current }: { proposed: string; current: string }) {
+  let items: { q: string; a: string }[] = [];
+  try {
+    const parsed = JSON.parse(proposed);
+    if (Array.isArray(parsed) && parsed.length > 0 && "q" in parsed[0]) {
+      items = parsed;
+    }
+  } catch {
+    // Fall back to content preview
+    return <ContentPreview current={current} proposed={proposed} type="FAQ" />;
+  }
+
+  if (items.length === 0) return <ContentPreview current={current} proposed={proposed} type="FAQ" />;
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+        FAQ Schema — {items.length} question{items.length !== 1 ? "s" : ""}
+      </div>
+      {items.map((item, i) => (
+        <div key={i} className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 space-y-1.5">
+          <div className="text-sm font-semibold text-slate-800" style={{ overflowWrap: "anywhere" }}>
+            Q: {item.q}
+          </div>
+          <div className="text-sm text-slate-600 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
+            A: {item.a}
+          </div>
+        </div>
+      ))}
+      <p className="text-xs text-slate-400">These Q&amp;As will be added as structured data to help your answers appear in Google&apos;s FAQ dropdowns and AI search results.</p>
     </div>
   );
 }
