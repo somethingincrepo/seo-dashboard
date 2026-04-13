@@ -41,6 +41,12 @@ export default async function ClientsPage() {
           <h1 className="text-2xl font-semibold">Clients</h1>
           <p className="text-slate-500 text-sm mt-1">{clients.length} clients</p>
         </div>
+        <Link
+          href="/clients/new"
+          className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors"
+        >
+          + New Client
+        </Link>
       </div>
 
       {clients.length === 0 && (
