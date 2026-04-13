@@ -51,11 +51,13 @@ function KanbanCard({
   selected,
   accent,
   onClick,
+  documentUrl,
 }: {
   job: ContentJob;
   selected: boolean;
   accent: string;
   onClick: () => void;
+  documentUrl?: string | null;
 }) {
   const keyword = job.fields.target_keyword;
   const intent = (job.fields["Search intent"] || "").toLowerCase();
@@ -108,6 +110,18 @@ function KanbanCard({
             </span>
           )}
         </div>
+        {documentUrl && (
+          <a
+            href={documentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+          >
+            <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
+            View Google Doc
+          </a>
+        )}
       </div>
     </div>
   );
@@ -443,6 +457,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                       selected={liveSelectedJob?.id === job.id}
                       accent={col.accent}
                       onClick={() => openJobDetail(job)}
+                      documentUrl={findResultForJob(job)?.fields.DocumentUrl}
                     />
                   ))
                 )}

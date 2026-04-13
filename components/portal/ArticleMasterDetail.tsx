@@ -104,16 +104,6 @@ function ArticleMasterDetailInner({ results, token }: ArticleMasterDetailProps) 
             </div>
           )}
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            {result.fields["Content Type"] && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {result.fields["Content Type"]}
-              </span>
-            )}
-            {result.fields.Intent && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                {result.fields.Intent}
-              </span>
-            )}
             {isDecided && (
               <span
                 className={`text-[10px] ${
@@ -184,25 +174,6 @@ function ArticleMasterDetailInner({ results, token }: ArticleMasterDetailProps) 
         ) : (
           <div className="flex-1 flex flex-col">
             <div className="flex-1 overflow-y-auto p-8 pb-24">
-              {/* Tags */}
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                {selected.fields["Content Type"] && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                    {selected.fields["Content Type"]}
-                  </span>
-                )}
-                {selected.fields.Intent && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    {selected.fields.Intent}
-                  </span>
-                )}
-                {selected.fields["Target Persona"] && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                    {selected.fields["Target Persona"]}
-                  </span>
-                )}
-              </div>
-
               {/* Title */}
               <h2 className="text-xl font-semibold text-slate-900 mb-2">
                 {selected.fields["Article title"] || "Untitled"}
