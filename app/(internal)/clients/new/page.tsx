@@ -60,7 +60,14 @@ export default function NewClientPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ record_id: string; client_id: string; job_id: string | null } | null>(null);
+  const [result, setResult] = useState<{
+    record_id: string;
+    client_id: string;
+    job_id: string | null;
+    portal_username?: string;
+    portal_password?: string;
+    portal_token?: string;
+  } | null>(null);
 
   const handleChange = (key: string, value: string | boolean) => {
     setForm((prev) => {
@@ -131,37 +138,93 @@ export default function NewClientPage() {
   };
 
   if (result) {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const loginUrl = `${baseUrl}/portal/login`;
+
+    function CopyBtn({ value }: { value: string }) {
+      const [copied, setCopied] = useState(false);
+      return (
+        <button
+          onClick={async () => {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          className="px-2 py-0.5 rounded-lg text-xs border transition-all bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+        >
+          {copied ? "✓" : "Copy"}
+        </button>
+      );
+    }
+
     return (
-      <div className="max-w-xl space-y-6">
+      <div className="max-w-xl space-y-4">
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6">
-          <div className="text-emerald-700 font-semibold text-lg mb-2">Client created</div>
-          <div className="text-sm text-slate-600 space-y-1">
-            <div><span className="text-slate-400">Record ID:</span> <span className="font-mono">{result.record_id}</span></div>
-            <div><span className="text-slate-400">Client slug:</span> <span className="font-mono">{result.client_id}</span></div>
-            {result.job_id ? (
-              <div><span className="text-slate-400">Audit job:</span>{" "}
+          <div className="text-emerald-700 font-semibold text-lg mb-1">Client created</div>
+          <div className="text-sm text-slate-500 mb-4">
+            {result.job_id
+              ? "Month 1 audit is running."
+              : "No audit triggered — run_audit was off."}
+          </div>
+          <div className="text-xs text-slate-400 space-y-1">
+            <div>Record: <span className="font-mono text-slate-600">{result.record_id}</span></div>
+            <div>Slug: <span className="font-mono text-slate-600">{result.client_id}</span></div>
+            {result.job_id && (
+              <div>Job:{" "}
                 <Link href={`/jobs/${result.job_id}`} className="font-mono text-indigo-600 hover:underline">
                   {result.job_id}
                 </Link>
               </div>
-            ) : (
-              <div className="text-amber-600 text-xs mt-2">No audit job triggered (run_audit was off)</div>
             )}
           </div>
-          <div className="mt-4 flex gap-3">
+        </div>
+
+        {/* Portal credentials — send these to the client */}
+        {result.portal_username && (
+          <div className="border border-slate-200 rounded-2xl p-6 space-y-3 bg-white">
+            <div className="text-sm font-semibold text-slate-700">Portal Login Credentials</div>
+            <p className="text-xs text-slate-400">Send these to the client. You can also find them anytime on the client detail page.</p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400 w-20 shrink-0">Username</span>
+                <span className="font-mono text-sm text-slate-800 flex-1">{result.portal_username}</span>
+                <CopyBtn value={result.portal_username} />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400 w-20 shrink-0">Password</span>
+                <span className="font-mono text-sm text-slate-800 flex-1">{result.portal_password}</span>
+                <CopyBtn value={result.portal_password!} />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400 w-20 shrink-0">Login URL</span>
+                <span className="font-mono text-sm text-indigo-600 flex-1">{loginUrl}</span>
+                <CopyBtn value={loginUrl} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <Link
+            href={`/clients/${result.record_id}`}
+            className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-xl hover:bg-indigo-700 transition-colors"
+          >
+            View Client →
+          </Link>
+          {result.job_id && (
             <Link
-              href="/jobs"
-              className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-xl hover:bg-indigo-700 transition-colors"
-            >
-              View Jobs →
-            </Link>
-            <Link
-              href="/clients"
+              href={`/jobs/${result.job_id}`}
               className="px-4 py-2 bg-slate-100 text-slate-700 text-sm rounded-xl hover:bg-slate-200 transition-colors"
             >
-              All Clients
+              View Audit Job
             </Link>
-          </div>
+          )}
+          <Link
+            href="/clients"
+            className="px-4 py-2 bg-slate-100 text-slate-700 text-sm rounded-xl hover:bg-slate-200 transition-colors"
+          >
+            All Clients
+          </Link>
         </div>
       </div>
     );
