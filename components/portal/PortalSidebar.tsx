@@ -11,6 +11,7 @@ interface PortalSidebarProps {
   contentReviewCount: number;
   titleProposalCount: number;
   categoryBreakdown: Record<string, number>;
+  isLoggedIn: boolean;
 }
 
 const CATEGORY_ROUTES: Record<string, string> = {
@@ -86,6 +87,7 @@ export function PortalSidebar({
   contentReviewCount,
   titleProposalCount,
   categoryBreakdown,
+  isLoggedIn,
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const base = `/portal/${token}`;
@@ -236,6 +238,23 @@ export function PortalSidebar({
             <IconCalendar className="w-4 h-4 shrink-0" />
             Book a meeting
           </a>
+          {isLoggedIn ? (
+            <form action="/api/portal/logout" method="POST">
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[12px] text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
+              >
+                Sign out
+              </button>
+            </form>
+          ) : (
+            <Link
+              href="/portal/login"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[12px] text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </aside>
 

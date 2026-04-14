@@ -8,6 +8,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { GenerateTokenButton } from "@/components/ui/GenerateTokenButton";
+import { GenerateCredentialsButton } from "@/components/ui/GenerateCredentialsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -159,6 +160,42 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             )}
             <GenerateTokenButton clientId={id} hasToken={!!f.portal_token} />
           </div>
+        </div>
+      </GlassCard>
+
+      {/* Portal credentials — username/password login */}
+      <GlassCard className="p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1 space-y-2">
+            <div className="text-xs text-slate-500 uppercase tracking-wider">Portal Login Credentials</div>
+            {f.portal_username ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-20 shrink-0">Username</span>
+                  <span className="font-mono text-sm text-slate-800">{f.portal_username}</span>
+                  <CopyButton value={f.portal_username} label="Copy" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-20 shrink-0">Password</span>
+                  <span className="font-mono text-sm text-slate-800">{f.portal_password || "—"}</span>
+                  {f.portal_password && <CopyButton value={f.portal_password} label="Copy" />}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-20 shrink-0">Login URL</span>
+                  <span className="font-mono text-sm text-indigo-600">{baseUrl}/portal/login</span>
+                  <CopyButton value={`${baseUrl}/portal/login`} label="Copy" />
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-amber-600">
+                No credentials — this client was created before auto-generation was added.
+              </div>
+            )}
+          </div>
+          <GenerateCredentialsButton
+            clientId={id}
+            hasCredentials={!!f.portal_username}
+          />
         </div>
       </GlassCard>
 

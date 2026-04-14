@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { airtableCreate, airtableFetch } from "@/lib/airtable";
+import { hashPassword } from "@/lib/portal-auth";
 import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +91,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Auto-generate portal token + credentials at creation
+  const portal_token = crypto.randomUUID();
+  const portal_username = client_id;
+  const portal_password = randomBytes(12).toString("base64url");
+  const portal_password_hash = await hashPassword(portal_password);
+
   // Create client record in Airtable
   const fields: Record<string, unknown> = {
     company_name,
@@ -104,6 +112,10 @@ export async function POST(request: NextRequest) {
     notes: notes || "",
     client_id,
     plan_status: run_audit ? "month1_audit" : "form_submitted",
+    portal_token,
+    portal_username,
+    portal_password_hash,
+    portal_password, // plaintext — stored for admin reference
   };
 
   let record: { id: string };
@@ -149,7 +161,15 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { ok: true, record_id: record.id, client_id, job_id: jobId },
+    {
+      ok: true,
+      record_id: record.id,
+      client_id,
+      job_id: jobId,
+      portal_username,
+      portal_password,
+      portal_token,
+    },
     { status: 201 }
   );
 }

@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
+import { getPortalSession } from "@/lib/portal-auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
@@ -14,6 +15,21 @@ export default async function PortalLayout({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+
+  // --- Auth ---
+  // Check for a valid portal_session cookie first
+  const session = await getPortalSession();
+  let isLoggedIn = false;
+
+  if (session) {
+    if (session.portal_token !== token) {
+      // Cookie belongs to a different client — redirect to their portal
+      redirect(`/portal/${session.portal_token}`);
+    }
+    isLoggedIn = true;
+  }
+
+  // Always load client by token (URL token access is always allowed)
   const client = await getClientByToken(token);
   if (!client) notFound();
 
@@ -34,8 +50,10 @@ export default async function PortalLayout({
     const cat = KNOWN_CATS.includes(raw) ? raw : null;
     if (cat) categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
   }
-  // Badge count = only items in known navigable categories (matches sub-nav sum)
-  const navigablePendingCount = Object.values(categoryBreakdown).reduce((a, b) => a + b, 0);
+  const navigablePendingCount = Object.values(categoryBreakdown).reduce(
+    (a, b) => a + b,
+    0
+  );
 
   const contentReviewCount = contentResults.filter(
     (r) => !r.fields.portal_approval
@@ -53,6 +71,7 @@ export default async function PortalLayout({
       contentReviewCount={contentReviewCount}
       titleProposalCount={titleProposalCount}
       categoryBreakdown={categoryBreakdown}
+      isLoggedIn={isLoggedIn}
     >
       {children}
     </PortalSidebar>

@@ -53,6 +53,11 @@ export type ClientFields = {
   content_tone: string;   // B2B SaaS | B2B Services | Healthcare | E-commerce | Professional Services
   content_audience: string;
 
+  // Portal credentials (username/password login)
+  portal_username: string;
+  portal_password_hash: string;
+  portal_password: string; // plaintext — stored for admin reference
+
   // Misc
   notes: string;
 };
@@ -77,6 +82,16 @@ export async function getClient(recordId: string): Promise<Client | null> {
 export async function getClientByToken(token: string): Promise<Client | null> {
   const clients = await airtableFetch<Client>(TABLE, {
     filterByFormula: `{portal_token}="${token}"`,
+  });
+  return clients[0] ?? null;
+}
+
+export async function getClientByUsername(
+  username: string
+): Promise<Client | null> {
+  const clients = await airtableFetch<Client>(TABLE, {
+    filterByFormula: `{portal_username}="${username}"`,
+    maxRecords: 1,
   });
   return clients[0] ?? null;
 }
