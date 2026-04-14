@@ -24,6 +24,16 @@ function buildContentUrl(tableId: string, params?: { filterByFormula?: string; s
   return url.toString();
 }
 
+async function contentGetOne<T>(tableId: string, recordId: string): Promise<T | null> {
+  const baseId = process.env.CONTENT_AIRTABLE_BASE_ID;
+  const res = await fetch(`${BASE_URL}/${baseId}/${encodeURIComponent(tableId)}/${recordId}`, {
+    headers: getContentHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  return res.json() as Promise<T>;
+}
+
 async function contentFetch<T>(tableId: string, params?: { filterByFormula?: string; sort?: string }): Promise<T[]> {
   const records: T[] = [];
   let offset: string | undefined;
@@ -214,4 +224,19 @@ export async function revertContentJob(recordId: string) {
     const err = await res.json();
     throw new Error(err.error || "Failed to revert job");
   }
+}
+
+// ── Server-side single-record fetchers (for article review page) ─────────────
+
+export async function getContentJobById(jobId: string): Promise<ContentJob | null> {
+  if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) return null;
+  return contentGetOne<ContentJob>("Content Jobs", jobId);
+}
+
+export async function getResultForJob(jobId: string): Promise<ContentResult | null> {
+  if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) return null;
+  const results = await contentFetch<ContentResult>("Results", {
+    filterByFormula: `FIND("${jobId}", ARRAYJOIN({Job ID}, ","))`,
+  });
+  return results[0] ?? null;
 }
