@@ -57,7 +57,7 @@ function ArticleMasterDetailInner({ results, token }: ArticleMasterDetailProps) 
 
   const decided = results.filter((r) => {
     const approval = getEffectiveApproval(r);
-    return approval === "approved" || approval === "needs_revision";
+    return approval === "approved";
   });
 
   const activeList = activeTab === "pending" ? pending : decided;
@@ -244,9 +244,6 @@ function ArticleMasterDetailInner({ results, token }: ArticleMasterDetailProps) 
                 error={error}
                 onApprove={() =>
                   applyDecision(selected.id, "approved", selected.fields["Article title"])
-                }
-                onRequestRevision={(notes) =>
-                  applyDecision(selected.id, "needs_revision", selected.fields["Article title"], notes)
                 }
               />
             </div>

@@ -3,11 +3,9 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-export type ArticleDecision = "approved" | "needs_revision";
-
 interface UseArticleActionsOptions {
   token: string;
-  onDecisionApplied?: (resultId: string, decision: ArticleDecision) => void;
+  onDecisionApplied?: (resultId: string, decision: "approved") => void;
 }
 
 export function useArticleActions({ token, onDecisionApplied }: UseArticleActionsOptions) {
@@ -22,34 +20,23 @@ export function useArticleActions({ token, onDecisionApplied }: UseArticleAction
   }, []);
 
   const applyDecision = useCallback(
-    async (
-      resultId: string,
-      decision: ArticleDecision,
-      blogTitle: string,
-      notes?: string
-    ) => {
+    async (resultId: string, decision: "approved", blogTitle: string) => {
       setSubmitting(true);
       setError(null);
       try {
         const res = await fetch("/api/content-approval", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ resultId, decision, notes, token, blogTitle }),
+          body: JSON.stringify({ resultId, decision, token, blogTitle }),
         });
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
           throw new Error(errBody.error || `Server error ${res.status}`);
         }
 
-        if (decision === "approved") {
-          setFeedback("Approved — we'll publish this article as a draft shortly.");
-        } else {
-          setFeedback("Revision request sent. We'll update the article and notify you.");
-        }
-
+        setFeedback("Approved — we'll publish this article as a draft shortly.");
         onDecisionApplied?.(resultId, decision);
         router.refresh();
-
         setTimeout(() => setFeedback(null), 3000);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");

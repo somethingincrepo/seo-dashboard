@@ -709,13 +709,6 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                       >
                         {submitting ? "Saving…" : "Approve Article"}
                       </button>
-                      <button
-                        onClick={() => void handleResultAction(result.id, "needs_revision")}
-                        disabled={submitting}
-                        className="px-5 py-2.5 rounded-xl text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50"
-                      >
-                        Needs Revision
-                      </button>
                     </div>
                   )}
                 </div>

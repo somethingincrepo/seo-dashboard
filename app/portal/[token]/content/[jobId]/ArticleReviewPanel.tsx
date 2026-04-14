@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { ContentJob, ContentResult } from "@/lib/content";
 import { bracketToHtml } from "@/lib/bracketToHtml";
@@ -13,13 +13,45 @@ interface ArticleReviewPanelProps {
 
 export function ArticleReviewPanel({ job, result: initialResult, token }: ArticleReviewPanelProps) {
   const [result, setResult] = useState(initialResult);
-  const [submitting, setSubmitting] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  // Populate editor content when entering edit mode
+  useEffect(() => {
+    if (isEditing && editorRef.current && result) {
+      editorRef.current.innerHTML = bracketToHtml(result.fields["Article body"] || "");
+      editorRef.current.focus();
+    }
+  }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = useCallback(async () => {
+    if (!result || !editorRef.current) return;
+    const newBody = editorRef.current.innerHTML;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/portal/content-review?token=${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "save_article_body", resultId: result.id, body: newBody }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setResult((r) => r ? { ...r, fields: { ...r.fields, "Article body": newBody } } : r);
+      setIsEditing(false);
+      setFeedback({ type: "success", message: "Changes saved." });
+      setTimeout(() => setFeedback(null), 3000);
+    } catch {
+      setFeedback({ type: "error", message: "Failed to save. Please try again." });
+    } finally {
+      setSaving(false);
+    }
+  }, [result, token]);
 
   const handleApprove = useCallback(async () => {
     if (!result) return;
-    setSubmitting(true);
+    setApproving(true);
     try {
       const res = await fetch(`/api/portal/content-review?token=${token}`, {
         method: "POST",
@@ -32,36 +64,24 @@ export function ArticleReviewPanel({ job, result: initialResult, token }: Articl
     } catch {
       setFeedback({ type: "error", message: "Something went wrong. Please try again." });
     } finally {
-      setSubmitting(false);
+      setApproving(false);
     }
   }, [result, token]);
 
-  const handleRevise = useCallback(async () => {
-    if (!result) return;
-    if (!notes.trim()) {
-      setFeedback({ type: "error", message: "Please describe what needs to be changed." });
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch(`/api/portal/content-review?token=${token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "revise_article", resultId: result.id, notes: notes.trim() }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      setFeedback({ type: "success", message: "Revision request sent. We'll update the article and notify you." });
-      setResult((r) => r ? { ...r, fields: { ...r.fields, portal_approval: "needs_revision" } } : r);
-    } catch {
-      setFeedback({ type: "error", message: "Something went wrong. Please try again." });
-    } finally {
-      setSubmitting(false);
-    }
-  }, [result, notes, token]);
-
   const approval = result?.fields.portal_approval;
-  const hasDecision = !!approval;
+  const isApproved = approval === "approved";
   const docUrl = result?.fields.DocumentUrl;
+  const articleHtml = bracketToHtml(result?.fields["Article body"] || "");
+
+  const proseClasses = `prose prose-slate max-w-none
+    [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-4 [&_h1]:mt-0
+    [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-slate-800 [&_h2]:mt-8 [&_h2]:mb-3
+    [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-slate-700 [&_h3]:mt-6 [&_h3]:mb-2
+    [&_p]:text-slate-600 [&_p]:leading-relaxed [&_p]:mb-4
+    [&_ul]:text-slate-600 [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-5
+    [&_ol]:text-slate-600 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-5
+    [&_li]:mb-1.5 [&_strong]:text-slate-800 [&_strong]:font-semibold
+    [&_a]:text-indigo-600 [&_a]:hover:text-indigo-700`;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -88,14 +108,9 @@ export function ArticleReviewPanel({ job, result: initialResult, token }: Articl
               </p>
             )}
           </div>
-
-          {hasDecision && (
-            <div className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-              approval === "approved"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                : "bg-amber-50 border-amber-200 text-amber-700"
-            }`}>
-              {approval === "approved" ? "✓ Approved" : "↩ Revision Requested"}
+          {isApproved && (
+            <div className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border bg-emerald-50 border-emerald-200 text-emerald-700">
+              ✓ Approved
             </div>
           )}
         </div>
@@ -157,102 +172,92 @@ export function ArticleReviewPanel({ job, result: initialResult, token }: Articl
           {/* Article body */}
           {result.fields["Article body"] && (
             <div className="bg-white rounded-2xl border border-slate-200 p-8">
-              <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-6">Article</h2>
-              <div
-                className="prose prose-slate max-w-none
-                  [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-4 [&_h1]:mt-0
-                  [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-slate-800 [&_h2]:mt-8 [&_h2]:mb-3
-                  [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-slate-700 [&_h3]:mt-6 [&_h3]:mb-2
-                  [&_p]:text-slate-600 [&_p]:leading-relaxed [&_p]:mb-4
-                  [&_ul]:text-slate-600 [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-5
-                  [&_ol]:text-slate-600 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-5
-                  [&_li]:mb-1.5 [&_strong]:text-slate-800 [&_strong]:font-semibold
-                  [&_a]:text-indigo-600 [&_a]:hover:text-indigo-700"
-                dangerouslySetInnerHTML={{ __html: bracketToHtml(result.fields["Article body"]) }}
-              />
-            </div>
-          )}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Article</h2>
+                {!isEditing ? (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-all"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Edit Article
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setIsEditing(false); setFeedback(null); }}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => void handleSave()}
+                      disabled={saving}
+                      className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 px-4 py-1.5 rounded-lg border border-indigo-700 transition-all disabled:opacity-50"
+                    >
+                      {saving ? "Saving…" : "Save Changes"}
+                    </button>
+                  </div>
+                )}
+              </div>
 
-          {/* Review actions */}
-          {!hasDecision && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">Your Review</h2>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Notes for revision <span className="text-slate-400 font-normal">(required if requesting changes)</span>
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Describe what needs to be changed — tone, facts, structure, length, etc."
-                  rows={4}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 resize-none"
+              {isEditing ? (
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  className={`${proseClasses} outline-none min-h-[200px] ring-2 ring-inset ring-indigo-200 rounded-xl p-4 -mx-4`}
                 />
-              </div>
-              {feedback && (
-                <div className={`text-sm px-4 py-3 rounded-xl border mb-4 ${
-                  feedback.type === "success"
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    : "bg-red-50 border-red-200 text-red-700"
-                }`}>
-                  {feedback.message}
-                </div>
-              )}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => void handleApprove()}
-                  disabled={submitting}
-                  className="flex-1 px-6 py-3 rounded-xl text-sm font-semibold bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-500 active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {submitting ? "Saving…" : "Approve Article"}
-                </button>
-                <button
-                  onClick={() => void handleRevise()}
-                  disabled={submitting}
-                  className="flex-1 px-6 py-3 rounded-xl text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all disabled:opacity-50"
-                >
-                  Request Revisions
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Already decided */}
-          {hasDecision && (
-            <div className={`rounded-2xl border p-5 ${
-              approval === "approved" ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"
-            }`}>
-              {approval === "approved" ? (
-                <p className="text-sm font-medium text-emerald-800">
-                  ✓ You approved this article. We&apos;ll publish it as a WordPress draft shortly.
-                </p>
               ) : (
-                <div>
-                  <p className="text-sm font-medium text-amber-800 mb-1">↩ Revision requested.</p>
-                  {result.fields.portal_notes && (
-                    <p className="text-sm text-amber-700 italic">&ldquo;{result.fields.portal_notes}&rdquo;</p>
-                  )}
-                </div>
+                <div
+                  className={proseClasses}
+                  dangerouslySetInnerHTML={{ __html: articleHtml }}
+                />
               )}
-              <button
-                onClick={() => {
-                  setFeedback(null);
-                  setResult((r) => r ? { ...r, fields: { ...r.fields, portal_approval: null } } : r);
-                }}
-                className="mt-3 text-xs text-slate-500 hover:text-slate-700 underline transition-colors"
-              >
-                Change decision
-              </button>
             </div>
           )}
 
-          {feedback && hasDecision && (
+          {/* Feedback toast */}
+          {feedback && (
             <div className={`text-sm px-4 py-3 rounded-xl border ${
               feedback.type === "success"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                 : "bg-red-50 border-red-200 text-red-700"
             }`}>
               {feedback.message}
+            </div>
+          )}
+
+          {/* Approve */}
+          {!isApproved && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <p className="text-sm text-slate-500 mb-4">
+                Edit the article above if needed, then approve it when you&apos;re ready to publish.
+              </p>
+              <button
+                onClick={() => void handleApprove()}
+                disabled={approving || isEditing}
+                className="px-6 py-3 rounded-xl text-sm font-semibold bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-500 active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {approving ? "Saving…" : "Approve Article"}
+              </button>
+            </div>
+          )}
+
+          {/* Approved banner */}
+          {isApproved && (
+            <div className="rounded-2xl border bg-emerald-50 border-emerald-200 p-5">
+              <p className="text-sm font-medium text-emerald-800">
+                ✓ You approved this article. We&apos;ll publish it as a WordPress draft shortly.
+              </p>
+              <button
+                onClick={() => setResult((r) => r ? { ...r, fields: { ...r.fields, portal_approval: null } } : r)}
+                className="mt-3 text-xs text-slate-500 hover:text-slate-700 underline transition-colors"
+              >
+                Undo approval
+              </button>
             </div>
           )}
         </div>

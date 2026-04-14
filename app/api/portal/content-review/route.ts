@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { contentAirtablePatch } from "@/lib/airtable";
-import { getContentJobById, getResultForJob } from "@/lib/content";
 
 const RESULTS_TABLE = "Results";
 
-// GET /api/portal/content-review/article?token=xxx&jobId=yyy
-// Handled in article/route.ts — see below.
-// This file handles POST only.
-
 // POST /api/portal/content-review?token=xxx
-// body: { type: "approve_article" | "revise_article", resultId, notes? }
-//       { type: "approve_title" | "skip_title", jobId }
+// body: { type: "approve_article", resultId }
+//       { type: "save_article_body", resultId, body }
 export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
@@ -22,8 +17,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as {
     type: string;
     resultId?: string;
-    jobId?: string;
-    notes?: string;
+    body?: string;
   };
 
   try {
@@ -35,11 +29,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    if (body.type === "revise_article" && body.resultId) {
+    if (body.type === "save_article_body" && body.resultId && body.body !== undefined) {
       await contentAirtablePatch(RESULTS_TABLE, body.resultId, {
-        portal_approval: "needs_revision",
-        portal_notes: body.notes ?? "",
-        portal_approved_at: new Date().toISOString(),
+        "Article body": body.body,
       });
       return NextResponse.json({ ok: true });
     }
