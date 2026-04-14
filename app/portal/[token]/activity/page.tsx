@@ -130,15 +130,15 @@ export default async function ActivityPage({
     });
   }
 
-  // Content events from Content Jobs
+  // Content events from Content Jobs — emit one entry per lifecycle event
   for (const job of contentJobs) {
     const blogTitle = job.fields["Blog Title"] || "Untitled";
-    if (job.fields.title_status === "published" && job.fields.approved_at) {
-      entries.push({ kind: "content", date: job.fields.approved_at, title: blogTitle, event: "published" });
-    } else if (job.fields.approved_at) {
-      entries.push({ kind: "content", date: job.fields.approved_at, title: blogTitle, event: "approved" });
-    } else if (job.fields.proposed_at) {
+    if (job.fields.proposed_at) {
       entries.push({ kind: "content", date: job.fields.proposed_at, title: blogTitle, event: "proposed" });
+    }
+    if (job.fields.approved_at) {
+      const event = job.fields.title_status === "published" ? "published" : "approved";
+      entries.push({ kind: "content", date: job.fields.approved_at, title: blogTitle, event });
     }
   }
 
@@ -161,11 +161,13 @@ export default async function ActivityPage({
   function formatDate(dateStr: string) {
     if (!dateStr) return "—";
     try {
-      return new Date(dateStr).toLocaleDateString("en-US", {
+      return new Date(dateStr).toLocaleString("en-US", {
+        timeZone: "America/Los_Angeles",
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
+        hour12: true,
       });
     } catch {
       return dateStr;
