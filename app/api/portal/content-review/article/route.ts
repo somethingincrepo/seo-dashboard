@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
-import { getContentJobById, getContentResultsForClient } from "@/lib/content";
+import { getContentJobById, getResultForJobByTitle } from "@/lib/content";
 
 // GET /api/portal/content-review/article?token=xxx&jobId=yyy
 export async function GET(request: NextRequest) {
@@ -11,18 +11,12 @@ export async function GET(request: NextRequest) {
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-  const companyName = client.fields.company_name || "";
-
-  const [job, allResults] = await Promise.all([
-    getContentJobById(jobId),
-    getContentResultsForClient(companyName),
-  ]);
-
+  const job = await getContentJobById(jobId);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-  // Filter JS-side — Airtable formula ARRAYJOIN on a linked record field returns
-  // primary field display values, not record IDs, so formula-based FIND doesn't match.
-  const result = allResults.find((r) => r.fields["Job ID"]?.includes(jobId)) ?? null;
+  // {Job ID} in Airtable formula language returns the primary field (Blog Title) of the
+  // linked job record — not the record ID. So we filter by blog title.
+  const result = await getResultForJobByTitle(job.fields["Blog Title"]);
 
   return NextResponse.json({ job, result });
 }

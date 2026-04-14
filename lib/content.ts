@@ -240,3 +240,18 @@ export async function getResultForJob(jobId: string): Promise<ContentResult | nu
   });
   return results[0] ?? null;
 }
+
+/**
+ * Find a Result by the blog title of its linked job.
+ * In Airtable formula language, {Job ID} (a linked records field) returns the
+ * PRIMARY FIELD of linked records — which is the Blog Title — not the record ID.
+ * So FIND(blogTitle, ARRAYJOIN({Job ID}, ",")) is the correct formula filter.
+ */
+export async function getResultForJobByTitle(blogTitle: string): Promise<ContentResult | null> {
+  if (!process.env.CONTENT_AIRTABLE_API_KEY || !process.env.CONTENT_AIRTABLE_BASE_ID) return null;
+  const escaped = blogTitle.replace(/"/g, '\\"');
+  const results = await contentFetch<ContentResult>("Results", {
+    filterByFormula: `FIND("${escaped}", ARRAYJOIN({Job ID}, ","))`,
+  });
+  return results[0] ?? null;
+}
