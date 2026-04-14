@@ -39,6 +39,12 @@ export type ClientFields = {
   month_number: number;
   next_scheduled_run: string;
 
+  // WordPress CMS credentials (stored in Airtable, read by implement_wordpress SOP)
+  wp_username: string;
+  wp_app_password: string;
+  cloudflare_zone: string;
+  cloudflare_token: string;
+
   // Integrations
   sheet_id: string;
   drive_folder_id: string;

@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { GenerateTokenButton } from "@/components/ui/GenerateTokenButton";
 import { GenerateCredentialsButton } from "@/components/ui/GenerateCredentialsButton";
+import { CmsCredentialsForm } from "@/components/ui/CmsCredentialsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -198,6 +199,28 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           />
         </div>
       </GlassCard>
+
+      {/* CMS credentials — only show for WordPress clients */}
+      {f.cms?.toLowerCase() === "wordpress" && (
+        <GlassCard className="p-5">
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">
+            CMS Credentials
+            <span className="ml-2 text-slate-400 normal-case font-normal">
+              — used by the implement agent to write changes to WordPress
+            </span>
+          </div>
+          <CmsCredentialsForm
+            clientId={id}
+            siteUrl={f.site_url || ""}
+            initialValues={{
+              wp_username: f.wp_username || "",
+              wp_app_password: f.wp_app_password || "",
+              seo_plugin: f.seo_plugin || "",
+              page_builder: f.page_builder || "",
+            }}
+          />
+        </GlassCard>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
