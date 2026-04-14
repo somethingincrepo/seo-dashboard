@@ -73,12 +73,16 @@ function ProposalCard({
   token,
   onUpdate,
   onRemove,
+  selected,
+  onToggleSelect,
 }: {
   title: Title;
   keywordGroups: KeywordGroup[];
   token: string;
   onUpdate: (id: string, changes: Partial<Title>) => void;
   onRemove: (id: string) => void;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }) {
   const [editTitle, setEditTitle] = useState(title.title);
   const [editKeyword, setEditKeyword] = useState(title.target_keyword);
@@ -136,9 +140,16 @@ function ProposalCard({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all">
+    <div className={`bg-white rounded-xl border transition-all ${selected ? "border-indigo-300 ring-1 ring-indigo-100" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}`}>
       <div className="p-4">
         <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(title.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 cursor-pointer shrink-0"
+          />
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
               {editGroup || "No group"}
@@ -414,6 +425,8 @@ export default function TitlesPage() {
   const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -438,6 +451,38 @@ export default function TitlesPage() {
   const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
 
   const proposals = titles.filter((t) => t.title_status === "titled" || (!t.title_status || t.title_status === "proposals"));
+
+  const allSelected = proposals.length > 0 && selected.size === proposals.length;
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelected(allSelected ? new Set() : new Set(proposals.map((p) => p.id)));
+  }, [allSelected, proposals]);
+
+  const handleBulkApprove = useCallback(async () => {
+    if (selected.size === 0) return;
+    setBulkApproving(true);
+    const ids = Array.from(selected);
+    for (const id of ids) {
+      const title = proposals.find((p) => p.id === id);
+      if (!title) continue;
+      await fetch(`/api/portal/titles?token=${token}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_id: id, action: "approve", title: title.title, target_keyword: title.target_keyword, keyword_group: title.keyword_group }),
+      });
+      setTitles((prev) => prev.map((t) => t.id === id ? { ...t, title_status: "approved", airtable_status: "Queued" } : t));
+      setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+    setBulkApproving(false);
+  }, [selected, proposals, token]);
 
   return (
     <div className="flex gap-5 min-h-full">
@@ -475,8 +520,41 @@ export default function TitlesPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
+              {/* Select-all bar */}
+              <div className="flex items-center gap-3 px-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                  />
+                  <span className="text-sm text-slate-500">
+                    {allSelected ? "Deselect all" : selected.size > 0 ? `${selected.size} of ${proposals.length} selected` : `Select all ${proposals.length}`}
+                  </span>
+                </label>
+                {selected.size > 0 && (
+                  <button
+                    onClick={() => void handleBulkApprove()}
+                    disabled={bulkApproving}
+                    className="ml-auto px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                  >
+                    {bulkApproving ? `Approving…` : `Approve ${selected.size} selected`}
+                  </button>
+                )}
+              </div>
+
               {proposals.map((t) => (
-                <ProposalCard key={t.id} title={t} keywordGroups={keywordGroups} token={token} onUpdate={handleUpdate} onRemove={handleRemove} />
+                <ProposalCard
+                  key={t.id}
+                  title={t}
+                  keywordGroups={keywordGroups}
+                  token={token}
+                  onUpdate={handleUpdate}
+                  onRemove={handleRemove}
+                  selected={selected.has(t.id)}
+                  onToggleSelect={toggleSelect}
+                />
               ))}
             </div>
           )
