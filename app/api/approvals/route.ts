@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
       // Both gates passed — queue implement job
       await airtableCreate("Jobs", {
-        client_id: [client.id],
+        client_id: (client.fields as { client_id: string }).client_id,
         job_type_new: "implement",
         job_status_new: "queued",
         triggered_by: "portal_approval",
