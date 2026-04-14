@@ -4,28 +4,7 @@ import { useState, useCallback, Suspense } from "react";
 import { useArticleActions } from "./useArticleActions";
 import { ArticleActionBar } from "./ArticleActionBar";
 import type { ContentResult } from "@/lib/content";
-
-function bracketToHtml(text: string): string {
-  const lines = text.split("\n");
-  const out: string[] = [];
-  for (const raw of lines) {
-    const line = raw.trimEnd();
-    if (!line) { out.push(""); continue; }
-    const inlined = line
-      .replace(/\[B\]/g, "<strong>").replace(/\[\/B\]/g, "</strong>")
-      .replace(/\[LI\]\s*(.*?)\[\/LI\]/g, "<li>$1</li>")
-      .replace(/\[LI\]\s*(.*)/g, "<li>$1</li>");
-    const mapped = inlined
-      .replace(/^\[H1\]\s*(.*)/, "<h1>$1</h1>")
-      .replace(/^\[H2\]\s*(.*)/, "<h2>$1</h2>")
-      .replace(/^\[H3\]\s*(.*)/, "<h3>$1</h3>")
-      .replace(/^\[P\]\s*(.*)/, "<p>$1</p>")
-      .replace(/^\[UL\]/, "<ul>").replace(/^\[\/UL\]/, "</ul>")
-      .replace(/^\[\/H[123]\]$/, "").replace(/^\[\/P\]$/, "");
-    out.push(mapped);
-  }
-  return out.join("\n");
-}
+import { bracketToHtml } from "@/lib/bracketToHtml";
 
 interface ArticleMasterDetailProps {
   results: ContentResult[];
