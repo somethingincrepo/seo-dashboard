@@ -10,6 +10,31 @@ import {
   type ContentResult,
 } from "@/lib/content";
 
+/** Convert [H1]/[P]/[UL]/[LI]/[B] bracket format to HTML */
+function bracketToHtml(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line) { out.push(""); continue; }
+    // Inline replacements first
+    const inlined = line
+      .replace(/\[B\]/g, "<strong>").replace(/\[\/B\]/g, "</strong>")
+      .replace(/\[LI\]\s*(.*?)\[\/LI\]/g, "<li>$1</li>")
+      .replace(/\[LI\]\s*(.*)/g, "<li>$1</li>");
+    // Block-level tag swap
+    const mapped = inlined
+      .replace(/^\[H1\]\s*(.*)/, "<h1>$1</h1>")
+      .replace(/^\[H2\]\s*(.*)/, "<h2>$1</h2>")
+      .replace(/^\[H3\]\s*(.*)/, "<h3>$1</h3>")
+      .replace(/^\[P\]\s*(.*)/, "<p>$1</p>")
+      .replace(/^\[UL\]/, "<ul>").replace(/^\[\/UL\]/, "</ul>")
+      .replace(/^\[\/H[123]\]$/, "").replace(/^\[\/P\]$/, "");
+    out.push(mapped);
+  }
+  return out.join("\n");
+}
+
 type KanbanColumn = {
   key: string;
   label: string;
@@ -577,7 +602,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                             [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-500
                             [&_code]:text-sm [&_code]:bg-slate-100 [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono
                           "
-                          dangerouslySetInnerHTML={{ __html: result.fields["Article body"] }}
+                          dangerouslySetInnerHTML={{ __html: bracketToHtml(result.fields["Article body"] || "") }}
                         />
                       </div>
                     </div>
