@@ -313,20 +313,29 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
 
   // Priority-ordered column assignment
   const isPublished = (j: ContentJob) => j.fields.title_status === "published";
+  const isApprovedForPublish = (j: ContentJob) => {
+    if (isPublished(j)) return false;
+    const result = results.find((r) => r.fields["Job ID"]?.includes(j.id));
+    return !!result && result.fields.portal_approval === "approved";
+  };
   const isReadyForReview = (j: ContentJob) =>
     !isPublished(j) &&
+    !isApprovedForPublish(j) &&
     (j.fields.title_status === "completed" || j.fields.Status === "Completed");
   const isInProgress = (j: ContentJob) =>
     !isPublished(j) &&
+    !isApprovedForPublish(j) &&
     !isReadyForReview(j) &&
     (j.fields.title_status === "generating" || j.fields.Status === "In Progress");
   const isApproved = (j: ContentJob) =>
     !isPublished(j) &&
+    !isApprovedForPublish(j) &&
     !isReadyForReview(j) &&
     !isInProgress(j) &&
     (j.fields.title_status === "approved" || j.fields.Status === "Queued");
   const isTitled = (j: ContentJob) =>
     !isPublished(j) &&
+    !isApprovedForPublish(j) &&
     !isReadyForReview(j) &&
     !isInProgress(j) &&
     !isApproved(j) &&
@@ -364,6 +373,14 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
       headerColor: "text-indigo-600",
       gradientStyle: "linear-gradient(90deg, #4F46E5, #818CF8)",
       jobs: liveJobs.filter(isReadyForReview),
+    },
+    {
+      key: "approved_for_publish",
+      label: "Publishing",
+      accent: "bg-violet-400",
+      headerColor: "text-violet-600",
+      gradientStyle: "linear-gradient(90deg, #7C3AED, #A78BFA)",
+      jobs: liveJobs.filter(isApprovedForPublish),
     },
     {
       key: "published",
@@ -657,11 +674,15 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                 !result &&
                 (liveSelectedJob.fields.title_status === "approved" || liveSelectedJob.fields.Status === "Queued") &&
                 liveSelectedJob.fields.Status !== "In Progress";
+              const isPublishingPhase =
+                !!result && result.fields.portal_approval === "approved" &&
+                liveSelectedJob.fields.title_status !== "published";
               const isReviewPhase =
                 !!result &&
+                !isPublishingPhase &&
                 (liveSelectedJob.fields.title_status === "completed" || liveSelectedJob.fields.Status === "Completed");
 
-              if (!isTitlePhase && !isApprovedPhase && !isReviewPhase) return null;
+              if (!isTitlePhase && !isApprovedPhase && !isReviewPhase && !isPublishingPhase) return null;
 
               return (
                 <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pt-4 bg-gradient-to-t from-white via-white/95 to-transparent">
@@ -707,8 +728,15 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                         disabled={submitting}
                         className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-500 active:scale-[0.98] transition-all disabled:opacity-50"
                       >
-                        {submitting ? "Saving…" : "Approve Article"}
+                        {submitting ? "Saving…" : "Approve for Publishing"}
                       </button>
+                    </div>
+                  )}
+
+                  {isPublishingPhase && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-50 border border-violet-200">
+                      <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0" />
+                      <span className="text-sm font-medium text-violet-700">Queued for publishing — going live soon</span>
                     </div>
                   )}
                 </div>

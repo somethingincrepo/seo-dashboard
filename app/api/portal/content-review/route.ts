@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { contentAirtablePatch } from "@/lib/airtable";
+import { getSupabase } from "@/lib/supabase";
 
 const RESULTS_TABLE = "Results";
 
@@ -26,6 +27,21 @@ export async function POST(request: NextRequest) {
         portal_approval: "approved",
         portal_approved_at: new Date().toISOString(),
       });
+
+      // Queue the publish SOP on the Fly.io worker
+      try {
+        const supabase = getSupabase();
+        await supabase.from("jobs").insert({
+          sop_name: "publish_article_wordpress",
+          runner: "fly",
+          client_id: client.id,
+          status: "pending",
+          payload: { result_id: body.resultId },
+        });
+      } catch (err) {
+        console.error("Failed to queue publish job (non-fatal):", err);
+      }
+
       return NextResponse.json({ ok: true });
     }
 
