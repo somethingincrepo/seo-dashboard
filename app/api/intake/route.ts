@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { airtableCreate, airtableFetch } from "@/lib/airtable";
+import { hashPassword } from "@/lib/portal-auth";
+import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +21,14 @@ function normalizeUrl(url: string): string {
     return `https://${trimmed}`;
   }
   return trimmed;
+}
+
+function deriveDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -79,6 +90,10 @@ export async function POST(request: NextRequest) {
 
   const normalizedUrl = normalizeUrl(site_url as string);
   const client_id = slugify(company_name as string);
+  const domain = deriveDomain(normalizedUrl);
+  const gsc_property = domain ? `sc-domain:${domain}` : "";
+  // Seed nav_pages with the homepage — audit_parent requires this to be non-empty
+  const nav_pages = JSON.stringify([normalizedUrl]);
 
   // Idempotency — reject duplicate site URLs
   try {
@@ -96,19 +111,32 @@ export async function POST(request: NextRequest) {
     // Non-fatal — proceed if check fails
   }
 
-  // Build the Airtable fields object — only include optional fields when populated
+  // Generate portal credentials up-front so the client can log in once onboarding is complete
+  const portal_token = crypto.randomUUID();
+  const portal_username = client_id;
+  const portal_password = randomBytes(12).toString("base64url");
+  const portal_password_hash = await hashPassword(portal_password);
+
+  // Build the Airtable fields — all derived fields included from the start
   const fields: Record<string, unknown> = {
     company_name: (company_name as string).trim(),
     contact_name: (contact_name as string).trim(),
     contact_email: (contact_email as string).trim().toLowerCase(),
     site_url: normalizedUrl,
+    domain,
+    gsc_property,
+    nav_pages,
     cms: (cms as string).trim(),
     keywords: (keywords as string).trim(),
     competitors: (competitors as string).trim(),
     client_id,
-    plan_status: "form_submitted",
+    plan_status: "month1_audit",
     month_number: 0,
     package: packageTier ? String(packageTier) : "growth",
+    portal_token,
+    portal_username,
+    portal_password,
+    portal_password_hash,
   };
 
   // Optional text / long-text fields
@@ -137,11 +165,29 @@ export async function POST(request: NextRequest) {
   // Checkbox
   if (in_slack === true || in_slack === "true") fields.in_slack = true;
 
+  let record: { id: string };
   try {
-    const record = await airtableCreate("Clients", fields);
-    return NextResponse.json({ ok: true, record_id: record.id, client_id }, { status: 201 });
+    record = await airtableCreate("Clients", fields);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: `Submission failed: ${msg}` }, { status: 500 });
   }
+
+  // Immediately queue the Month 1 audit — non-blocking, failure doesn't surface to the client
+  // The worker's Airtable poller will catch any records that miss this step
+  try {
+    const supabase = getSupabase();
+    await supabase.from("jobs").insert({
+      sop_name: "audit_parent",
+      client_id: record.id,
+      payload: { client_id: record.id },
+      status: "pending",
+      runner: "fly",
+    });
+  } catch (e) {
+    // Log but don't fail the request — the worker poller will retry
+    console.error(`[intake] audit job creation failed for ${record.id}:`, e);
+  }
+
+  return NextResponse.json({ ok: true, record_id: record.id, client_id }, { status: 201 });
 }
