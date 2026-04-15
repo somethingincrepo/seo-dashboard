@@ -1,6 +1,81 @@
 import { contentAirtableFetch } from "./airtable";
+import { PACKAGES, type PackageTier } from "./packages";
 
 const BASE_URL = "https://api.airtable.com/v0";
+
+// ── Content Type Config ───────────────────────────────────────────────────────
+
+export type ContentTypeName = "standard" | "longform" | "refresh";
+
+export const CONTENT_TYPE_CONFIG: Record<ContentTypeName, {
+  label: string;
+  wordRange: string;
+  airtableContentType: string;
+  airtableLengthRange: string;
+  quotaField: "articles_standard" | "articles_longform" | "content_refreshes";
+  needsRefreshUrl: boolean;
+}> = {
+  standard: {
+    label: "Standard Article",
+    wordRange: "1,500–2,500 words",
+    airtableContentType: "Blog Post",
+    airtableLengthRange: "1,500-2,500 words",
+    quotaField: "articles_standard",
+    needsRefreshUrl: false,
+  },
+  longform: {
+    label: "Long-Form Article",
+    wordRange: "3,000–5,000 words",
+    airtableContentType: "Guide",
+    airtableLengthRange: "3,000-5,000 words",
+    quotaField: "articles_longform",
+    needsRefreshUrl: false,
+  },
+  refresh: {
+    label: "Content Refresh",
+    wordRange: "varies by page type",
+    airtableContentType: "Blog Post",
+    airtableLengthRange: "varies",
+    quotaField: "content_refreshes",
+    needsRefreshUrl: true,
+  },
+};
+
+// ── Per-Type Quota Helper ─────────────────────────────────────────────────────
+
+type QuotaJob = {
+  fields: {
+    title_status?: string | null;
+    approved_at?: string | null;
+    "Desired length range"?: string | null;
+    refresh_url?: string | null;
+  };
+};
+
+export function getPerTypeQuota(
+  jobs: QuotaJob[],
+  pkg: PackageTier,
+  monthStart: string
+): {
+  standard: { used: number; limit: number };
+  longform: { used: number; limit: number };
+  refresh: { used: number; limit: number };
+} {
+  const p = PACKAGES[pkg];
+  const approved = jobs.filter(
+    (j) => j.fields.title_status === "approved" && j.fields.approved_at && j.fields.approved_at >= monthStart
+  );
+
+  const isRefresh = (j: QuotaJob) => !!j.fields.refresh_url;
+  const isLongform = (j: QuotaJob) =>
+    !isRefresh(j) && (j.fields["Desired length range"] ?? "").includes("3,000");
+
+  return {
+    standard: { used: approved.filter((j) => !isRefresh(j) && !isLongform(j)).length, limit: p.articles_standard },
+    longform:  { used: approved.filter(isLongform).length,  limit: p.articles_longform },
+    refresh:   { used: approved.filter(isRefresh).length,   limit: p.content_refreshes },
+  };
+}
 
 function getContentHeaders() {
   return {
@@ -86,6 +161,8 @@ export type ContentJobFields = {
   approved_at: string | null;
   "Client ID": string[];
   "Created At": string;
+  refresh_url: string | null;
+  page_type: string | null; // "Blog Post" | "Service Page" | "Landing Page" | "Other"
 };
 
 export type ContentJob = {

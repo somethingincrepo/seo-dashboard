@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { PACKAGES, type PackageTier } from "@/lib/packages";
+import { CONTENT_TYPE_CONFIG, type ContentTypeName } from "@/lib/content";
 
 type Title = {
   id: string;
@@ -15,11 +17,20 @@ type Title = {
   quality_score: number | null;
   proposed_at: string | null;
   approved_at: string | null;
+  content_type_name: ContentTypeName | null;
+  refresh_url: string | null;
+  page_type: string | null;
 };
 
 type KeywordGroup = {
   group: string;
   subkeywords: { keyword: string; intent?: string }[];
+};
+
+type QuotaState = {
+  standard: { used: number; limit: number };
+  longform: { used: number; limit: number };
+  refresh: { used: number; limit: number };
 };
 
 // ---------------------------------------------------------------------------
@@ -64,6 +75,197 @@ function QualityDots({ score }: { score: number | null }) {
 }
 
 // ---------------------------------------------------------------------------
+// QuotaBanner
+// ---------------------------------------------------------------------------
+
+function QuotaBanner({ quota, packageTier }: { quota: QuotaState; packageTier: PackageTier }) {
+  const pkg = PACKAGES[packageTier];
+  const rows: { key: ContentTypeName; label: string }[] = [
+    { key: "standard", label: "Standard Article" },
+    ...(pkg.articles_longform > 0 ? [{ key: "longform" as ContentTypeName, label: "Long-Form Article" }] : []),
+    { key: "refresh", label: "Content Refresh" },
+  ];
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 mb-4">
+      <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2.5">Monthly Content Budget</div>
+      <div className="flex flex-col gap-2">
+        {rows.map(({ key, label }) => {
+          const { used, limit } = quota[key];
+          const pct = limit === 0 ? 0 : Math.min(100, Math.round((used / limit) * 100));
+          const atLimit = used >= limit;
+          return (
+            <div key={key} className="flex items-center gap-3">
+              <span className="text-[12px] text-slate-600 w-36 shrink-0">{label}</span>
+              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${atLimit ? "bg-amber-400" : "bg-slate-700"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className={`text-[12px] shrink-0 ${atLimit ? "text-amber-600 font-medium" : "text-slate-500"}`}>
+                {atLimit ? `${used}/${limit} · Limit reached` : `${used}/${limit} · ${limit - used} left`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ContentTypeModal — appears when "Approve…" is clicked
+// ---------------------------------------------------------------------------
+
+const PAGE_TYPE_OPTIONS = [
+  { value: "Blog Post", label: "Blog Post" },
+  { value: "Service Page", label: "Service Page" },
+  { value: "Landing Page", label: "Landing Page" },
+  { value: "Other", label: "Other" },
+];
+
+function ContentTypeModal({
+  title,
+  quota,
+  packageTier,
+  onConfirm,
+  onCancel,
+  busy,
+}: {
+  title: Title;
+  quota: QuotaState;
+  packageTier: PackageTier;
+  onConfirm: (type: ContentTypeName, refreshUrl?: string, pageType?: string) => void;
+  onCancel: () => void;
+  busy: boolean;
+}) {
+  const pkg = PACKAGES[packageTier];
+
+  // Pre-populate from title if it's already a refresh with URL
+  const [selectedType, setSelectedType] = useState<ContentTypeName>(title.content_type_name ?? "standard");
+  const [refreshUrl, setRefreshUrl] = useState(title.refresh_url ?? "");
+  const [pageType, setPageType] = useState(title.page_type ?? "Blog Post");
+
+  const options: { type: ContentTypeName; label: string; desc: string; available: boolean; reason?: string }[] = [
+    {
+      type: "standard",
+      label: "Standard Article",
+      desc: CONTENT_TYPE_CONFIG.standard.wordRange,
+      available: quota.standard.used < quota.standard.limit,
+      reason: quota.standard.used >= quota.standard.limit ? `${quota.standard.limit}/${quota.standard.limit} used this month` : undefined,
+    },
+    ...(pkg.articles_longform > 0 ? [{
+      type: "longform" as ContentTypeName,
+      label: "Long-Form Article",
+      desc: CONTENT_TYPE_CONFIG.longform.wordRange,
+      available: quota.longform.used < quota.longform.limit,
+      reason: quota.longform.used >= quota.longform.limit ? `${quota.longform.limit}/${quota.longform.limit} used this month` : undefined,
+    }] : []),
+    {
+      type: "refresh",
+      label: "Content Refresh",
+      desc: "Rewrite & expand an existing page",
+      available: quota.refresh.used < quota.refresh.limit,
+      reason: quota.refresh.used >= quota.refresh.limit ? `${quota.refresh.limit}/${quota.refresh.limit} used this month` : undefined,
+    },
+  ];
+
+  const canConfirm =
+    options.find((o) => o.type === selectedType)?.available &&
+    (selectedType !== "refresh" || refreshUrl.trim().length > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onCancel}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-slate-100">
+          <div className="text-[14px] font-semibold text-slate-800">Choose content type</div>
+          <div className="text-[12px] text-slate-400 mt-0.5 truncate">{title.title}</div>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-2">
+          {options.map((opt) => (
+            <button
+              key={opt.type}
+              disabled={!opt.available}
+              onClick={() => opt.available && setSelectedType(opt.type)}
+              className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                selectedType === opt.type && opt.available
+                  ? "border-slate-900 bg-slate-50"
+                  : !opt.available
+                  ? "border-slate-100 opacity-40 cursor-not-allowed"
+                  : "border-slate-200 hover:border-slate-400"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[13px] font-semibold text-slate-800">{opt.label}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{opt.desc}</div>
+                </div>
+                <div className="text-[11px] text-slate-400 shrink-0 ml-3">
+                  {opt.reason ?? `${quota[opt.type].used}/${quota[opt.type].limit} used`}
+                </div>
+              </div>
+            </button>
+          ))}
+
+          {/* Refresh-specific fields */}
+          {selectedType === "refresh" && (
+            <div className="mt-1 flex flex-col gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
+                  URL to refresh <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="url"
+                  value={refreshUrl}
+                  onChange={(e) => setRefreshUrl(e.target.value)}
+                  placeholder="https://yoursite.com/page-to-update"
+                  className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
+                  Page type
+                </label>
+                <select
+                  value={pageType}
+                  onChange={(e) => setPageType(e.target.value)}
+                  className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+                >
+                  {PAGE_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 pb-5 flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2 rounded-lg text-[13px] font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => canConfirm && onConfirm(selectedType, selectedType === "refresh" ? refreshUrl.trim() : undefined, selectedType === "refresh" ? pageType : undefined)}
+            disabled={!canConfirm || busy}
+            className="flex-1 py-2 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {busy ? "Approving…" : "Approve"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Proposal card — fully interactive
 // ---------------------------------------------------------------------------
 
@@ -71,21 +273,19 @@ function ProposalCard({
   title,
   keywordGroups,
   token,
+  quota,
+  packageTier,
   onUpdate,
   onRemove,
-  selected,
-  onToggleSelect,
-  atLimit,
   onQuotaHit,
 }: {
   title: Title;
   keywordGroups: KeywordGroup[];
   token: string;
+  quota: QuotaState;
+  packageTier: PackageTier;
   onUpdate: (id: string, changes: Partial<Title>) => void;
   onRemove: (id: string) => void;
-  selected: boolean;
-  onToggleSelect: (id: string) => void;
-  atLimit: boolean;
   onQuotaHit: (msg: string) => void;
 }) {
   const [editTitle, setEditTitle] = useState(title.title);
@@ -95,9 +295,17 @@ function ProposalCard({
   const [suggestion, setSuggestion] = useState("");
   const [generating, setGenerating] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showTypeModal, setShowTypeModal] = useState(false);
 
   const groupObj = keywordGroups.find((g) => g.group === editGroup);
   const subkeywords = groupObj?.subkeywords ?? [];
+
+  // All available types at quota?
+  const pkg = PACKAGES[packageTier];
+  const allAtLimit =
+    quota.standard.used >= quota.standard.limit &&
+    quota.refresh.used >= quota.refresh.limit &&
+    (pkg.articles_longform === 0 || quota.longform.used >= quota.longform.limit);
 
   const save = useCallback(async (extraFields?: Record<string, unknown>) => {
     await fetch(`/api/portal/titles?token=${token}`, {
@@ -107,21 +315,45 @@ function ProposalCard({
     });
   }, [token, title.id, editTitle, editKeyword, editGroup]);
 
-  const handleApprove = async () => {
-    if (atLimit) return;
+  const handleApproveClick = () => {
+    if (allAtLimit) { onQuotaHit("All content slots are full for this month."); return; }
+    setShowTypeModal(true);
+  };
+
+  const handleApproveConfirm = async (typeName: ContentTypeName, refreshUrl?: string, pageType?: string) => {
     setBusy(true);
     const res = await fetch(`/api/portal/titles?token=${token}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ record_id: title.id, action: "approve", title: editTitle, target_keyword: editKeyword, keyword_group: editGroup }),
+      body: JSON.stringify({
+        record_id: title.id,
+        action: "approve",
+        title: editTitle,
+        target_keyword: editKeyword,
+        keyword_group: editGroup,
+        content_type_name: typeName,
+        refresh_url: refreshUrl,
+        page_type: pageType,
+      }),
     });
     if (res.status === 409) {
       const data = await res.json() as { message?: string };
-      onQuotaHit(data.message ?? "Monthly article limit reached.");
+      onQuotaHit(data.message ?? "Monthly limit reached.");
       setBusy(false);
+      setShowTypeModal(false);
       return;
     }
-    onUpdate(title.id, { title: editTitle, target_keyword: editKeyword, keyword_group: editGroup, title_status: "approved", airtable_status: "Queued" });
+    onUpdate(title.id, {
+      title: editTitle,
+      target_keyword: editKeyword,
+      keyword_group: editGroup,
+      title_status: "approved",
+      airtable_status: "Queued",
+      content_type_name: typeName,
+      refresh_url: refreshUrl ?? title.refresh_url,
+      page_type: pageType ?? title.page_type,
+    });
+    setShowTypeModal(false);
     setBusy(false);
   };
 
@@ -151,104 +383,122 @@ function ProposalCard({
   };
 
   return (
-    <div className={`bg-white rounded-xl border transition-all ${selected ? "border-indigo-300 ring-1 ring-indigo-100" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}`}>
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onToggleSelect(title.id)}
-            onClick={(e) => e.stopPropagation()}
-            className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 cursor-pointer shrink-0"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-              {editGroup || "No group"}
-            </div>
-            <textarea
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              onBlur={() => void save()}
-              rows={editTitle.length > 80 ? 2 : 1}
-              className="w-full text-[15px] font-semibold text-slate-900 leading-snug resize-none border-0 p-0 bg-transparent focus:outline-none focus:ring-0 placeholder-slate-300"
-              placeholder="Enter title…"
-            />
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              {editKeyword && <span className="text-[12px] font-medium text-slate-500">{editKeyword}</span>}
-              <IntentBadge intent={title.search_intent} />
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <QualityDots score={title.quality_score} />
-          </div>
-        </div>
-        {title.content_angle && (
-          <p className="mt-2.5 text-[12px] text-slate-400 italic border-l-2 border-slate-100 pl-3 leading-relaxed">
-            {title.content_angle}
-          </p>
-        )}
-      </div>
-
-      <div className="border-t border-slate-100 px-4 py-3">
-        {!expanded ? (
-          <div className="flex items-center gap-3">
-            <button onClick={() => setExpanded(true)} className="text-[12px] text-slate-400 hover:text-slate-700 transition-colors">
-              ✦ Suggest a direction and regenerate
-            </button>
-            <div className="flex-1" />
-            <button onClick={handleSkip} disabled={busy} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
-              Skip
-            </button>
-            <button
-              onClick={handleApprove}
-              disabled={busy || atLimit}
-              title={atLimit ? "Monthly article limit reached" : undefined}
-              className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {busy ? "Saving…" : atLimit ? "Limit reached" : "Approve"}
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <textarea
-              autoFocus value={suggestion} onChange={(e) => setSuggestion(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleGenerate(); } }}
-              placeholder="e.g. make it more reassuring, focus on recovery time…"
-              rows={2}
-              className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
-            />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] text-slate-400">Regenerate for:</span>
-              <select value={editGroup} onChange={(e) => { setEditGroup(e.target.value); setEditKeyword(""); }}
-                className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none">
-                <option value="">Same group</option>
-                {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
-              </select>
-              {subkeywords.length > 0 && (
-                <select value={editKeyword} onChange={(e) => setEditKeyword(e.target.value)}
-                  className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none">
-                  <option value="">Same keyword</option>
-                  {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
-                </select>
+    <>
+      {showTypeModal && (
+        <ContentTypeModal
+          title={title}
+          quota={quota}
+          packageTier={packageTier}
+          onConfirm={(type, url, pt) => void handleApproveConfirm(type, url, pt)}
+          onCancel={() => setShowTypeModal(false)}
+          busy={busy}
+        />
+      )}
+      <div className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all">
+        <div className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+                {editGroup || "No group"}
+              </div>
+              <textarea
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={() => void save()}
+                rows={editTitle.length > 80 ? 2 : 1}
+                className="w-full text-[15px] font-semibold text-slate-900 leading-snug resize-none border-0 p-0 bg-transparent focus:outline-none focus:ring-0 placeholder-slate-300"
+                placeholder="Enter title…"
+              />
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {editKeyword && <span className="text-[12px] font-medium text-slate-500">{editKeyword}</span>}
+                <IntentBadge intent={title.search_intent} />
+                {title.content_type_name === "refresh" && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-medium">refresh</span>
+                )}
+                {title.content_type_name === "longform" && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">long-form</span>
+                )}
+              </div>
+              {title.refresh_url && (
+                <div className="mt-1.5 text-[11px] text-slate-400 truncate">
+                  <span className="font-medium">Refreshing:</span> {title.refresh_url}
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => { setExpanded(false); setSuggestion(""); }} className="text-[12px] text-slate-400 hover:text-slate-600">Cancel</button>
-              <div className="flex-1" />
-              <button onClick={() => void handleGenerate()} disabled={!suggestion.trim() || generating}
-                className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors">
-                {generating ? "Generating…" : "Generate"}
-              </button>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <QualityDots score={title.quality_score} />
             </div>
           </div>
-        )}
+          {title.content_angle && (
+            <p className="mt-2.5 text-[12px] text-slate-400 italic border-l-2 border-slate-100 pl-3 leading-relaxed">
+              {title.content_angle}
+            </p>
+          )}
+        </div>
+
+        <div className="border-t border-slate-100 px-4 py-3">
+          {!expanded ? (
+            <div className="flex items-center gap-3">
+              {title.content_type_name !== "refresh" && (
+                <button onClick={() => setExpanded(true)} className="text-[12px] text-slate-400 hover:text-slate-700 transition-colors">
+                  ✦ Suggest a direction and regenerate
+                </button>
+              )}
+              <div className="flex-1" />
+              <button onClick={handleSkip} disabled={busy} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
+                Skip
+              </button>
+              <button
+                onClick={handleApproveClick}
+                disabled={busy || allAtLimit}
+                title={allAtLimit ? "All content slots are full this month" : undefined}
+                className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {busy ? "Saving…" : allAtLimit ? "Limit reached" : "Approve…"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <textarea
+                autoFocus value={suggestion} onChange={(e) => setSuggestion(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleGenerate(); } }}
+                placeholder="e.g. make it more reassuring, focus on recovery time…"
+                rows={2}
+                className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
+              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] text-slate-400">Regenerate for:</span>
+                <select value={editGroup} onChange={(e) => { setEditGroup(e.target.value); setEditKeyword(""); }}
+                  className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none">
+                  <option value="">Same group</option>
+                  {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
+                </select>
+                {subkeywords.length > 0 && (
+                  <select value={editKeyword} onChange={(e) => setEditKeyword(e.target.value)}
+                    className="text-[12px] text-slate-600 border border-slate-200 rounded-md px-2 py-0.5 bg-white focus:outline-none">
+                    <option value="">Same keyword</option>
+                    {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
+                  </select>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setExpanded(false); setSuggestion(""); }} className="text-[12px] text-slate-400 hover:text-slate-600">Cancel</button>
+                <div className="flex-1" />
+                <button onClick={() => void handleGenerate()} disabled={!suggestion.trim() || generating}
+                  className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors">
+                  {generating ? "Generating…" : "Generate"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Request a Title panel — expanded, more thorough
+// Request a Title panel — with content type selector
 // ---------------------------------------------------------------------------
 
 const INTENT_OPTIONS = [
@@ -258,11 +508,25 @@ const INTENT_OPTIONS = [
   { value: "transactional", label: "Transactional — convert / drive action" },
 ];
 
-function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: KeywordGroup[]; token: string; onAdded: (t: Title) => void }) {
+function AddTitlePanel({
+  keywordGroups,
+  token,
+  packageTier,
+  onAdded,
+}: {
+  keywordGroups: KeywordGroup[];
+  token: string;
+  packageTier: PackageTier;
+  onAdded: (t: Title) => void;
+}) {
+  const pkg = PACKAGES[packageTier];
+  const [contentType, setContentType] = useState<ContentTypeName>("standard");
   const [idea, setIdea] = useState("");
   const [group, setGroup] = useState("");
   const [keyword, setKeyword] = useState("");
   const [intent, setIntent] = useState("");
+  const [refreshUrl, setRefreshUrl] = useState("");
+  const [pageType, setPageType] = useState("Blog Post");
   const [generated, setGenerated] = useState("");
   const [generating, setBusyGen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -270,7 +534,9 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
 
   const groupObj = keywordGroups.find((g) => g.group === group);
   const subkeywords = groupObj?.subkeywords ?? [];
-  const canGenerate = idea.trim().length > 0 && !!group;
+  const canGenerate = idea.trim().length > 0 && !!group && contentType !== "refresh";
+
+  const isRefresh = contentType === "refresh";
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -290,16 +556,25 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
   const handleAdd = async (finalTitle?: string) => {
     const t = (finalTitle ?? generated ?? idea).trim();
     if (!t) return;
+    if (isRefresh && !refreshUrl.trim()) return;
     setAdding(true);
     const res = await fetch(`/api/portal/titles?token=${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: t, target_keyword: keyword, keyword_group: group, search_intent: intent }),
+      body: JSON.stringify({
+        title: t,
+        target_keyword: keyword,
+        keyword_group: group,
+        search_intent: intent,
+        content_type_name: contentType,
+        ...(isRefresh ? { refresh_url: refreshUrl.trim(), page_type: pageType } : {}),
+      }),
     });
     const data = await res.json() as { title?: Title };
     if (data.title) {
       onAdded(data.title);
       setIdea(""); setGenerated(""); setGroup(""); setKeyword(""); setIntent("");
+      setRefreshUrl(""); setPageType("Blog Post");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
     }
@@ -308,7 +583,14 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
 
   const reset = () => { setGenerated(""); };
 
-  if (generated) {
+  // Type selector tabs
+  const typeOptions: { type: ContentTypeName; label: string }[] = [
+    { type: "standard", label: "Article" },
+    ...(pkg.articles_longform > 0 ? [{ type: "longform" as ContentTypeName, label: "Long-Form" }] : []),
+    { type: "refresh", label: "Refresh" },
+  ];
+
+  if (generated && !isRefresh) {
     return (
       <div className="p-4 flex flex-col gap-3">
         <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
@@ -343,88 +625,152 @@ function AddTitlePanel({ keywordGroups, token, onAdded }: { keywordGroups: Keywo
 
   return (
     <div className="p-4 flex flex-col gap-3">
-      {/* Topic / idea */}
-      <div>
-        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-          Topic or idea
-        </label>
-        <textarea
-          value={idea}
-          onChange={(e) => setIdea(e.target.value)}
-          placeholder="Describe what this article should cover — the more specific, the better. e.g. a post targeting first-time buyers who have questions about pricing or a common objection your team hears frequently."
-          rows={6}
-          className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
-        />
-      </div>
-
-      {/* Keyword group */}
-      <div>
-        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-          Keyword group
-        </label>
-        <select
-          value={group}
-          onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
-          className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-        >
-          <option value="">— select a group —</option>
-          {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
-        </select>
-      </div>
-
-      {/* Target keyword — only when group has subkeywords */}
-      {subkeywords.length > 0 && (
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-            Target keyword <span className="normal-case font-normal text-slate-300">(optional)</span>
-          </label>
-          <select
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-          >
-            <option value="">— pick a keyword —</option>
-            {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
-          </select>
-        </div>
-      )}
-
-      {/* Search intent */}
-      <div>
-        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-          Search intent <span className="normal-case font-normal text-slate-300">(optional)</span>
-        </label>
-        <select
-          value={intent}
-          onChange={(e) => setIntent(e.target.value)}
-          className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-        >
-          {INTENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
-
-      {/* Actions */}
-      <div className="flex flex-col gap-2 pt-1">
-        <button
-          onClick={() => void handleGenerate()}
-          disabled={!canGenerate || generating}
-          className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {generating ? "Generating…" : "Generate with AI"}
-        </button>
-        {idea.trim() && (
+      {/* Content type tabs */}
+      <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+        {typeOptions.map(({ type, label }) => (
           <button
-            onClick={() => void handleAdd(idea.trim())}
-            disabled={adding}
-            className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors"
+            key={type}
+            onClick={() => { setContentType(type); setGenerated(""); }}
+            className={`flex-1 py-1.5 text-[12px] font-medium transition-colors ${
+              contentType === type
+                ? "bg-slate-900 text-white"
+                : "bg-white text-slate-500 hover:bg-slate-50"
+            }`}
           >
-            {adding ? "Adding…" : success ? "Added ✓" : "Add as-is (no AI)"}
+            {label}
           </button>
-        )}
-        {!canGenerate && idea.trim() && !group && (
-          <p className="text-[11px] text-slate-400 text-center">Select a keyword group to enable AI generation</p>
-        )}
+        ))}
       </div>
+
+      {isRefresh ? (
+        /* Refresh mode */
+        <>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+              URL to refresh <span className="text-red-400 normal-case font-normal">*required</span>
+            </label>
+            <input
+              type="url"
+              value={refreshUrl}
+              onChange={(e) => setRefreshUrl(e.target.value)}
+              placeholder="https://yoursite.com/page-to-update"
+              className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+              Page type
+            </label>
+            <select
+              value={pageType}
+              onChange={(e) => setPageType(e.target.value)}
+              className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+            >
+              {PAGE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+              What should be updated or improved?
+            </label>
+            <textarea
+              value={idea}
+              onChange={(e) => setIdea(e.target.value)}
+              placeholder="Describe what needs improving — thin sections, outdated content, missing topics, or specific angles to strengthen."
+              rows={5}
+              className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
+            />
+          </div>
+          <button
+            onClick={() => void handleAdd(idea.trim() || `Content refresh: ${refreshUrl.trim()}`)}
+            disabled={adding || !refreshUrl.trim()}
+            className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {adding ? "Adding…" : success ? "Added ✓" : "Add to proposals"}
+          </button>
+        </>
+      ) : (
+        /* Standard / Long-Form mode */
+        <>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+              Topic or idea
+            </label>
+            <textarea
+              value={idea}
+              onChange={(e) => setIdea(e.target.value)}
+              placeholder="Describe what this article should cover — the more specific, the better. e.g. a post targeting first-time buyers who have questions about pricing or a common objection your team hears frequently."
+              rows={6}
+              className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+              Keyword group
+            </label>
+            <select
+              value={group}
+              onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
+              className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+            >
+              <option value="">— select a group —</option>
+              {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
+            </select>
+          </div>
+
+          {subkeywords.length > 0 && (
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+                Target keyword <span className="normal-case font-normal text-slate-300">(optional)</span>
+              </label>
+              <select
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+              >
+                <option value="">— pick a keyword —</option>
+                {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+              Search intent <span className="normal-case font-normal text-slate-300">(optional)</span>
+            </label>
+            <select
+              value={intent}
+              onChange={(e) => setIntent(e.target.value)}
+              className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+            >
+              {INTENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-1">
+            <button
+              onClick={() => void handleGenerate()}
+              disabled={!canGenerate || generating}
+              className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {generating ? "Generating…" : "Generate with AI"}
+            </button>
+            {idea.trim() && (
+              <button
+                onClick={() => void handleAdd(idea.trim())}
+                disabled={adding}
+                className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors"
+              >
+                {adding ? "Adding…" : success ? "Added ✓" : "Add as-is (no AI)"}
+              </button>
+            )}
+            {!canGenerate && idea.trim() && !group && (
+              <p className="text-[11px] text-slate-400 text-center">Select a keyword group to enable AI generation</p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -443,18 +789,24 @@ export default function TitlesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
-  const [monthlyApproved, setMonthlyApproved] = useState(0);
-  const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
+  const [quota, setQuota] = useState<QuotaState | null>(null);
+  const [packageTier, setPackageTier] = useState<PackageTier>("growth");
+  const [quotaError, setQuotaError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/portal/titles?token=${token}`);
       if (!res.ok) throw new Error("Failed to load titles");
-      const data = await res.json() as { titles: Title[]; keyword_groups: KeywordGroup[]; monthly_approved: number; monthly_limit: number };
+      const data = await res.json() as {
+        titles: Title[];
+        keyword_groups: KeywordGroup[];
+        quota: QuotaState | null;
+        package: PackageTier;
+      };
       setTitles(data.titles);
       setKeywordGroups(data.keyword_groups ?? []);
-      setMonthlyApproved(data.monthly_approved ?? 0);
-      setMonthlyLimit(data.monthly_limit ?? null);
+      setQuota(data.quota ?? null);
+      setPackageTier(data.package ?? "growth");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error loading titles");
     } finally {
@@ -470,12 +822,9 @@ export default function TitlesPage() {
   const handleRemove = useCallback((id: string) => { setTitles((prev) => prev.filter((t) => t.id !== id)); }, []);
   const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
 
-  const atLimit = monthlyLimit !== null && monthlyApproved >= monthlyLimit;
-  const remaining = monthlyLimit !== null ? Math.max(0, monthlyLimit - monthlyApproved) : null;
-  const [quotaError, setQuotaError] = useState<string | null>(null);
-
   const proposals = titles.filter((t) => t.title_status === "titled" || (!t.title_status || t.title_status === "proposals"));
 
+  const standardRemaining = quota ? Math.max(0, quota.standard.limit - quota.standard.used) : null;
   const allSelected = proposals.length > 0 && selected.size === proposals.length;
 
   const toggleSelect = useCallback((id: string) => {
@@ -491,33 +840,42 @@ export default function TitlesPage() {
   }, [allSelected, proposals]);
 
   const handleBulkApprove = useCallback(async () => {
-    if (selected.size === 0 || atLimit) return;
+    if (selected.size === 0 || !quota || quota.standard.used >= quota.standard.limit) return;
     setBulkApproving(true);
     const ids = Array.from(selected);
     for (const id of ids) {
+      if (!quota || quota.standard.used >= quota.standard.limit) break;
       const title = proposals.find((p) => p.id === id);
       if (!title) continue;
       const res = await fetch(`/api/portal/titles?token=${token}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ record_id: id, action: "approve", title: title.title, target_keyword: title.target_keyword, keyword_group: title.keyword_group }),
+        body: JSON.stringify({
+          record_id: id,
+          action: "approve",
+          title: title.title,
+          target_keyword: title.target_keyword,
+          keyword_group: title.keyword_group,
+          content_type_name: "standard",
+        }),
       });
       if (res.status === 409) {
-        const data = await res.json() as { message?: string; monthly_approved?: number };
+        const data = await res.json() as { message?: string };
         setQuotaError(data.message ?? "Monthly article limit reached.");
-        if (data.monthly_approved !== undefined) setMonthlyApproved(data.monthly_approved);
-        break; // stop approving — quota hit mid-batch
+        break;
       }
-      setMonthlyApproved((n) => n + 1);
-      setTitles((prev) => prev.map((t) => t.id === id ? { ...t, title_status: "approved", airtable_status: "Queued" } : t));
+      setQuota((q) => q ? { ...q, standard: { ...q.standard, used: q.standard.used + 1 } } : q);
+      setTitles((prev) => prev.map((t) => t.id === id ? { ...t, title_status: "approved", airtable_status: "Queued", content_type_name: "standard" } : t));
       setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
     setBulkApproving(false);
-  }, [selected, proposals, token, atLimit]);
+  }, [selected, proposals, token, quota]);
+
+  const standardAtLimit = quota ? quota.standard.used >= quota.standard.limit : false;
 
   return (
     <div className="flex gap-5 min-h-full">
-      {/* Left panel — request form fills available height */}
+      {/* Left panel */}
       <div className="w-80 shrink-0">
         <div className="sticky top-8">
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -525,7 +883,14 @@ export default function TitlesPage() {
               <span className="text-[14px] font-semibold text-slate-800">Request a title</span>
               <span className="text-slate-400 text-xl font-light leading-none">+</span>
             </div>
-            {!loading && <AddTitlePanel keywordGroups={keywordGroups} token={token} onAdded={handleAdded} />}
+            {!loading && (
+              <AddTitlePanel
+                keywordGroups={keywordGroups}
+                token={token}
+                packageTier={packageTier}
+                onAdded={handleAdded}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -534,23 +899,16 @@ export default function TitlesPage() {
       <div className="flex-1 min-w-0">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Title Proposals</h1>
-          <p className="text-base text-slate-500 mt-1">Review and approve blog title proposals.</p>
+          <p className="text-base text-slate-500 mt-1">Review and approve title proposals.</p>
         </div>
 
         {loading && <div className="text-slate-400 text-sm">Loading…</div>}
         {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-4">{error}</div>}
 
-        {/* Monthly quota banner */}
-        {!loading && monthlyLimit !== null && (
-          <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-[13px] mb-4 ${atLimit ? "bg-amber-50 border border-amber-200 text-amber-800" : "bg-slate-50 border border-slate-200 text-slate-600"}`}>
-            <span>
-              {atLimit
-                ? `Monthly article limit reached — ${monthlyApproved}/${monthlyLimit} approved this month.`
-                : `${monthlyApproved} of ${monthlyLimit} article approvals used this month · ${remaining} remaining`}
-            </span>
-            {atLimit && <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Limit reached</span>}
-          </div>
-        )}
+        {/* Per-type quota banner */}
+        {!loading && quota && <QuotaBanner quota={quota} packageTier={packageTier} />}
+
+        {/* Quota error toast */}
         {quotaError && (
           <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-[13px] mb-4 bg-red-50 border border-red-200 text-red-700">
             <span>{quotaError}</span>
@@ -569,7 +927,7 @@ export default function TitlesPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {/* Select-all bar */}
+              {/* Select-all + bulk approve bar */}
               <div className="flex items-center gap-3 px-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -583,20 +941,23 @@ export default function TitlesPage() {
                   </span>
                 </label>
                 {selected.size > 0 && (
-                  <button
-                    onClick={() => void handleBulkApprove()}
-                    disabled={bulkApproving || atLimit}
-                    title={atLimit ? "Monthly article limit reached" : undefined}
-                    className="ml-auto px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {bulkApproving
-                      ? `Approving…`
-                      : atLimit
-                      ? "Limit reached"
-                      : remaining !== null && selected.size > remaining
-                      ? `Approve ${remaining} remaining`
-                      : `Approve ${selected.size} selected`}
-                  </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400">Bulk approves as Standard Article</span>
+                    <button
+                      onClick={() => void handleBulkApprove()}
+                      disabled={bulkApproving || standardAtLimit}
+                      title={standardAtLimit ? "Standard article limit reached" : undefined}
+                      className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {bulkApproving
+                        ? "Approving…"
+                        : standardAtLimit
+                        ? "Limit reached"
+                        : standardRemaining !== null && selected.size > standardRemaining
+                        ? `Approve ${standardRemaining} remaining`
+                        : `Approve ${selected.size} selected`}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -606,12 +967,11 @@ export default function TitlesPage() {
                   title={t}
                   keywordGroups={keywordGroups}
                   token={token}
+                  quota={quota ?? { standard: { used: 0, limit: 99 }, longform: { used: 0, limit: 0 }, refresh: { used: 0, limit: 1 } }}
+                  packageTier={packageTier}
                   onUpdate={handleUpdate}
                   onRemove={handleRemove}
-                  selected={selected.has(t.id)}
-                  onToggleSelect={toggleSelect}
-                  atLimit={atLimit}
-                  onQuotaHit={(msg) => { setQuotaError(msg); setMonthlyApproved(monthlyLimit ?? monthlyApproved); }}
+                  onQuotaHit={(msg) => setQuotaError(msg)}
                 />
               ))}
             </div>

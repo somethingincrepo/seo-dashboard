@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate } from "@/lib/airtable";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
+import { getPerTypeQuota, CONTENT_TYPE_CONFIG, type ContentTypeName } from "@/lib/content";
+import { getSupabase } from "@/lib/supabase";
 
 function startOfMonthISO(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function getMonthlyArticleLimit(pkg: PackageTier): number {
-  const p = PACKAGES[pkg];
-  return p.articles_standard + p.articles_longform;
 }
 
 const CONTENT_JOBS_TABLE = "Content Jobs";
@@ -27,7 +24,7 @@ async function getContentClientId(companyName: string): Promise<string | null> {
 }
 
 // ---------------------------------------------------------------------------
-// GET — fetch titles + keyword_groups for this portal client
+// GET — fetch titles + keyword_groups + per-type quota for this portal client
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -46,7 +43,7 @@ export async function GET(request: NextRequest) {
     keywordGroups = [...ai, ...custom];
   } catch { /* ignore */ }
 
-  if (!companyName) return NextResponse.json({ titles: [], keyword_groups: keywordGroups });
+  if (!companyName) return NextResponse.json({ titles: [], keyword_groups: keywordGroups, quota: null, package: "growth" });
 
   const jobs = await contentAirtableFetch<{
     id: string;
@@ -61,9 +58,11 @@ export async function GET(request: NextRequest) {
       quality_score: number;
       proposed_at: string;
       approved_at: string;
+      "Desired length range": string;
+      refresh_url: string;
+      page_type: string;
     };
   }>(CONTENT_JOBS_TABLE, {
-    // Fetch everything except skipped so the folder nav can show all stages
     filterByFormula: `AND(
       FIND("${companyName}", ARRAYJOIN({Client Name (from Client ID)}, ",")),
       {title_status}!="skipped"
@@ -71,6 +70,16 @@ export async function GET(request: NextRequest) {
     sort: [{ field: "proposed_at", direction: "desc" }],
     maxRecords: 200,
   });
+
+  const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
+  const monthStart = startOfMonthISO();
+
+  // Classify content type from Airtable data
+  function classifyType(j: typeof jobs[0]["fields"]): ContentTypeName {
+    if (j.refresh_url) return "refresh";
+    if ((j["Desired length range"] ?? "").includes("3,000")) return "longform";
+    return "standard";
+  }
 
   const titles = jobs.map((j) => ({
     id: j.id,
@@ -84,21 +93,30 @@ export async function GET(request: NextRequest) {
     quality_score: j.fields.quality_score ?? null,
     proposed_at: j.fields.proposed_at ?? null,
     approved_at: j.fields.approved_at ?? null,
+    content_type_name: classifyType(j.fields) as ContentTypeName,
+    refresh_url: j.fields.refresh_url ?? null,
+    page_type: j.fields.page_type ?? null,
   }));
 
-  // Monthly quota info
-  const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
-  const monthlyLimit = getMonthlyArticleLimit(pkg);
-  const monthStart = startOfMonthISO();
-  const monthlyApproved = titles.filter(
-    (t) => t.title_status === "approved" && t.approved_at && t.approved_at >= monthStart
-  ).length;
+  // Per-type quota
+  const quota = getPerTypeQuota(
+    jobs.map((j) => ({
+      fields: {
+        title_status: j.fields.title_status,
+        approved_at: j.fields.approved_at,
+        "Desired length range": j.fields["Desired length range"],
+        refresh_url: j.fields.refresh_url,
+      },
+    })),
+    pkg,
+    monthStart
+  );
 
-  return NextResponse.json({ titles, keyword_groups: keywordGroups, monthly_approved: monthlyApproved, monthly_limit: monthlyLimit });
+  return NextResponse.json({ titles, keyword_groups: keywordGroups, quota, package: pkg });
 }
 
 // ---------------------------------------------------------------------------
-// POST — create a custom title
+// POST — create a custom title proposal
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -112,9 +130,12 @@ export async function POST(request: NextRequest) {
     target_keyword?: string;
     keyword_group?: string;
     search_intent?: string;
+    content_type_name?: ContentTypeName;
+    refresh_url?: string;
+    page_type?: string;
   };
 
-  const { title, target_keyword, keyword_group, search_intent } = body;
+  const { title, target_keyword, keyword_group, search_intent, content_type_name, refresh_url, page_type } = body;
   if (!title?.trim()) return NextResponse.json({ error: "title required" }, { status: 400 });
 
   const companyName = client.fields.company_name;
@@ -135,8 +156,13 @@ export async function POST(request: NextRequest) {
   if (target_keyword) fields.target_keyword = target_keyword;
   if (keyword_group) fields.keyword_group = keyword_group;
   if (search_intent) fields["Search intent"] = search_intent;
+  // For refresh proposals, store URL and page type immediately
+  if (content_type_name === "refresh" && refresh_url) fields.refresh_url = refresh_url;
+  if (content_type_name === "refresh" && page_type) fields.page_type = page_type;
 
   const created = await contentAirtableCreate(CONTENT_JOBS_TABLE, fields);
+
+  const typeName: ContentTypeName = content_type_name ?? "standard";
 
   return NextResponse.json({
     ok: true,
@@ -145,6 +171,7 @@ export async function POST(request: NextRequest) {
       id: created.id,
       title: title.trim(),
       title_status: "titled",
+      airtable_status: "",
       target_keyword: target_keyword ?? "",
       keyword_group: keyword_group ?? "",
       search_intent: search_intent ?? "",
@@ -152,6 +179,9 @@ export async function POST(request: NextRequest) {
       quality_score: null,
       proposed_at: new Date().toISOString(),
       approved_at: null,
+      content_type_name: typeName,
+      refresh_url: (content_type_name === "refresh" ? refresh_url : null) ?? null,
+      page_type: (content_type_name === "refresh" ? page_type : null) ?? null,
     },
   });
 }
@@ -172,34 +202,54 @@ export async function PATCH(request: NextRequest) {
     target_keyword?: string;
     keyword_group?: string;
     action?: "approve" | "save";
+    content_type_name?: ContentTypeName;
+    refresh_url?: string;
+    page_type?: string;
   };
-  const { record_id, title, target_keyword, keyword_group, action = "approve" } = body;
+  const {
+    record_id,
+    title,
+    target_keyword,
+    keyword_group,
+    action = "approve",
+    content_type_name,
+    refresh_url,
+    page_type,
+  } = body;
 
   if (!record_id) return NextResponse.json({ error: "record_id required" }, { status: 400 });
 
-  // Monthly quota check — block if already at package limit
+  const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
+  const monthStart = startOfMonthISO();
+  const companyName = client.fields.company_name;
+
+  // Per-type quota check on approve
   if (action === "approve") {
-    const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
-    const monthlyLimit = getMonthlyArticleLimit(pkg);
-    const monthStart = startOfMonthISO();
-    const companyName = client.fields.company_name;
-    const allJobs = await contentAirtableFetch<{ id: string; fields: { title_status?: string; approved_at?: string } }>(
-      CONTENT_JOBS_TABLE,
-      {
-        filterByFormula: `AND(FIND("${companyName}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}="approved")`,
-        fields: ["title_status", "approved_at"],
-      }
-    );
-    const approvedThisMonth = allJobs.filter(
-      (j) => j.fields.approved_at && j.fields.approved_at >= monthStart
-    ).length;
-    if (approvedThisMonth >= monthlyLimit) {
+    const typeName: ContentTypeName = content_type_name ?? "standard";
+
+    const allJobs = await contentAirtableFetch<{
+      id: string;
+      fields: {
+        title_status?: string;
+        approved_at?: string;
+        "Desired length range"?: string;
+        refresh_url?: string;
+      };
+    }>(CONTENT_JOBS_TABLE, {
+      filterByFormula: `AND(FIND("${companyName}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}="approved")`,
+      fields: ["title_status", "approved_at", "Desired length range", "refresh_url"],
+    });
+
+    const quota = getPerTypeQuota(allJobs, pkg, monthStart);
+    const typeQuota = quota[typeName];
+
+    if (typeQuota.used >= typeQuota.limit) {
       return NextResponse.json({
         error: "quota_reached",
-        message: `You've approved ${approvedThisMonth} of ${monthlyLimit} articles for this month. Your ${pkg} plan includes ${monthlyLimit} articles/month.`,
+        quota_type: typeName,
+        message: `You've used all ${typeQuota.limit} ${CONTENT_TYPE_CONFIG[typeName].label} slots for this month.`,
         quota_reached: true,
-        monthly_approved: approvedThisMonth,
-        monthly_limit: monthlyLimit,
+        quota,
       }, { status: 409 });
     }
   }
@@ -207,16 +257,26 @@ export async function PATCH(request: NextRequest) {
   const fields: Record<string, unknown> = {};
 
   if (action === "approve") {
+    const typeName: ContentTypeName = content_type_name ?? "standard";
+    const cfg = CONTENT_TYPE_CONFIG[typeName];
+
     fields.title_status = "approved";
     fields.approved_at = new Date().toISOString();
     fields.Status = "Queued";
+    fields["Content type"] = cfg.airtableContentType;
+    fields["Desired length range"] = cfg.airtableLengthRange;
+
+    if (typeName === "refresh") {
+      if (refresh_url) fields.refresh_url = refresh_url;
+      if (page_type) fields.page_type = page_type;
+    }
   }
 
   if (title?.trim()) fields["Blog Title"] = title.trim();
   if (target_keyword !== undefined) fields.target_keyword = target_keyword;
   if (keyword_group !== undefined) fields.keyword_group = keyword_group;
 
-  // For approval, fetch the current record first so we can send the right payload to n8n
+  // Fetch current record for job routing
   let jobRecord: {
     fields: {
       "Blog Title": string;
@@ -241,35 +301,58 @@ export async function PATCH(request: NextRequest) {
 
   await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, fields);
 
-  // Fire n8n webhook with the payload format the workflow actually expects.
-  // Content type and Desired length range are hardcoded defaults since the portal
-  // doesn't collect them — the n8n Article Drafting node needs them to avoid .name errors.
-  // If the webhook fails, mark the job "Webhook Failed" in Airtable so it's visible.
+  // Route to the right job processor on approval
   if (action === "approve") {
-    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
-    const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
-    const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
-    const searchIntent = jobRecord?.fields["Search intent"] || "informational";
-    try {
-      const webhookRes = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recordId: record_id,
-          fields: {
-            "Blog Title": blogTitle,
-            "Client ID": clientIds,
-            "Search intent": searchIntent,
-            "Content type": { id: "Blog Post", name: "Blog Post" },
-            "Desired length range": "1,500-2,500 words",
+    const typeName: ContentTypeName = content_type_name ?? "standard";
+
+    if (typeName === "refresh") {
+      // Content Refresh → queue Supabase job for Fly.io worker SOP
+      try {
+        const supabase = getSupabase();
+        await supabase.from("jobs").insert({
+          sop_name: "content_refresh",
+          runner: "fly",
+          client_id: client.id,
+          status: "pending",
+          payload: {
+            job_id: record_id,
+            refresh_url: refresh_url ?? null,
+            page_type: page_type ?? null,
+            client_id: client.id,
           },
-        }),
-      });
-      if (!webhookRes.ok) {
-        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" });
+        });
+      } catch (err) {
+        console.error("Failed to queue content_refresh job (non-fatal):", err);
+        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
       }
-    } catch {
-      await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
+    } else {
+      // Standard / Long-Form → fire n8n webhook with dynamic content type + length
+      const cfg = CONTENT_TYPE_CONFIG[typeName];
+      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
+      const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
+      const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
+      const searchIntent = jobRecord?.fields["Search intent"] || "informational";
+      try {
+        const webhookRes = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recordId: record_id,
+            fields: {
+              "Blog Title": blogTitle,
+              "Client ID": clientIds,
+              "Search intent": searchIntent,
+              "Content type": { id: cfg.airtableContentType, name: cfg.airtableContentType },
+              "Desired length range": cfg.airtableLengthRange,
+            },
+          }),
+        });
+        if (!webhookRes.ok) {
+          await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" });
+        }
+      } catch {
+        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
+      }
     }
   }
 

@@ -68,6 +68,8 @@ function KanbanCard({
   const angle = job.fields.content_angle;
   const intentClass = INTENT_COLORS[intent] ?? "bg-slate-100 text-slate-500";
   const hasResult = job.fields.Status === "Completed" || job.fields.title_status === "completed";
+  const isRefreshCard = !!job.fields.refresh_url;
+  const isLongformCard = !isRefreshCard && (job.fields["Desired length range"] ?? "").includes("3,000");
 
   return (
     <div
@@ -106,6 +108,16 @@ function KanbanCard({
           {intent && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${intentClass}`}>
               {intent}
+            </span>
+          )}
+          {isRefreshCard && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-medium">
+              refresh
+            </span>
+          )}
+          {isLongformCard && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">
+              long-form
             </span>
           )}
           {hasResult && (
@@ -564,7 +576,54 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                     {liveSelectedJob.fields["Target persona"]}
                   </span>
                 )}
+                {/* Content type chip */}
+                {(() => {
+                  const isRefreshDrawer = !!liveSelectedJob.fields.refresh_url;
+                  const isLongformDrawer = !isRefreshDrawer && (liveSelectedJob.fields["Desired length range"] ?? "").includes("3,000");
+                  const typeLabel = isRefreshDrawer ? "Content Refresh" : isLongformDrawer ? "Long-Form Article" : "Standard Article";
+                  const wordRange = liveSelectedJob.fields["Desired length range"];
+                  return (
+                    <>
+                      <span className={`text-xs px-2.5 py-1 rounded-lg border font-medium ${
+                        isRefreshDrawer ? "bg-orange-50 border-orange-200 text-orange-600" :
+                        isLongformDrawer ? "bg-violet-50 border-violet-200 text-violet-600" :
+                        "bg-slate-100 border-slate-200 text-slate-500"
+                      }`}>
+                        {typeLabel}
+                      </span>
+                      {wordRange && wordRange !== "varies" && (
+                        <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-500">
+                          {wordRange}
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
+
+              {/* Page Being Refreshed — shown for refresh jobs */}
+              {liveSelectedJob.fields.refresh_url && (
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">
+                    Page Being Refreshed
+                  </div>
+                  <div className="flex items-start gap-2">
+                    {liveSelectedJob.fields.page_type && (
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-orange-50 border border-orange-100 text-orange-600 shrink-0 mt-0.5">
+                        {liveSelectedJob.fields.page_type}
+                      </span>
+                    )}
+                    <a
+                      href={liveSelectedJob.fields.refresh_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-indigo-600 hover:text-indigo-800 break-all leading-snug"
+                    >
+                      {liveSelectedJob.fields.refresh_url}
+                    </a>
+                  </div>
+                </div>
+              )}
 
               {/* Content angle */}
               {liveSelectedJob.fields.content_angle && (
