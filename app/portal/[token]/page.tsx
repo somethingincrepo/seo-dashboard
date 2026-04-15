@@ -3,7 +3,6 @@ import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals, getClientChanges } from "@/lib/changes";
 import { DashboardHero } from "@/components/portal/DashboardHero";
 import { PipelineBoard } from "@/components/portal/PipelineBoard";
-import { MonthlyProgress } from "@/components/portal/MonthlyProgress";
 
 export const revalidate = 0;
 
@@ -46,21 +45,13 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
         />
       </div>
 
-      {/* Monthly progress + Pipeline — side by side on larger screens */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-5">
-        {/* Monthly deliverable progress */}
-        <div className="flex-shrink-0 lg:w-72">
-          <MonthlyProgress client={client} />
+      {/* Pipeline Board */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex-shrink-0">
+          Pipeline
         </div>
-
-        {/* Pipeline Board — fills remaining height */}
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex-shrink-0">
-            Pipeline
-          </div>
-          <div className="flex-1 min-h-0">
-            <PipelineBoard changes={allChanges} token={token} />
-          </div>
+        <div className="flex-1 min-h-0">
+          <PipelineBoard changes={allChanges} token={token} />
         </div>
       </div>
     </div>

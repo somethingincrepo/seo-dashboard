@@ -12,6 +12,7 @@ interface PortalSidebarProps {
   titleProposalCount: number;
   categoryBreakdown: Record<string, number>;
   isLoggedIn: boolean;
+  monthlyProgress?: React.ReactNode;
 }
 
 const CATEGORY_ROUTES: Record<string, string> = {
@@ -88,6 +89,7 @@ export function PortalSidebar({
   titleProposalCount,
   categoryBreakdown,
   isLoggedIn,
+  monthlyProgress,
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const base = `/portal/${token}`;
@@ -214,6 +216,9 @@ export function PortalSidebar({
             );
           })}
         </nav>
+
+        {/* Monthly progress — static across all pages */}
+        {monthlyProgress}
 
         {/* Bottom CTA */}
         <div className="px-3 py-3 border-t border-slate-100 space-y-1">

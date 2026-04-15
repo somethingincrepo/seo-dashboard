@@ -138,6 +138,68 @@ async function fetchActuals(
   };
 }
 
+// ─── sidebar compact variant ─────────────────────────────────────────────────
+
+export async function MonthlyProgressSidebar({ client }: { client: Client }) {
+  const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
+  const targets = PACKAGES[pkg];
+  const monthNumber = client.fields.month_number ?? 1;
+  const monthStart = startOfMonthStr();
+
+  const actuals = await fetchActuals(
+    client.id,
+    client.fields.client_id,
+    client.fields.company_name,
+    monthStart
+  );
+
+  const pkgColor: Record<PackageTier, string> = {
+    starter: "text-slate-500",
+    growth: "text-indigo-600",
+    authority: "text-violet-600",
+  };
+
+  const rows: { label: string; actual: number; target: number }[] = [
+    { label: "Articles", actual: actuals.articles, target: targets.articles_standard + targets.articles_longform },
+    { label: "FAQ sections", actual: actuals.faq_sections, target: targets.faq_sections },
+    ...(targets.pages_optimized > 0
+      ? [{ label: "Pages optimized", actual: actuals.pages_optimized, target: targets.pages_optimized }]
+      : []),
+    { label: "Internal links", actual: actuals.internal_links, target: targets.internal_links },
+  ];
+
+  return (
+    <div className="px-3 py-3 border-t border-slate-100">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">This Month</span>
+        <span className={`text-[10px] font-semibold ${pkgColor[pkg]}`}>
+          M{monthNumber} · {PACKAGE_LABELS[pkg]}
+        </span>
+      </div>
+      <div className="space-y-2">
+        {rows.map(({ label, actual, target }) => {
+          const pct = target === 0 ? 100 : Math.min(100, Math.round((actual / target) * 100));
+          const done = actual >= target;
+          return (
+            <div key={label}>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[11px] text-slate-500">{label}</span>
+                <span className="text-[11px] tabular-nums text-slate-400">{actual}/{target}</span>
+              </div>
+              <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${done ? "bg-emerald-400" : "bg-indigo-400"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export async function MonthlyProgress({ client }: { client: Client }) {

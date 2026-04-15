@@ -4,6 +4,7 @@ import { getPortalSession } from "@/lib/portal-auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
+import { MonthlyProgressSidebar } from "@/components/portal/MonthlyProgress";
 
 export const revalidate = 0;
 
@@ -72,6 +73,7 @@ export default async function PortalLayout({
       titleProposalCount={titleProposalCount}
       categoryBreakdown={categoryBreakdown}
       isLoggedIn={isLoggedIn}
+      monthlyProgress={<MonthlyProgressSidebar client={client} />}
     >
       {children}
     </PortalSidebar>
