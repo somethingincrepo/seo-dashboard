@@ -1,3 +1,4 @@
+import React from "react";
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getClientChanges } from "@/lib/changes";
@@ -5,7 +6,7 @@ import { getClientReports } from "@/lib/reports";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getChangeTitle } from "@/lib/portal-labels";
+import { getChangeTitle, normalizeType } from "@/lib/portal-labels";
 
 export const revalidate = 0;
 
@@ -18,6 +19,10 @@ type ChangelogEntry =
       status: "implemented" | "reverting" | "reverted" | "approved" | "skipped" | "pending";
       cat: string;
       note?: string;
+      changeType?: string;
+      currentValue?: string;
+      verifiedValue?: string;
+      verification?: string;
     }
   | { kind: "report"; date: string; month: number | string }
   | { kind: "content"; date: string; title: string; event: "proposed" | "approved" | "completed" | "published" };
@@ -49,6 +54,9 @@ export default async function ActivityPage({
     const changeType = c.fields.type || c.fields.change_type || "";
     const title = getChangeTitle(changeType, c.fields.page_url);
     const cat = c.fields.cat || c.fields.category || "Other";
+    const verifiedValue = c.fields.verified_value || undefined;
+    const verification = c.fields.verification || undefined;
+    const currentValue = c.fields.current_value || undefined;
 
     if (c.fields.reverted_at) {
       // Show the original implementation first, then the revert event
@@ -60,6 +68,10 @@ export default async function ActivityPage({
           pageUrl: c.fields.page_url || "",
           status: "implemented",
           cat,
+          changeType,
+          currentValue,
+          verifiedValue,
+          verification,
         });
       }
       entries.push({
@@ -88,6 +100,10 @@ export default async function ActivityPage({
         pageUrl: c.fields.page_url || "",
         status: "implemented",
         cat,
+        changeType,
+        currentValue,
+        verifiedValue,
+        verification,
       });
     } else if (c.fields.approved_at) {
       entries.push({
@@ -262,35 +278,131 @@ export default async function ActivityPage({
                 );
               }
 
-              return (
-                <div key={i} className={`grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center${entry.status === "reverted" ? " opacity-60" : ""}`}>
-                  <span className="text-xs text-slate-500">{formatDate(entry.date)}</span>
-                  <div className="min-w-0">
-                    <span className={`text-sm font-semibold truncate block${entry.status === "reverted" ? " line-through text-slate-400" : " text-slate-800"}`}>
-                      {entry.title}
-                    </span>
-                    {entry.status === "reverted" && (
-                      <span className="text-xs text-slate-400 italic">{entry.note || "Restored to original state"}</span>
-                    )}
-                    {entry.status === "reverting" && (
-                      <span className="text-xs text-amber-600 italic">Restoring original — changes will disappear shortly</span>
-                    )}
-                  </div>
-                  <a
-                    href={entry.pageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-slate-400 hover:text-slate-600 font-mono truncate transition-colors"
-                    title={entry.pageUrl}
-                  >
-                    {(() => { try { return new URL(entry.pageUrl).pathname; } catch { return entry.pageUrl; } })()}
-                  </a>
-                  <StatusBadge value={entry.cat} variant="category" />
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs border ${statusColor(entry.status)}`}>
-                    {statusLabel(entry.status)}
+              {
+                // TypeScript: at this point all non-"change" kinds have been returned above.
+                // Use a typed const so closures inherit the narrowed type.
+                type ChangeEntry = Extract<ChangelogEntry, { kind: "change" }>;
+                const ce = entry as ChangeEntry;
+
+                const isImplemented = ce.status === "implemented";
+                const hasBeforeAfter = isImplemented && (ce.verifiedValue || ce.currentValue);
+                const verificationPass = ce.verification === "pass" && ce.verifiedValue && !ce.verifiedValue.startsWith("[unverified]");
+                const verificationPending = ce.verifiedValue?.startsWith("[unverified]") || ce.verification === "unverified";
+                const type = normalizeType(ce.changeType || "");
+                const beforeAfterApplies = isImplemented && ["Metadata", "Heading", "Redirect", "Internal Link"].includes(type);
+                const showDetails = isImplemented && (hasBeforeAfter || ce.verifiedValue);
+
+                const renderBeforeAfter = (): React.ReactNode => {
+                  if (!ce.verifiedValue && !ce.currentValue) return null;
+                  const clean = ce.verifiedValue?.startsWith("[unverified] ")
+                    ? ce.verifiedValue.slice("[unverified] ".length)
+                    : ce.verifiedValue || "";
+
+                  if (type === "Metadata") {
+                    let before: Record<string, string> | null = null;
+                    let after: Record<string, string> | null = null;
+                    try { before = ce.currentValue ? JSON.parse(ce.currentValue) : null; } catch {}
+                    try { after = clean ? JSON.parse(clean) : null; } catch {}
+                    return (
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-red-100 bg-red-50/60 p-2.5">
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-red-400 mb-1.5">Before</div>
+                          {before?.title && <div className="text-[11px] text-red-800 font-mono break-words mb-1"><span className="text-slate-400">Title: </span>{before.title}</div>}
+                          {before?.meta_description && <div className="text-[11px] text-red-800 font-mono break-words"><span className="text-slate-400">Desc: </span>{before.meta_description}</div>}
+                        </div>
+                        <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-2.5">
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 mb-1.5">After</div>
+                          {after?.title && <div className="text-[11px] text-emerald-800 font-mono break-words mb-1"><span className="text-slate-400">Title: </span>{after.title}</div>}
+                          {after?.meta_description && <div className="text-[11px] text-emerald-800 font-mono break-words"><span className="text-slate-400">Desc: </span>{after.meta_description}</div>}
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (type === "Heading") {
+                    return (
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-red-100 bg-red-50/60 p-2.5">
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-red-400 mb-1">Before</div>
+                          <div className="text-[11px] text-red-800 font-mono">{ce.currentValue || "—"}</div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-2.5">
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 mb-1">After</div>
+                          <div className="text-[11px] text-emerald-800 font-mono">{clean || "—"}</div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (ce.verifiedValue && !beforeAfterApplies) {
+                    return (
+                      <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/60 p-2.5">
+                        <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 mb-1">Status</div>
+                        <div className="text-[11px] text-emerald-700">
+                          {verificationPending ? "Applied — CDN cache clearing" : "Applied and confirmed live"}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                };
+
+                const statusBadge = (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs border ${statusColor(ce.status)}`}>
+                    {isImplemented && verificationPass && <span>✓</span>}
+                    {isImplemented && verificationPending && <span>~</span>}
+                    {statusLabel(ce.status)}
                   </span>
-                </div>
-              );
+                );
+
+                if (showDetails) {
+                  return (
+                    <details key={i} className={ce.status === "reverted" ? "opacity-60" : ""}>
+                      <summary className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center cursor-pointer list-none hover:bg-slate-50/60 transition-colors">
+                        <span className="text-xs text-slate-500">{formatDate(ce.date)}</span>
+                        <div className="min-w-0 flex items-center gap-2">
+                          <span className="text-[10px] text-slate-300 flex-shrink-0">▶</span>
+                          <span className="text-sm font-semibold text-slate-800 truncate">{ce.title}</span>
+                        </div>
+                        <span className="text-xs text-slate-400 font-mono truncate">
+                          {(() => { try { return new URL(ce.pageUrl).pathname; } catch { return ce.pageUrl; } })()}
+                        </span>
+                        <StatusBadge value={ce.cat} variant="category" />
+                        {statusBadge}
+                      </summary>
+                      <div className="px-5 pb-4 pt-1 bg-slate-50/40">
+                        {renderBeforeAfter()}
+                      </div>
+                    </details>
+                  );
+                }
+
+                return (
+                  <div key={i} className={`grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center${ce.status === "reverted" ? " opacity-60" : ""}`}>
+                    <span className="text-xs text-slate-500">{formatDate(ce.date)}</span>
+                    <div className="min-w-0">
+                      <span className={`text-sm font-semibold truncate block${ce.status === "reverted" ? " line-through text-slate-400" : " text-slate-800"}`}>
+                        {ce.title}
+                      </span>
+                      {ce.status === "reverted" && (
+                        <span className="text-xs text-slate-400 italic">{ce.note || "Restored to original state"}</span>
+                      )}
+                      {ce.status === "reverting" && (
+                        <span className="text-xs text-amber-600 italic">Restoring original — changes will disappear shortly</span>
+                      )}
+                    </div>
+                    <a
+                      href={ce.pageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-slate-400 hover:text-slate-600 font-mono truncate transition-colors"
+                      title={ce.pageUrl}
+                    >
+                      {(() => { try { return new URL(ce.pageUrl).pathname; } catch { return ce.pageUrl; } })()}
+                    </a>
+                    <StatusBadge value={ce.cat} variant="category" />
+                    {statusBadge}
+                  </div>
+                );
+              }
             })}
           </div>
         </GlassCard>

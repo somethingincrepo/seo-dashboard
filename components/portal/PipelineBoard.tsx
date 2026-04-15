@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getListItemTitle, getWhatWeRecommend, getWhyItMatters, getTechnicalCurrent, getTechnicalProposed, hasTechnicalDetails, getDocUrl } from "@/lib/portal-labels";
 import { useApprovalActions } from "./useApprovalActions";
 import { ApprovalActionBar } from "./ApprovalActionBar";
+import { BeforeAfterPanel } from "./BeforeAfterPanel";
 import type { Change } from "@/lib/changes";
 
 interface PipelineBoardProps {
@@ -346,6 +347,11 @@ export function PipelineBoard({ changes, token }: PipelineBoardProps) {
                     {getWhyItMatters(selectedChange.fields)}
                   </p>
                 </div>
+
+                {/* Before/After — shown only for implemented changes */}
+                {isComplete(selectedChange) && (
+                  <BeforeAfterPanel change={selectedChange} />
+                )}
 
                 {/* Technical Details — collapsible */}
                 {hasTechnicalDetails(selectedChange.fields, getWhatWeRecommend(selectedChange.fields)) && (

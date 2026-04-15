@@ -25,6 +25,8 @@ export type ChangeFields = {
   reverted_at: string;
   revert_note: string;
   revert_payload: string;
+  verified_value: string;    // Post-write read-back from CMS — confirmed "after" state for before/after display
+  verification: string;      // "pass" | "unverified" — set by implement SOP after write verification
   job_id: string;
   change_title: string;  // Agent-written short title — e.g. "Fix meta description on Pricing page"
   month: number;

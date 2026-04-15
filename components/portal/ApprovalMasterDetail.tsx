@@ -94,6 +94,9 @@ function ApprovalMasterDetailInner({
   // Track which page groups are collapsed (by "cat::pageUrl")
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showSafeList, setShowSafeList] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const pageFilterRef = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
@@ -243,6 +246,37 @@ function ApprovalMasterDetailInner({
     });
   }, [selectedChangeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkApprove = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkApproving(true);
+    for (const id of ids) {
+      await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: id, decision: "approved", token }),
+      });
+      setLocalChanges((prev) => {
+        const next = new Map(prev);
+        next.set(id, { approval: "approved", client_notes: "" });
+        return next;
+      });
+    }
+    setBulkApproving(false);
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    setTimeout(() => router.refresh(), 800);
+  };
+
   const toggleGroup = (key: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -265,11 +299,17 @@ function ApprovalMasterDetailInner({
         else if (approval === "question") decidedBorder = "border-l-blue-400";
       }
 
+      const isChecked = selectedIds.has(change.id);
+
       return (
         <button
           data-change-id={change.id}
           key={change.id}
           onClick={() => {
+            if (selectMode) {
+              toggleSelect(change.id);
+              return;
+            }
             setSelectedChangeId(change.id);
             clearFeedback();
             setShowQuestion(false);
@@ -278,7 +318,9 @@ function ApprovalMasterDetailInner({
             setConfirmApprove(false);
           }}
           className={`w-full text-left px-4 py-3 cursor-pointer transition-all duration-150 border-l-2 ${
-            isSelected
+            selectMode && isChecked
+              ? "border-l-emerald-400 bg-emerald-50/60"
+              : isSelected
               ? "border-l-indigo-500 bg-indigo-50/60"
               : isDecided
               ? `${decidedBorder} hover:bg-slate-50`
@@ -286,7 +328,13 @@ function ApprovalMasterDetailInner({
           }`}
         >
           <div className="flex items-start gap-2.5">
+            {selectMode ? (
+              <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${isChecked ? "bg-emerald-500 border-emerald-500" : "border-slate-300 bg-white"}`}>
+                {isChecked && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+              </div>
+            ) : (
             <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${priorityDotColor(change.fields.priority)}`} />
+            )}
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-slate-800 truncate">
                 {getListItemTitle(changeType, change.fields.page_url, 30, change.fields.change_title, false, change.fields)}
@@ -534,6 +582,20 @@ function ApprovalMasterDetailInner({
                 )}
               </span>
               <div className="flex items-center gap-1.5">
+                {/* Bulk select toggle */}
+                <button
+                  onClick={() => {
+                    setSelectMode((v) => !v);
+                    setSelectedIds(new Set());
+                  }}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium transition-all duration-150 border ${
+                    selectMode
+                      ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                      : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {selectMode ? "✕ Cancel" : "Select"}
+                </button>
                 {(["All", "Critical", "High", "Medium", "Low"] as const).map((p) => (
                   <button
                     key={p}
@@ -697,6 +759,41 @@ function ApprovalMasterDetailInner({
               .map(([cat, catChanges]) => renderCategorySection(cat, catChanges))}
           </div>
         </div>
+
+        {/* Bulk approve bar — shown when items are selected */}
+        {selectMode && selectedIds.size > 0 && (
+          <div className="flex-shrink-0 px-4 py-3 border-t border-slate-200 bg-white/95 backdrop-blur-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-600">
+                <span className="font-semibold text-slate-900">{selectedIds.size}</span> selected
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={() => {
+                    const allPendingIds = effectivePending.map((c) => c.id);
+                    setSelectedIds(new Set(allPendingIds));
+                  }}
+                  className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors border border-slate-200 rounded-lg"
+                >
+                  Select all ({effectivePending.length})
+                </button>
+                <button
+                  onClick={handleBulkApprove}
+                  disabled={bulkApproving}
+                  className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98]"
+                >
+                  {bulkApproving ? "Approving…" : `Approve ${selectedIds.size}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Right Panel (Detail) ── */}
