@@ -177,6 +177,14 @@ export default async function ActivityPage({
   function formatDate(dateStr: string) {
     if (!dateStr) return "—";
     try {
+      // Date-only strings (YYYY-MM-DD) must be parsed as local time.
+      // new Date("YYYY-MM-DD") treats them as UTC midnight, which shifts
+      // to the previous day at 5 PM PDT — causing "Apr 30" when today is Apr 15.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [year, month, day] = dateStr.split("-").map(Number);
+        const d = new Date(year, month - 1, day);
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      }
       return new Date(dateStr).toLocaleString("en-US", {
         timeZone: "America/Los_Angeles",
         month: "short",
