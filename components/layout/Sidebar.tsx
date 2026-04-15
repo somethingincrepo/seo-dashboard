@@ -4,6 +4,7 @@ import { logout } from "@/app/actions/auth";
 const NAV = [
   { href: "/", label: "Overview", icon: "⬡" },
   { href: "/clients", label: "Clients", icon: "◈" },
+  { href: "/intake", label: "Intake Form", icon: "⊕" },
   { href: "/approvals", label: "Approvals", icon: "✦" },
   { href: "/jobs", label: "Jobs", icon: "⚙" },
   { href: "/design-review", label: "Design Review", icon: "◎" },
