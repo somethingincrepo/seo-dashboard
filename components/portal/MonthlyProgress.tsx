@@ -131,14 +131,44 @@ async function fetchActuals(
   }
 
   return {
-    articles: articlesPublished,
+    articles_standard: articlesPublished, // all published articles (standard + longform combined for now)
+    articles_longform: 0,                 // tracked separately once content base has article type field
     faq_sections: typeCount["FAQ"] ?? 0,
+    content_refreshes: typeCount["Content Refresh"] ?? typeCount["Refresh"] ?? 0,
     pages_optimized: implementedPageUrls.size,
-    internal_links: typeCount["Internal Link"] ?? 0,
+    internal_links: typeCount["Internal Link"] ?? typeCount["Internal Links"] ?? 0,
+    reddit_comments: typeCount["Reddit"] ?? typeCount["Reddit Comment"] ?? 0,
   };
 }
 
 // ─── sidebar compact variant ─────────────────────────────────────────────────
+
+function SidebarProgressRow({ label, actual, target }: { label: string; actual: number; target: number }) {
+  const pct = target === 0 ? 100 : Math.min(100, Math.round((actual / target) * 100));
+  const done = actual >= target;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[11px] text-slate-500">{label}</span>
+        <span className={`text-[11px] tabular-nums ${done ? "text-emerald-600 font-medium" : "text-slate-400"}`}>{actual}/{target}</span>
+      </div>
+      <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${done ? "bg-emerald-400" : "bg-indigo-400"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SidebarSectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-3 mb-1.5 first:mt-0">
+      {children}
+    </div>
+  );
+}
 
 export async function MonthlyProgressSidebar({ client }: { client: Client }) {
   const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
@@ -153,48 +183,51 @@ export async function MonthlyProgressSidebar({ client }: { client: Client }) {
     monthStart
   );
 
-  const pkgColor: Record<PackageTier, string> = {
-    starter: "text-slate-500",
-    growth: "text-indigo-600",
-    authority: "text-violet-600",
+  const pkgBadge: Record<PackageTier, string> = {
+    starter: "bg-slate-100 text-slate-600",
+    growth: "bg-indigo-50 text-indigo-700",
+    authority: "bg-violet-50 text-violet-700",
   };
-
-  const rows: { label: string; actual: number; target: number }[] = [
-    { label: "Articles", actual: actuals.articles, target: targets.articles_standard + targets.articles_longform },
-    { label: "FAQ sections", actual: actuals.faq_sections, target: targets.faq_sections },
-    ...(targets.pages_optimized > 0
-      ? [{ label: "Pages optimized", actual: actuals.pages_optimized, target: targets.pages_optimized }]
-      : []),
-    { label: "Internal links", actual: actuals.internal_links, target: targets.internal_links },
-  ];
 
   return (
     <div className="px-3 py-3 border-t border-slate-100">
-      <div className="flex items-center justify-between mb-2.5">
-        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">This Month</span>
-        <span className={`text-[10px] font-semibold ${pkgColor[pkg]}`}>
-          M{monthNumber} · {PACKAGE_LABELS[pkg]}
-        </span>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-semibold text-slate-700">This Month</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-400">Month {monthNumber}</span>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${pkgBadge[pkg]}`}>
+            {PACKAGE_LABELS[pkg]}
+          </span>
+        </div>
       </div>
+
+      {/* Content */}
+      <SidebarSectionLabel>Content</SidebarSectionLabel>
       <div className="space-y-2">
-        {rows.map(({ label, actual, target }) => {
-          const pct = target === 0 ? 100 : Math.min(100, Math.round((actual / target) * 100));
-          const done = actual >= target;
-          return (
-            <div key={label}>
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[11px] text-slate-500">{label}</span>
-                <span className="text-[11px] tabular-nums text-slate-400">{actual}/{target}</span>
-              </div>
-              <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${done ? "bg-emerald-400" : "bg-indigo-400"}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+        <SidebarProgressRow label="Standard articles" actual={actuals.articles_standard} target={targets.articles_standard} />
+        {targets.articles_longform > 0 && (
+          <SidebarProgressRow label="Long-form articles" actual={actuals.articles_longform} target={targets.articles_longform} />
+        )}
+        <SidebarProgressRow label="FAQ sections" actual={actuals.faq_sections} target={targets.faq_sections} />
+        <SidebarProgressRow label="Content refreshes" actual={actuals.content_refreshes} target={targets.content_refreshes} />
+      </div>
+
+      {/* On-Page */}
+      <SidebarSectionLabel>On-Page</SidebarSectionLabel>
+      <div className="space-y-2">
+        {targets.pages_optimized > 0 ? (
+          <SidebarProgressRow label="Pages optimized" actual={actuals.pages_optimized} target={targets.pages_optimized} />
+        ) : (
+          <p className="text-[11px] text-slate-400 italic">Refresh rotation</p>
+        )}
+        <SidebarProgressRow label="Internal links" actual={actuals.internal_links} target={targets.internal_links} />
+      </div>
+
+      {/* Outreach */}
+      <SidebarSectionLabel>Outreach</SidebarSectionLabel>
+      <div className="space-y-2">
+        <SidebarProgressRow label="Reddit comments" actual={actuals.reddit_comments} target={targets.reddit_comments} />
       </div>
     </div>
   );
@@ -242,10 +275,17 @@ export async function MonthlyProgress({ client }: { client: Client }) {
           <SectionLabel>Content</SectionLabel>
           <div className="space-y-2.5">
             <ProgressRow
-              label="Articles published"
-              actual={actuals.articles}
-              target={targets.articles_standard + targets.articles_longform}
+              label="Standard articles"
+              actual={actuals.articles_standard}
+              target={targets.articles_standard}
             />
+            {targets.articles_longform > 0 && (
+              <ProgressRow
+                label="Long-form articles"
+                actual={actuals.articles_longform}
+                target={targets.articles_longform}
+              />
+            )}
             <ProgressRow
               label="FAQ sections"
               actual={actuals.faq_sections}
@@ -253,7 +293,7 @@ export async function MonthlyProgress({ client }: { client: Client }) {
             />
             <ProgressRow
               label="Content refreshes"
-              actual={0}
+              actual={actuals.content_refreshes}
               target={targets.content_refreshes}
             />
           </div>
@@ -281,6 +321,11 @@ export async function MonthlyProgress({ client }: { client: Client }) {
               label="Internal links added"
               actual={actuals.internal_links}
               target={targets.internal_links}
+            />
+            <ProgressRow
+              label="Reddit comments"
+              actual={actuals.reddit_comments}
+              target={targets.reddit_comments}
             />
           </div>
         </div>
