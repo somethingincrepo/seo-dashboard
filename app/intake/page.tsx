@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PACKAGES, PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
+
+const DRAFT_KEY = "intake_draft_v1";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -163,9 +165,62 @@ export default function IntakePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+
+  // On mount — check for a saved draft
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<FormState>;
+        // Only show the banner if they've actually filled something in
+        if (parsed.company_name || parsed.contact_email || parsed.site_url) {
+          setHasDraft(true);
+        }
+      }
+    } catch {
+      // ignore corrupt storage
+    }
+  }, []);
+
+  // Auto-save draft on every form change
+  const saveDraft = useCallback((state: FormState) => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+    } catch {
+      // storage full or unavailable — non-fatal
+    }
+  }, []);
 
   const set = (key: keyof FormState, value: string | boolean) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      saveDraft(next);
+      return next;
+    });
+
+  const restoreDraft = () => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        setForm({ ...INITIAL_FORM, ...(JSON.parse(saved) as Partial<FormState>) });
+        setDraftRestored(true);
+        setHasDraft(false);
+      }
+    } catch {
+      setHasDraft(false);
+    }
+  };
+
+  const discardDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setHasDraft(false);
+  };
+
+  const clearDraftOnSuccess = () => {
+    localStorage.removeItem(DRAFT_KEY);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,6 +241,7 @@ export default function IntakePage() {
         return;
       }
 
+      clearDraftOnSuccess();
       setSuccess(true);
     } catch {
       setError("Network error — please check your connection and try again.");
@@ -208,6 +264,41 @@ export default function IntakePage() {
           </p>
         </div>
       </div>
+
+      {/* Draft banners */}
+      {hasDraft && (
+        <div className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+            <p className="text-sm text-amber-800">
+              You have an unfinished form saved from a previous visit.
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={restoreDraft}
+                className="text-sm font-medium text-amber-900 underline underline-offset-2 hover:no-underline"
+              >
+                Resume
+              </button>
+              <span className="text-amber-300">·</span>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="text-sm text-amber-700 hover:text-amber-900"
+              >
+                Start fresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {draftRestored && (
+        <div className="bg-indigo-50 border-b border-indigo-200">
+          <div className="max-w-2xl mx-auto px-4 py-2.5">
+            <p className="text-sm text-indigo-700">Draft restored — pick up where you left off.</p>
+          </div>
+        </div>
+      )}
 
       {/* Form */}
       <div className="max-w-2xl mx-auto px-4 py-8">
