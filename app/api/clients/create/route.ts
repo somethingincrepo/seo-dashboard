@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     keywords,
     competitors,
     notes,
+    package: packageTier = "growth",
     run_audit = false,
   } = body as Record<string, unknown>;
 
@@ -111,6 +112,7 @@ export async function POST(request: NextRequest) {
     competitors: competitors || "",
     notes: notes || "",
     client_id,
+    package: packageTier,
     plan_status: run_audit ? "month1_audit" : "form_submitted",
     portal_token,
     portal_username,

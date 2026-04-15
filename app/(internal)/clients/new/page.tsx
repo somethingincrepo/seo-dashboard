@@ -3,6 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { PACKAGES, PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
+
+const PACKAGE_TIER_ORDER: PackageTier[] = ["starter", "growth", "authority"];
+
+const PACKAGE_COLORS: Record<PackageTier, { ring: string; bg: string; label: string }> = {
+  starter:   { ring: "ring-slate-400",  bg: "bg-slate-50",  label: "text-slate-700" },
+  growth:    { ring: "ring-indigo-500", bg: "bg-indigo-50", label: "text-indigo-700" },
+  authority: { ring: "ring-violet-500", bg: "bg-violet-50", label: "text-violet-700" },
+};
 
 const CMS_OPTIONS = [
   "WordPress",
@@ -55,6 +64,7 @@ export default function NewClientPage() {
     keywords: "",
     competitors: "",
     notes: "",
+    package: "growth" as PackageTier,
     run_audit: true,
   });
 
@@ -362,6 +372,42 @@ export default function NewClientPage() {
               onChange={(e) => handleChange("notes", e.target.value)}
             />
           </Field>
+        </div>
+
+        {/* Package selection */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Package</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {PACKAGE_TIER_ORDER.map((tier) => {
+              const pkg = PACKAGES[tier];
+              const colors = PACKAGE_COLORS[tier];
+              const selected = form.package === tier;
+              return (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => handleChange("package", tier)}
+                  className={`text-left rounded-xl border-2 p-4 transition-all ${
+                    selected
+                      ? `${colors.ring.replace("ring-", "border-")} ${colors.bg}`
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <div className={`text-sm font-semibold mb-2 ${selected ? colors.label : "text-slate-700"}`}>
+                    {PACKAGE_LABELS[tier]}
+                  </div>
+                  <div className="space-y-0.5 text-xs text-slate-500">
+                    <div>{pkg.articles_standard} articles/mo{pkg.articles_longform > 0 ? ` + ${pkg.articles_longform} long-form` : ""}</div>
+                    <div>{pkg.faq_sections} FAQ section{pkg.faq_sections !== 1 ? "s" : ""}/mo</div>
+                    <div>{pkg.content_refreshes} content refresh{pkg.content_refreshes !== 1 ? "es" : ""}/mo</div>
+                    <div>{pkg.pages_optimized > 0 ? `${pkg.pages_optimized} pages optimized/mo` : "Refresh rotation"}</div>
+                    <div>{pkg.internal_links} internal links/mo</div>
+                    <div>{pkg.reddit_comments} Reddit comments/mo</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Audit trigger */}

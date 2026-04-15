@@ -10,6 +10,7 @@ import { CopyButton } from "@/components/ui/CopyButton";
 import { GenerateTokenButton } from "@/components/ui/GenerateTokenButton";
 import { GenerateCredentialsButton } from "@/components/ui/GenerateCredentialsButton";
 import { CmsCredentialsForm } from "@/components/ui/CmsCredentialsForm";
+import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 
 export const dynamic = "force-dynamic";
 
@@ -128,13 +129,38 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </Link>
         <div className="flex items-start justify-between gap-4 mt-2">
           <div>
-            <h1 className="text-2xl font-semibold">{f.company_name}</h1>
-            {f.site_url && (
-              <a href={f.site_url} target="_blank" rel="noreferrer"
-                className="text-slate-500 text-sm hover:text-slate-600 transition-colors">
-                {f.site_url} ↗
-              </a>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-semibold">{f.company_name}</h1>
+              {f.package && (
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                  f.package === "starter"
+                    ? "bg-slate-100 text-slate-600"
+                    : f.package === "growth"
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "bg-violet-50 text-violet-700"
+                }`}>
+                  {PACKAGE_LABELS[f.package as PackageTier]}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+              {f.site_url && (
+                <a href={f.site_url} target="_blank" rel="noreferrer"
+                  className="text-slate-500 text-sm hover:text-slate-600 transition-colors">
+                  {f.site_url} ↗
+                </a>
+              )}
+              {f.site_page_count ? (
+                <span className="text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5">
+                  {f.site_page_count} pages
+                </span>
+              ) : null}
+              {f.audit_scope_tier ? (
+                <span className="text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5">
+                  Audit scope: {f.audit_scope_tier === "full" ? "Full site" : f.audit_scope_tier === "priority" ? "Priority (top 50)" : "Top traffic (top 100)"}
+                </span>
+              ) : null}
+            </div>
           </div>
           <StatusBadge value={f.plan_status || "form_submitted"} variant="plan_status" />
         </div>

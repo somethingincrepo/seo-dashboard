@@ -64,6 +64,11 @@ export type ClientFields = {
   portal_password_hash: string;
   portal_password: string; // plaintext — stored for admin reference
 
+  // Package & audit scope
+  package: "starter" | "growth" | "authority";
+  site_page_count: number;      // set by audit_inventory after crawl
+  audit_scope_tier: "full" | "priority" | "top_traffic"; // derived from site_page_count
+
   // Misc
   notes: string;
 };
