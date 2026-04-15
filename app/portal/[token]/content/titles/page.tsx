@@ -75,6 +75,8 @@ function ProposalCard({
   onRemove,
   selected,
   onToggleSelect,
+  atLimit,
+  onQuotaHit,
 }: {
   title: Title;
   keywordGroups: KeywordGroup[];
@@ -83,6 +85,8 @@ function ProposalCard({
   onRemove: (id: string) => void;
   selected: boolean;
   onToggleSelect: (id: string) => void;
+  atLimit: boolean;
+  onQuotaHit: (msg: string) => void;
 }) {
   const [editTitle, setEditTitle] = useState(title.title);
   const [editKeyword, setEditKeyword] = useState(title.target_keyword);
@@ -104,12 +108,19 @@ function ProposalCard({
   }, [token, title.id, editTitle, editKeyword, editGroup]);
 
   const handleApprove = async () => {
+    if (atLimit) return;
     setBusy(true);
-    await fetch(`/api/portal/titles?token=${token}`, {
+    const res = await fetch(`/api/portal/titles?token=${token}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ record_id: title.id, action: "approve", title: editTitle, target_keyword: editKeyword, keyword_group: editGroup }),
     });
+    if (res.status === 409) {
+      const data = await res.json() as { message?: string };
+      onQuotaHit(data.message ?? "Monthly article limit reached.");
+      setBusy(false);
+      return;
+    }
     onUpdate(title.id, { title: editTitle, target_keyword: editKeyword, keyword_group: editGroup, title_status: "approved", airtable_status: "Queued" });
     setBusy(false);
   };
@@ -188,8 +199,13 @@ function ProposalCard({
             <button onClick={handleSkip} disabled={busy} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
               Skip
             </button>
-            <button onClick={handleApprove} disabled={busy} className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors">
-              {busy ? "Saving…" : "Approve"}
+            <button
+              onClick={handleApprove}
+              disabled={busy || atLimit}
+              title={atLimit ? "Monthly article limit reached" : undefined}
+              className="px-4 py-1.5 rounded-lg text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {busy ? "Saving…" : atLimit ? "Limit reached" : "Approve"}
             </button>
           </div>
         ) : (
@@ -427,14 +443,18 @@ export default function TitlesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
+  const [monthlyApproved, setMonthlyApproved] = useState(0);
+  const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/portal/titles?token=${token}`);
       if (!res.ok) throw new Error("Failed to load titles");
-      const data = await res.json() as { titles: Title[]; keyword_groups: KeywordGroup[] };
+      const data = await res.json() as { titles: Title[]; keyword_groups: KeywordGroup[]; monthly_approved: number; monthly_limit: number };
       setTitles(data.titles);
       setKeywordGroups(data.keyword_groups ?? []);
+      setMonthlyApproved(data.monthly_approved ?? 0);
+      setMonthlyLimit(data.monthly_limit ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error loading titles");
     } finally {
@@ -449,6 +469,10 @@ export default function TitlesPage() {
   }, []);
   const handleRemove = useCallback((id: string) => { setTitles((prev) => prev.filter((t) => t.id !== id)); }, []);
   const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
+
+  const atLimit = monthlyLimit !== null && monthlyApproved >= monthlyLimit;
+  const remaining = monthlyLimit !== null ? Math.max(0, monthlyLimit - monthlyApproved) : null;
+  const [quotaError, setQuotaError] = useState<string | null>(null);
 
   const proposals = titles.filter((t) => t.title_status === "titled" || (!t.title_status || t.title_status === "proposals"));
 
@@ -467,22 +491,29 @@ export default function TitlesPage() {
   }, [allSelected, proposals]);
 
   const handleBulkApprove = useCallback(async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0 || atLimit) return;
     setBulkApproving(true);
     const ids = Array.from(selected);
     for (const id of ids) {
       const title = proposals.find((p) => p.id === id);
       if (!title) continue;
-      await fetch(`/api/portal/titles?token=${token}`, {
+      const res = await fetch(`/api/portal/titles?token=${token}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ record_id: id, action: "approve", title: title.title, target_keyword: title.target_keyword, keyword_group: title.keyword_group }),
       });
+      if (res.status === 409) {
+        const data = await res.json() as { message?: string; monthly_approved?: number };
+        setQuotaError(data.message ?? "Monthly article limit reached.");
+        if (data.monthly_approved !== undefined) setMonthlyApproved(data.monthly_approved);
+        break; // stop approving — quota hit mid-batch
+      }
+      setMonthlyApproved((n) => n + 1);
       setTitles((prev) => prev.map((t) => t.id === id ? { ...t, title_status: "approved", airtable_status: "Queued" } : t));
       setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
     setBulkApproving(false);
-  }, [selected, proposals, token]);
+  }, [selected, proposals, token, atLimit]);
 
   return (
     <div className="flex gap-5 min-h-full">
@@ -508,6 +539,24 @@ export default function TitlesPage() {
 
         {loading && <div className="text-slate-400 text-sm">Loading…</div>}
         {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-4">{error}</div>}
+
+        {/* Monthly quota banner */}
+        {!loading && monthlyLimit !== null && (
+          <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-[13px] mb-4 ${atLimit ? "bg-amber-50 border border-amber-200 text-amber-800" : "bg-slate-50 border border-slate-200 text-slate-600"}`}>
+            <span>
+              {atLimit
+                ? `Monthly article limit reached — ${monthlyApproved}/${monthlyLimit} approved this month.`
+                : `${monthlyApproved} of ${monthlyLimit} article approvals used this month · ${remaining} remaining`}
+            </span>
+            {atLimit && <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Limit reached</span>}
+          </div>
+        )}
+        {quotaError && (
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-[13px] mb-4 bg-red-50 border border-red-200 text-red-700">
+            <span>{quotaError}</span>
+            <button onClick={() => setQuotaError(null)} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+          </div>
+        )}
 
         {!loading && !error && (
           proposals.length === 0 ? (
@@ -536,10 +585,17 @@ export default function TitlesPage() {
                 {selected.size > 0 && (
                   <button
                     onClick={() => void handleBulkApprove()}
-                    disabled={bulkApproving}
-                    className="ml-auto px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                    disabled={bulkApproving || atLimit}
+                    title={atLimit ? "Monthly article limit reached" : undefined}
+                    className="ml-auto px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {bulkApproving ? `Approving…` : `Approve ${selected.size} selected`}
+                    {bulkApproving
+                      ? `Approving…`
+                      : atLimit
+                      ? "Limit reached"
+                      : remaining !== null && selected.size > remaining
+                      ? `Approve ${remaining} remaining`
+                      : `Approve ${selected.size} selected`}
                   </button>
                 )}
               </div>
@@ -554,6 +610,8 @@ export default function TitlesPage() {
                   onRemove={handleRemove}
                   selected={selected.has(t.id)}
                   onToggleSelect={toggleSelect}
+                  atLimit={atLimit}
+                  onQuotaHit={(msg) => { setQuotaError(msg); setMonthlyApproved(monthlyLimit ?? monthlyApproved); }}
                 />
               ))}
             </div>

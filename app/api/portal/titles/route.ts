@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate } from "@/lib/airtable";
+import { PACKAGES, type PackageTier } from "@/lib/packages";
+
+function startOfMonthISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function getMonthlyArticleLimit(pkg: PackageTier): number {
+  const p = PACKAGES[pkg];
+  return p.articles_standard + p.articles_longform;
+}
 
 const CONTENT_JOBS_TABLE = "Content Jobs";
 const CONTENT_CLIENTS_TABLE = "Clients";
@@ -75,7 +86,15 @@ export async function GET(request: NextRequest) {
     approved_at: j.fields.approved_at ?? null,
   }));
 
-  return NextResponse.json({ titles, keyword_groups: keywordGroups });
+  // Monthly quota info
+  const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
+  const monthlyLimit = getMonthlyArticleLimit(pkg);
+  const monthStart = startOfMonthISO();
+  const monthlyApproved = titles.filter(
+    (t) => t.title_status === "approved" && t.approved_at && t.approved_at >= monthStart
+  ).length;
+
+  return NextResponse.json({ titles, keyword_groups: keywordGroups, monthly_approved: monthlyApproved, monthly_limit: monthlyLimit });
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +176,33 @@ export async function PATCH(request: NextRequest) {
   const { record_id, title, target_keyword, keyword_group, action = "approve" } = body;
 
   if (!record_id) return NextResponse.json({ error: "record_id required" }, { status: 400 });
+
+  // Monthly quota check — block if already at package limit
+  if (action === "approve") {
+    const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
+    const monthlyLimit = getMonthlyArticleLimit(pkg);
+    const monthStart = startOfMonthISO();
+    const companyName = client.fields.company_name;
+    const allJobs = await contentAirtableFetch<{ id: string; fields: { title_status?: string; approved_at?: string } }>(
+      CONTENT_JOBS_TABLE,
+      {
+        filterByFormula: `AND(FIND("${companyName}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}="approved")`,
+        fields: ["title_status", "approved_at"],
+      }
+    );
+    const approvedThisMonth = allJobs.filter(
+      (j) => j.fields.approved_at && j.fields.approved_at >= monthStart
+    ).length;
+    if (approvedThisMonth >= monthlyLimit) {
+      return NextResponse.json({
+        error: "quota_reached",
+        message: `You've approved ${approvedThisMonth} of ${monthlyLimit} articles for this month. Your ${pkg} plan includes ${monthlyLimit} articles/month.`,
+        quota_reached: true,
+        monthly_approved: approvedThisMonth,
+        monthly_limit: monthlyLimit,
+      }, { status: 409 });
+    }
+  }
 
   const fields: Record<string, unknown> = {};
 

@@ -3,6 +3,18 @@ import { updateApproval, revertDecision } from "@/lib/changes";
 import { getClientByToken } from "@/lib/clients";
 import { airtableCreate, airtableFetch, airtablePatch } from "@/lib/airtable";
 import { getSupabase } from "@/lib/supabase";
+import { PACKAGES, type PackageTier, type PackageDeliverables } from "@/lib/packages";
+
+// Change types that consume a monthly quota slot
+const TYPE_QUOTAS: Record<string, keyof PackageDeliverables> = {
+  "Internal Link":  "internal_links",
+  "Internal Links": "internal_links",
+};
+
+function startOfMonthISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,13 +48,39 @@ export async function POST(request: NextRequest) {
 
     if (decision === "approved") {
       // Three-gate check before dispatching implement job
-      type ChangeRecord = { id: string; fields: { auto_executable?: boolean; requires_design_review?: boolean } };
+      type ChangeRecord = { id: string; fields: { auto_executable?: boolean; requires_design_review?: boolean; type?: string } };
       const changeRecords = await airtableFetch<ChangeRecord>("Changes", {
         filterByFormula: `RECORD_ID()="${recordId}"`,
-        fields: ["auto_executable", "requires_design_review"],
+        fields: ["auto_executable", "requires_design_review", "type"],
         maxRecords: 1,
       });
       const changeFields = changeRecords[0]?.fields ?? {};
+
+      // ── Monthly quota check ──────────────────────────────────────────────────
+      const changeType = changeFields.type ?? "";
+      const deliverableKey = TYPE_QUOTAS[changeType];
+      if (deliverableKey) {
+        const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
+        const monthlyLimit = PACKAGES[pkg][deliverableKey] as number;
+        if (monthlyLimit > 0) {
+          const clientId = (client.fields as Record<string, unknown>).client_id as string || client.id;
+          const monthStart = startOfMonthISO();
+          const approvedSoFar = await airtableFetch<{ id: string }>("Changes", {
+            filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),FIND("${client.id}",{client_id})),{type}="${changeType}",{approval}="approved",IS_AFTER({approved_at},"${monthStart}"))`,
+            fields: ["id" as never],
+          });
+          if (approvedSoFar.length >= monthlyLimit) {
+            return NextResponse.json({
+              error: "quota_reached",
+              message: `Monthly ${changeType} limit reached (${monthlyLimit}/${monthlyLimit}). No more ${changeType} changes can be approved this month.`,
+              quota_reached: true,
+              limit: monthlyLimit,
+              used: approvedSoFar.length,
+            }, { status: 409 });
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
       const autoExecutable = changeFields.auto_executable !== false; // default true if not set
       const requiresDesignReview = changeFields.requires_design_review === true;
 
