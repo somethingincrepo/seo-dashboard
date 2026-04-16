@@ -120,13 +120,21 @@ export async function createSession(username: string, password: string): Promise
       if (!countError) {
         const salt = randomHex();
         const hash = await hashPassword(salt, password);
-        await supabase.from("admin_users").insert({
+        const { error: insertErr } = await supabase.from("admin_users").insert({
           username: "admin",
           password_hash: hash,
           password_salt: salt,
           role: "admin",
           assigned_client_ids: [],
         });
+        // Fallback if role columns haven't been added yet
+        if (insertErr) {
+          await supabase.from("admin_users").insert({
+            username: "admin",
+            password_hash: hash,
+            password_salt: salt,
+          });
+        }
       }
       await setSessionCookie("admin", secret);
       return true;
@@ -163,14 +171,13 @@ export async function getSession(): Promise<AdminSession | null> {
   const username = await verifyToken(cookie.value, secret);
   if (!username) return null;
 
-  // Fetch role + assigned clients from Supabase
+  // Use select('*') so missing columns (before migration) don't cause errors
   const { data } = await getSupabase()
     .from("admin_users")
-    .select("role, assigned_client_ids")
+    .select("*")
     .eq("username", username)
     .maybeSingle();
 
-  // Default to admin if user not found (bootstrap case before table has role column)
   const role: AdminRole = (data?.role as AdminRole) ?? "admin";
   const assigned_client_ids: string[] = (data?.assigned_client_ids as string[]) ?? [];
 
@@ -198,7 +205,8 @@ export async function createAdminUser(
   const salt = randomHex();
   const hash = await hashPassword(salt, password);
 
-  const { error } = await supabase.from("admin_users").insert({
+  // Try with role columns first; fall back to base columns if migration hasn't run
+  let { error } = await supabase.from("admin_users").insert({
     username: username.trim(),
     password_hash: hash,
     password_salt: salt,
@@ -206,14 +214,24 @@ export async function createAdminUser(
     assigned_client_ids: [],
   });
 
+  if (error?.message?.includes("column") || error?.message?.includes("assigned_client_ids") || error?.message?.includes('"role"')) {
+    const fallback = await supabase.from("admin_users").insert({
+      username: username.trim(),
+      password_hash: hash,
+      password_salt: salt,
+    });
+    error = fallback.error;
+  }
+
   if (error) return { error: error.message };
   return {};
 }
 
 export async function listAdminUsers(): Promise<AdminUser[]> {
+  // select('*') so missing columns (before migration) don't cause errors
   const { data } = await getSupabase()
     .from("admin_users")
-    .select("id, username, role, assigned_client_ids, created_at")
+    .select("*")
     .order("created_at", { ascending: true });
   return (data ?? []).map((u) => ({
     id: u.id,
@@ -232,7 +250,12 @@ export async function updateAdminUser(
     .from("admin_users")
     .update(updates)
     .eq("id", id);
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.message?.includes("column") || error.message?.includes("assigned_client_ids") || error.message?.includes('"role"')) {
+      return { error: "Role/client columns not yet added to the database. Run the migration in scripts/admin-users-roles-migration.sql via the Supabase SQL editor." };
+    }
+    return { error: error.message };
+  }
   return {};
 }
 
