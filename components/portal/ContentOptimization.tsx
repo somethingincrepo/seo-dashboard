@@ -113,7 +113,15 @@ function HowItWorks({ status }: { status: ReturnType<typeof getItemStatus> }) {
 
 // ── Original page panel ───────────────────────────────────────────────────────
 
-function OriginalPanel({ url, token }: { url: string; token: string }) {
+function OriginalPanel({
+  url,
+  token,
+  onWordCount,
+}: {
+  url: string;
+  token: string;
+  onWordCount?: (n: number) => void;
+}) {
   const [page, setPage] = useState<ExtractedPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,11 +135,13 @@ function OriginalPanel({ url, token }: { url: string; token: string }) {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Fetch failed");
-        setPage(data as ExtractedPage);
+        const p = data as ExtractedPage;
+        setPage(p);
+        onWordCount?.(p.wordCount);
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [url, token]);
+  }, [url, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -167,7 +177,7 @@ function OriginalPanel({ url, token }: { url: string; token: string }) {
     <div className="flex-1 overflow-y-auto px-6 py-5 prose-sm max-w-none">
       {/* Word count */}
       <div className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mb-4">
-        ~{page.wordCount.toLocaleString()} words on live page
+        ~{page.wordCount.toLocaleString()} words
       </div>
 
       {/* H1 */}
@@ -219,19 +229,47 @@ function OriginalPanel({ url, token }: { url: string; token: string }) {
 
 // ── Refreshed content panel ───────────────────────────────────────────────────
 
-function RefreshedPanel({ result }: { result: ContentResult }) {
+function RefreshedPanel({
+  result,
+  origWordCount,
+}: {
+  result: ContentResult;
+  origWordCount: number | null;
+}) {
   const body = result.fields["Article body"] ?? "";
   const html = bracketToHtml(body);
-  const wordCount = body.replace(/\[[^\]]+\]/g, "").split(/\s+/).filter((w) => w.length > 1).length;
+  // Strip only the bracket tags (e.g. [H1], [/H1]) — not the text inside them
+  const wordCount = body.replace(/\[\/?\w+[^\]]*\]/g, " ").split(/\s+/).filter((w) => w.length > 1).length;
   const metaTitle = result.fields["Meta title"] ?? "";
   const metaDesc = result.fields["Meta description"] ?? "";
   const outline = result.fields["Outline"] ?? "";
 
+  const delta = origWordCount !== null ? wordCount - origWordCount : null;
+  const deltaLabel = delta !== null
+    ? delta > 0
+      ? `+${delta.toLocaleString()} vs. current`
+      : delta < 0
+        ? `${delta.toLocaleString()} vs. current`
+        : "same length as current"
+    : null;
+  const deltaColor = delta !== null && delta > 0
+    ? "text-emerald-600"
+    : delta !== null && delta < 0
+      ? "text-red-500"
+      : "text-slate-400";
+
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
       {/* Stats bar */}
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mb-4">
-        ~{wordCount.toLocaleString()} words in refreshed draft
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
+          ~{wordCount.toLocaleString()} words
+        </span>
+        {deltaLabel && (
+          <span className={`text-[10px] font-semibold ${deltaColor}`}>
+            ({deltaLabel})
+          </span>
+        )}
       </div>
 
       {/* Meta fields */}
@@ -297,6 +335,10 @@ function DetailPanel({
   const pageType = job.fields.page_type;
   const refreshUrl = job.fields.refresh_url!;
   const keyword = job.fields.target_keyword;
+  const [origWordCount, setOrigWordCount] = useState<number | null>(null);
+
+  // Reset word count when the selected item changes
+  useEffect(() => { setOrigWordCount(null); }, [item.job.id]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -425,7 +467,7 @@ function DetailPanel({
                 </span>
               </div>
             </div>
-            <OriginalPanel url={refreshUrl} token={token} />
+            <OriginalPanel url={refreshUrl} token={token} onWordCount={setOrigWordCount} />
           </div>
 
           {/* Right — refreshed */}
@@ -438,7 +480,7 @@ function DetailPanel({
                 </span>
               </div>
             </div>
-            <RefreshedPanel result={result} />
+            <RefreshedPanel result={result} origWordCount={origWordCount} />
           </div>
         </div>
       )}
