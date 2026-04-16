@@ -79,21 +79,26 @@ export async function createSession(username: string, password: string): Promise
 
   const supabase = getSupabase();
 
-  // Bootstrap: if no admin users exist yet, accept username "admin" + ADMIN_PASSWORD
-  // and auto-create the first account so the existing credential keeps working.
-  const { count } = await supabase
+  // Bootstrap: if the table doesn't exist yet (error) or is empty (count === 0),
+  // accept username "admin" + ADMIN_PASSWORD and auto-create the first account.
+  const { count, error: countError } = await supabase
     .from("admin_users")
     .select("*", { count: "exact", head: true });
 
-  if (count === 0) {
+  const tableEmptyOrMissing = countError !== null || count === 0;
+
+  if (tableEmptyOrMissing) {
     if (username === "admin" && password === secret) {
-      const salt = randomHex();
-      const hash = await hashPassword(salt, password);
-      await supabase.from("admin_users").insert({
-        username: "admin",
-        password_hash: hash,
-        password_salt: salt,
-      });
+      // If the table exists and is empty, persist the account for next time
+      if (!countError) {
+        const salt = randomHex();
+        const hash = await hashPassword(salt, password);
+        await supabase.from("admin_users").insert({
+          username: "admin",
+          password_hash: hash,
+          password_salt: salt,
+        });
+      }
       const token = await makeToken("admin", secret);
       const cookieStore = await cookies();
       cookieStore.set(SESSION_COOKIE, token, {
