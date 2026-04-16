@@ -20,19 +20,17 @@ export default async function PortalLayout({
   const { token } = await params;
 
   // --- Auth ---
-  // Check for a valid portal_session cookie first
   const session = await getPortalSession();
-  let isLoggedIn = false;
 
-  if (session) {
-    if (session.portal_token !== token) {
-      // Cookie belongs to a different client — redirect to their portal
-      redirect(`/portal/${session.portal_token}`);
-    }
-    isLoggedIn = true;
+  if (!session) {
+    redirect("/portal/login");
   }
 
-  // Always load client by token (URL token access is always allowed)
+  if (session.portal_token !== token) {
+    // Cookie belongs to a different client — redirect to their portal
+    redirect(`/portal/${session.portal_token}`);
+  }
+
   const client = await getClientByToken(token);
   if (!client) notFound();
 
@@ -111,7 +109,7 @@ export default async function PortalLayout({
       contentOptimizationCount={contentOptimizationCount}
       internalLinksPendingCount={internalLinksPendingCount}
       categoryBreakdown={categoryBreakdown}
-      isLoggedIn={isLoggedIn}
+      isLoggedIn={true}
       monthlyProgress={<MonthlyProgressSidebar client={client} />}
       hasReddit={hasReddit}
       redditMentionCount={engainStats?.total ?? 0}
