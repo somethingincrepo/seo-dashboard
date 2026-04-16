@@ -125,8 +125,8 @@ const NAV_ITEMS = [
   { suffix: "/internal-links",       label: "Internal Links",      Icon: IconLinks },
   { suffix: "/indexation",           label: "Indexation",          Icon: IconIndexation },
   { suffix: "/reports",              label: "Reports",             Icon: IconReports },
-  { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
   { suffix: "/reddit",               label: "Reddit Mentions",     Icon: IconReddit },
+  { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
 ] as const;
 
 export function PortalSidebar({
@@ -147,9 +147,14 @@ export function PortalSidebar({
   const pathname = usePathname();
   const base = `/portal/${token}`;
 
-  const approvalsExpanded = pathname.startsWith(`${base}/approvals`);
-  const contentExpanded = pathname.startsWith(`${base}/content`);
+  const inApprovals = pathname.startsWith(`${base}/approvals`);
+  const inContent = pathname.startsWith(`${base}/content`);
   const hasCategoryItems = Object.values(categoryBreakdown).some((n) => n > 0);
+  const hasContentItems = contentReviewCount > 0 || titleProposalCount > 0;
+
+  // Expand sub-nav when: actively in that section OR there are pending items needing attention
+  const approvalsExpanded = inApprovals || hasCategoryItems;
+  const contentExpanded = inContent || hasContentItems;
 
   return (
     <div className="flex min-h-screen">
