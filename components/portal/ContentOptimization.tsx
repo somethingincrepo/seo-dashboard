@@ -227,6 +227,18 @@ function OriginalPanel({
   );
 }
 
+// ── Strip bracket change markers from plain-text fields ──────────────────────
+// Meta title/description should always be clean strings per SOP, but this
+// defensively extracts clean text if markup ever ends up in those fields.
+function cleanMetaText(text: string): string {
+  return text
+    .replace(/\[CHANGED from="[^"]*"\]([\s\S]*?)\[\/CHANGED\]/g, "$1")
+    .replace(/\[ADDED\]([\s\S]*?)\[\/ADDED\]/g, "$1")
+    .replace(/\[REMOVED\][\s\S]*?\[\/REMOVED\]/g, "")
+    .replace(/\[\/?\w+[^\]]*\]/g, "")
+    .trim();
+}
+
 // ── Refreshed content panel ───────────────────────────────────────────────────
 
 function RefreshedPanel({
@@ -240,8 +252,8 @@ function RefreshedPanel({
   const html = bracketToHtml(body);
   // Strip only the bracket tags (e.g. [H1], [/H1]) — not the text inside them
   const wordCount = body.replace(/\[\/?\w+[^\]]*\]/g, " ").split(/\s+/).filter((w) => w.length > 1).length;
-  const metaTitle = result.fields["Meta title"] ?? "";
-  const metaDesc = result.fields["Meta description"] ?? "";
+  const metaTitle = cleanMetaText(result.fields["Meta title"] ?? "");
+  const metaDesc = cleanMetaText(result.fields["Meta description"] ?? "");
   const outline = result.fields["Outline"] ?? "";
 
   const delta = origWordCount !== null ? wordCount - origWordCount : null;
