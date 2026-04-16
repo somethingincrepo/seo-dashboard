@@ -3,9 +3,9 @@ import { login } from "@/app/actions/auth";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -16,6 +16,7 @@ export default async function LoginPage({
         </div>
 
         <form action={login} className="space-y-3">
+          {next && <input type="hidden" name="next" value={next} />}
           <input
             type="text"
             name="username"

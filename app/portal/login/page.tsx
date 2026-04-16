@@ -3,9 +3,12 @@ import { portalLogin } from "@/app/actions/portal-auth";
 export default async function PortalLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; token?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, token } = await searchParams;
+  const adminLoginUrl = token
+    ? `/login?next=${encodeURIComponent(`/portal/${token}`)}`
+    : "/login";
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -16,6 +19,7 @@ export default async function PortalLoginPage({
         </div>
 
         <form action={portalLogin} className="space-y-4">
+          {token && <input type="hidden" name="token" value={token} />}
           <input
             type="text"
             name="username"
@@ -51,6 +55,15 @@ export default async function PortalLoginPage({
             Incorrect username or password.
           </p>
         )}
+
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <a
+            href={adminLoginUrl}
+            className="text-sm text-slate-400 hover:text-indigo-600 transition-colors"
+          >
+            Something Inc. staff? Sign in here →
+          </a>
+        </div>
       </div>
     </div>
   );

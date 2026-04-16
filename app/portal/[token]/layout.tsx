@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getPortalSession } from "@/lib/portal-auth";
+import { getSession as getAdminSession } from "@/lib/auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { getEngainMentionStats } from "@/lib/engain";
@@ -20,16 +21,24 @@ export default async function PortalLayout({
   const { token } = await params;
 
   // --- Auth ---
-  const session = await getPortalSession();
+  // Accept either a valid portal session (client) or a valid admin session
+  const [portalSession, adminSession] = await Promise.all([
+    getPortalSession(),
+    getAdminSession(),
+  ]);
 
-  if (!session) {
-    redirect("/portal/login");
+  if (!portalSession && !adminSession) {
+    // Not authenticated at all — send to portal login, preserving destination
+    redirect(`/portal/login?token=${encodeURIComponent(token)}`);
   }
 
-  if (session.portal_token !== token) {
-    // Cookie belongs to a different client — redirect to their portal
-    redirect(`/portal/${session.portal_token}`);
+  if (portalSession && !adminSession) {
+    // Client session: make sure it's for this portal, not another client's
+    if (portalSession.portal_token !== token) {
+      redirect(`/portal/${portalSession.portal_token}`);
+    }
   }
+  // Admin session: allowed through to any portal without further checks
 
   const client = await getClientByToken(token);
   if (!client) notFound();
