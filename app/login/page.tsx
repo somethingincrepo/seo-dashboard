@@ -15,13 +15,22 @@ export default async function LoginPage({
           <div className="text-slate-500 text-sm">SEO Dashboard</div>
         </div>
 
-        <form action={login} className="space-y-4">
+        <form action={login} className="space-y-3">
+          <input
+            type="text"
+            name="username"
+            placeholder="Username"
+            required
+            autoFocus
+            autoComplete="username"
+            className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+          />
           <input
             type="password"
             name="password"
             placeholder="Password"
             required
-            autoFocus
+            autoComplete="current-password"
             className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
           />
           <button
@@ -33,7 +42,7 @@ export default async function LoginPage({
         </form>
 
         {error && (
-          <p className="mt-4 text-red-400 text-sm">Incorrect password.</p>
+          <p className="mt-4 text-red-400 text-sm">Incorrect username or password.</p>
         )}
       </div>
     </div>
