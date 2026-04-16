@@ -109,6 +109,18 @@ export async function airtablePatch(
   }
 }
 
+export async function airtableDelete(tableId: string, recordId: string): Promise<void> {
+  const baseId = process.env.AIRTABLE_BASE_ID;
+  const res = await fetch(`${BASE_URL}/${baseId}/${tableId}/${recordId}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Airtable delete error ${res.status}: ${err}`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Content Airtable (WordPress Automation base — separate API key + base ID)
 // ---------------------------------------------------------------------------

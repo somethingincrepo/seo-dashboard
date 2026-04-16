@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { GenerateTokenButton } from "@/components/ui/GenerateTokenButton";
 import { GenerateCredentialsButton } from "@/components/ui/GenerateCredentialsButton";
+import { DeleteClientButton } from "@/components/ui/DeleteClientButton";
 import { CmsCredentialsForm } from "@/components/ui/CmsCredentialsForm";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 
@@ -162,7 +163,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               ) : null}
             </div>
           </div>
-          <StatusBadge value={f.plan_status || "form_submitted"} variant="plan_status" />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <StatusBadge value={f.plan_status || "form_submitted"} variant="plan_status" />
+            <DeleteClientButton clientId={id} clientName={f.company_name as string} />
+          </div>
         </div>
       </div>
 
