@@ -11,6 +11,7 @@ interface PortalSidebarProps {
   contentReviewCount: number;
   titleProposalCount: number;
   contentOptimizationCount?: number;
+  internalLinksPendingCount?: number;
   categoryBreakdown: Record<string, number>;
   isLoggedIn: boolean;
   monthlyProgress?: React.ReactNode;
@@ -79,6 +80,14 @@ function IconCalendar({ className }: { className?: string }) {
     </svg>
   );
 }
+function IconLinks({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    </svg>
+  );
+}
 function IconBook({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -92,6 +101,7 @@ const NAV_ITEMS = [
   { suffix: "/approvals",            label: "Approvals",           Icon: IconApprovals },
   { suffix: "/content",              label: "Content",             Icon: IconContent },
   { suffix: "/content-optimization", label: "Content Refreshes",  Icon: IconOptimization },
+  { suffix: "/internal-links",       label: "Internal Links",      Icon: IconLinks },
   { suffix: "/indexation",           label: "Indexation",          Icon: IconIndexation },
   { suffix: "/reports",              label: "Reports",             Icon: IconReports },
   { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
@@ -105,6 +115,7 @@ export function PortalSidebar({
   contentReviewCount,
   titleProposalCount,
   contentOptimizationCount,
+  internalLinksPendingCount,
   categoryBreakdown,
   isLoggedIn,
   monthlyProgress,
@@ -170,6 +181,11 @@ export function PortalSidebar({
                   {item.suffix === "/content-optimization" && (contentOptimizationCount ?? 0) > 0 && (
                     <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200/60">
                       {contentOptimizationCount}
+                    </span>
+                  )}
+                  {item.suffix === "/internal-links" && (internalLinksPendingCount ?? 0) > 0 && (
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
+                      {internalLinksPendingCount}
                     </span>
                   )}
                 </Link>

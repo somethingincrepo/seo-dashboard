@@ -56,6 +56,11 @@ export default async function PortalLayout({
     0
   );
 
+  // Pending Internal Link changes — already in the `pending` array, no extra fetch needed
+  const internalLinksPendingCount = pending.filter(
+    (c) => (c.fields.type ?? "").toLowerCase() === "internal link"
+  ).length;
+
   const contentReviewCount = contentResults.filter(
     (r) => !r.fields.portal_approval
   ).length;
@@ -82,6 +87,7 @@ export default async function PortalLayout({
       contentReviewCount={contentReviewCount}
       titleProposalCount={titleProposalCount}
       contentOptimizationCount={contentOptimizationCount}
+      internalLinksPendingCount={internalLinksPendingCount}
       categoryBreakdown={categoryBreakdown}
       isLoggedIn={isLoggedIn}
       monthlyProgress={<MonthlyProgressSidebar client={client} />}
