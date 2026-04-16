@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface PortalSidebarProps {
   children: React.ReactNode;
   companyName: string;
   token: string;
+  logoUrl?: string;
   pendingCount: number;
   contentReviewCount: number;
   titleProposalCount: number;
@@ -146,6 +148,7 @@ export function PortalSidebar({
   children,
   companyName,
   token,
+  logoUrl,
   pendingCount,
   contentReviewCount,
   titleProposalCount,
@@ -159,6 +162,8 @@ export function PortalSidebar({
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const base = `/portal/${token}`;
+  const [logoError, setLogoError] = useState(false);
+  const showLogo = !!logoUrl && !logoError;
 
   const inApprovals = pathname.startsWith(`${base}/approvals`);
   const inContent = pathname.startsWith(`${base}/content`);
@@ -307,8 +312,8 @@ export function PortalSidebar({
         {/* Monthly progress */}
         {monthlyProgress}
 
-        {/* Book a meeting — sole bottom CTA */}
-        <div className="px-3 py-3 border-t border-slate-100">
+        {/* Bottom CTAs */}
+        <div className="px-3 py-3 border-t border-slate-100 space-y-1">
           <a
             href="https://calendly.com/somethinginc/something-inc-touchbase-1"
             target="_blank"
@@ -318,30 +323,10 @@ export function PortalSidebar({
             <IconCalendar className="w-4 h-4 shrink-0" />
             Book a meeting
           </a>
-        </div>
-      </aside>
-
-      {/* ── Right column: top bar + main content ── */}
-      <div className="flex-1 ml-[240px] flex flex-col min-h-screen">
-        {/* Top bar */}
-        <header className="sticky top-0 z-10 h-12 bg-white border-b border-slate-200/80 flex items-center justify-end gap-1 px-5">
-          <Link
-            href={`${base}/guide`}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors",
-              pathname === `${base}/guide`
-                ? "text-slate-700 bg-slate-100"
-                : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-            )}
-          >
-            <IconBook className="w-3.5 h-3.5 shrink-0" />
-            How to use
-          </Link>
-
           <Link
             href={`${base}/settings`}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors",
+              "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors",
               pathname.startsWith(`${base}/settings`)
                 ? "text-slate-700 bg-slate-100"
                 : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
@@ -350,14 +335,35 @@ export function PortalSidebar({
             <IconSettings className="w-3.5 h-3.5 shrink-0" />
             Settings
           </Link>
+        </div>
+      </aside>
 
-          <div className="w-px h-4 bg-slate-200 mx-1" />
+      {/* ── Right column: top bar + main content ── */}
+      <div className="flex-1 ml-[240px] flex flex-col min-h-screen">
+        {/* Top bar */}
+        <header className="sticky top-0 z-10 h-12 bg-white border-b border-slate-200/80 flex items-center justify-end gap-2 px-5">
+          {/* How to use — styled as a button */}
+          <Link
+            href={`${base}/guide`}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors",
+              pathname === `${base}/guide`
+                ? "text-slate-700 bg-slate-100 border-slate-200"
+                : "text-slate-600 bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+            )}
+          >
+            <IconBook className="w-3.5 h-3.5 shrink-0" />
+            How to use
+          </Link>
 
+          <div className="w-px h-4 bg-slate-200" />
+
+          {/* Auth */}
           {isLoggedIn ? (
             <form action="/api/portal/logout" method="POST">
               <button
                 type="submit"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-slate-500 bg-white border border-transparent hover:text-red-600 hover:bg-red-50 hover:border-red-100 transition-colors"
               >
                 <IconLogOut className="w-3.5 h-3.5 shrink-0" />
                 Sign out
@@ -366,7 +372,7 @@ export function PortalSidebar({
           ) : (
             <Link
               href="/portal/login"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-800 transition-colors"
             >
               Sign in
             </Link>

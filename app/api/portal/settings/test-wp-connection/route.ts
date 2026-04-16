@@ -2,14 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPortalSession } from "@/lib/portal-auth";
 import { getClientByToken } from "@/lib/clients";
 
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
   const session = await getPortalSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const client = await getClientByToken(session.portal_token);
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
 
-  const { site_url, wp_username, wp_app_password, cms } = client.fields;
+  // Accept credentials from the request body (so you can test before saving),
+  // falling back to whatever is stored in Airtable.
+  let bodyUsername: string | undefined;
+  let bodyPassword: string | undefined;
+  try {
+    const body = await request.json() as { wp_username?: string; wp_app_password?: string };
+    bodyUsername = body.wp_username?.trim() || undefined;
+    bodyPassword = body.wp_app_password?.trim() || undefined;
+  } catch { /* no body is fine */ }
+
+  const { site_url, cms } = client.fields;
+  const wp_username = bodyUsername ?? client.fields.wp_username;
+  const wp_app_password = bodyPassword ?? client.fields.wp_app_password;
 
   if (!site_url) return NextResponse.json({ ok: false, error: "No site URL on file — contact support" });
   if (!wp_username) return NextResponse.json({ ok: false, error: "WP username not set — save credentials first" });

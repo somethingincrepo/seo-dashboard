@@ -122,6 +122,7 @@ type FormState = {
   competitors: string;
   pivot_context: string;
   excluded_pages: string;
+  logo_url: string;
   brand_voice_links: string;
   claims_no_generate: string;
   content_approver: string;
@@ -148,6 +149,7 @@ const INITIAL_FORM: FormState = {
   competitors: "",
   pivot_context: "",
   excluded_pages: "",
+  logo_url: "",
   brand_voice_links: "",
   claims_no_generate: "",
   content_approver: "",
@@ -502,6 +504,19 @@ export default function IntakePage() {
             title="Content & Brand"
             description="Helps us write in your voice and avoid anything that shouldn't be generated."
           >
+            <Field
+              label="Logo URL"
+              hint="A direct link to your logo (PNG, SVG, or WebP). If left blank, we'll use your site's favicon automatically."
+            >
+              <input
+                type="text"
+                className={inputClass}
+                value={form.logo_url}
+                onChange={(e) => set("logo_url", e.target.value)}
+                placeholder="https://example.com/logo.png"
+              />
+            </Field>
+
             <Field
               label="Brand Voice Reference Links"
               hint="Links to content whose tone you like — your own best pages, blogs you admire, or competitor content. One per line with a label."

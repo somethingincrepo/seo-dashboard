@@ -69,6 +69,9 @@ export type ClientFields = {
   site_page_count: number;      // set by audit_inventory after crawl
   audit_scope_tier: "full" | "priority" | "top_traffic"; // derived from site_page_count
 
+  // Branding
+  logo_url: string; // Custom logo/favicon URL shown in the client portal header
+
   // Integrations — Engain (Reddit brand monitoring)
   engain_project_id: string; // Engain project ID linked to this client
 

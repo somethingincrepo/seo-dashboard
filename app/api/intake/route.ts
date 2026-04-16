@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
     claims_no_generate,
     content_approver,
     brand_guidelines_url,
+    logo_url,
     customer_questions,
     sales_questions,
     in_slack,
@@ -149,6 +150,7 @@ export async function POST(request: NextRequest) {
     ["claims_no_generate", claims_no_generate],
     ["content_approver", content_approver],
     ["brand_guidelines_url", brand_guidelines_url],
+    ["logo_url", logo_url],
     ["customer_questions", customer_questions],
     ["sales_questions", sales_questions],
   ];
