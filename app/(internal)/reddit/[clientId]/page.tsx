@@ -76,7 +76,7 @@ export default async function RedditClientPage({
         <GlassCard className="p-12 text-center">
           <div className="text-4xl mb-4">▲</div>
           <div className="text-slate-700 font-medium mb-1">{client.fields.company_name} isn't configured yet</div>
-          <div className="text-slate-400 text-sm mb-4">Link an Engain project to start monitoring Reddit mentions.</div>
+          <div className="text-slate-400 text-sm mb-4">Connect a Reddit monitoring project to start tracking brand mentions.</div>
           <Link
             href={`/clients/${clientId}`}
             className="inline-flex items-center gap-1.5 text-sm text-indigo-500 hover:text-indigo-700 transition-colors"
@@ -141,7 +141,7 @@ export default async function RedditClientPage({
                 </span>
               )}
             </div>
-            <p className="text-slate-500 text-sm mt-0.5">Reddit brand mentions via Engain</p>
+            <p className="text-slate-500 text-sm mt-0.5">Reddit brand mentions</p>
           </div>
           <Link
             href={`/clients/${clientId}`}

@@ -55,7 +55,7 @@ export function EngainLinkButton({
         onClick={openPicker}
         className="px-4 py-2 rounded-xl text-sm border transition-all bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100"
       >
-        {currentProjectId ? "Change Project" : "Link Engain Project"}
+        {currentProjectId ? "Change Project" : "Link Project"}
       </button>
     );
   }
@@ -65,7 +65,7 @@ export function EngainLinkButton({
       {loading ? (
         <div className="text-xs text-slate-400 py-2">Loading projects…</div>
       ) : projects.length === 0 ? (
-        <div className="text-xs text-slate-400 py-2">No Engain projects found</div>
+        <div className="text-xs text-slate-400 py-2">No projects found</div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
           {projects.map((p) => (

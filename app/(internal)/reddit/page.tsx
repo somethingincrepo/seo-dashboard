@@ -68,7 +68,7 @@ export default async function RedditPage() {
       <div>
         <h1 className="text-2xl font-semibold">Reddit Monitoring</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Brand mentions across Reddit, powered by Engain ·{" "}
+          Brand mentions across Reddit ·{" "}
           <span className="text-slate-400">{linked.length} brand{linked.length !== 1 ? "s" : ""} monitored</span>
         </p>
       </div>
@@ -172,7 +172,7 @@ export default async function RedditPage() {
           <div className="text-4xl mb-4">▲</div>
           <div className="text-slate-700 font-medium mb-1">No brands configured yet</div>
           <div className="text-slate-400 text-sm">
-            Open a client record and link their Engain project to start monitoring Reddit mentions.
+            Open a client record and connect a Reddit monitoring project to get started.
           </div>
         </GlassCard>
       )}

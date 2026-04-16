@@ -253,15 +253,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </GlassCard>
       )}
 
-      {/* Engain — Reddit brand monitoring */}
+      {/* Reddit brand monitoring */}
       <GlassCard className="p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1">
             <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
               Reddit Monitoring
-              <span className="ml-2 text-slate-400 normal-case font-normal">
-                — Engain brand mentions
-              </span>
             </div>
             {f.engain_project_id ? (
               <div className="space-y-1">
@@ -275,7 +272,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               </div>
             ) : (
               <div className="text-sm text-amber-600">
-                No project linked — connect an Engain project to enable Reddit monitoring
+                No project linked — connect a monitoring project to enable Reddit tracking
               </div>
             )}
           </div>

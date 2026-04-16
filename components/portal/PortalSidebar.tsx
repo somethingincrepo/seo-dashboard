@@ -93,12 +93,19 @@ function IconLinks({ className }: { className?: string }) {
 function IconReddit({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9"/>
-      <path d="M15.5 8.5a1 1 0 1 0 2 0 1 1 0 0 0-2 0"/>
-      <path d="M8 12a4 4 0 0 0 8 0"/>
-      <circle cx="9" cy="13" r="0.5" fill="currentColor"/>
-      <circle cx="15" cy="13" r="0.5" fill="currentColor"/>
-      <path d="M12 7v2"/>
+      {/* outer head */}
+      <circle cx="12" cy="14" r="7"/>
+      {/* ears */}
+      <circle cx="4.5" cy="11" r="2"/>
+      <circle cx="19.5" cy="11" r="2"/>
+      {/* eyes — filled, stroke="none" so they don't inherit the outer stroke */}
+      <circle cx="9.5" cy="13" r="1.2" fill="currentColor" stroke="none"/>
+      <circle cx="14.5" cy="13" r="1.2" fill="currentColor" stroke="none"/>
+      {/* smile */}
+      <path d="M9 17c.8 1.2 2 1.8 3 1.8s2.2-.6 3-1.8" fill="none"/>
+      {/* antenna */}
+      <path d="M12 7V5"/>
+      <circle cx="12" cy="4" r="1.2" fill="currentColor" stroke="none"/>
     </svg>
   );
 }
@@ -163,7 +170,6 @@ export function PortalSidebar({
         {/* Nav */}
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
-            // Hide Reddit nav item if no Engain project is linked
             if (item.suffix === "/reddit" && !hasReddit) return null;
 
             const href = `${base}${item.suffix}`;
