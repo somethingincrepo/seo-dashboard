@@ -169,7 +169,7 @@ export function PortalSidebar({
                   )}
                   {item.suffix === "/content-optimization" && (contentOptimizationCount ?? 0) > 0 && (
                     <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200/60">
-                      {contentOptimizationCount} ready
+                      {contentOptimizationCount}
                     </span>
                   )}
                 </Link>
