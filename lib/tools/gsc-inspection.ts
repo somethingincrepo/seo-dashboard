@@ -195,8 +195,7 @@ export function coverageStateToDisplay(
   ) return "blocked";
   if (coverageState === "Alternate page with proper canonical tag") return "not_indexed";
 
-  // PASS = indexed, FAIL = problem, NEUTRAL = not indexed/other
-  if (verdict === "PASS") return "indexed";
+  // FAIL = problem, NEUTRAL/unspecified = not indexed
   if (verdict === "FAIL") return "blocked";
   return "not_indexed";
 }
