@@ -63,7 +63,7 @@ function countWords(body: string): number {
   return body.replace(/\[\/?\w+[^\]]*\]/g, " ").split(/\s+/).filter((w) => w.length > 1).length;
 }
 
-// Strip change markers from plain-text fields (meta title/description)
+// Extract the new (proposed) value from a meta field — strips change markers
 function cleanMetaText(text: string): string {
   return text
     .replace(/\[CHANGED from="[^"]*"\]([\s\S]*?)\[\/CHANGED\]/g, "$1")
@@ -72,6 +72,25 @@ function cleanMetaText(text: string): string {
     .replace(/\[\/?\w+[^\]]*\]/g, "")
     .trim();
 }
+
+// Extract the original (before) value from a meta field
+function originalMetaText(text: string): string {
+  const match = text.match(/\[CHANGED from="([^"]*)"\]/);
+  if (match) return match[1].trim();
+  return cleanMetaText(text); // unchanged — original = new
+}
+
+// Whether a meta field has a change (so we can show an "Edited" indicator)
+function metaWasChanged(text: string): boolean {
+  return /\[CHANGED from="[^"]*"\]/.test(text);
+}
+
+// Inline change-marker CSS shared between meta boxes and body
+const CT_INLINE = [
+  "[&_.ct-changed]:inline [&_.ct-changed]:rounded-sm [&_.ct-changed]:bg-amber-50 [&_.ct-changed]:px-0.5 [&_.ct-changed]:ring-1 [&_.ct-changed]:ring-amber-300/60",
+  "[&_.ct-del]:line-through [&_.ct-del]:text-red-500 [&_.ct-del]:mr-1.5 [&_.ct-del]:bg-red-100 [&_.ct-del]:px-0.5 [&_.ct-del]:rounded-sm",
+  "[&_.ct-ins]:text-emerald-800 [&_.ct-ins]:bg-emerald-100 [&_.ct-ins]:px-0.5 [&_.ct-ins]:rounded-sm [&_.ct-ins]:font-semibold",
+].join(" ");
 
 // Shared prose CSS applied to both left and right panels
 const PROSE_CLASSES = `
@@ -148,12 +167,50 @@ function HowItWorks({ status }: { status: ReturnType<typeof getItemStatus> }) {
 
 // ── Original page panel (derived from article body) ───────────────────────────
 
-function OriginalPanel({ body }: { body: string }) {
+function OriginalPanel({
+  body,
+  rawMetaTitle,
+  rawMetaDesc,
+}: {
+  body: string;
+  rawMetaTitle: string;
+  rawMetaDesc: string;
+}) {
   const originalBody = deriveOriginalBody(body);
   const html = bracketToHtml(originalBody);
+  const origTitle = originalMetaText(rawMetaTitle);
+  const origDesc = originalMetaText(rawMetaDesc);
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
+      {/* Meta fields — original values */}
+      {(origTitle || origDesc) && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5">
+          {origTitle && (
+            <div>
+              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
+                Meta title ({origTitle.length}/60)
+                {metaWasChanged(rawMetaTitle) && (
+                  <span className="ml-1.5 text-amber-600 normal-case font-medium">current</span>
+                )}
+              </div>
+              <p className="text-[12px] text-slate-700 font-medium mt-0.5">{origTitle}</p>
+            </div>
+          )}
+          {origDesc && (
+            <div>
+              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
+                Meta description ({origDesc.length}/160)
+                {metaWasChanged(rawMetaDesc) && (
+                  <span className="ml-1.5 text-amber-600 normal-case font-medium">current</span>
+                )}
+              </div>
+              <p className="text-[12px] text-slate-600 italic mt-0.5">{origDesc}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div
         className={PROSE_CLASSES}
         dangerouslySetInnerHTML={{ __html: html }}
@@ -174,8 +231,10 @@ function RefreshedPanel({
   const body = result.fields["Article body"] ?? "";
   const html = bracketToHtml(body);
   const wordCount = countWords(body);
-  const metaTitle = cleanMetaText(result.fields["Meta title"] ?? "");
-  const metaDesc = cleanMetaText(result.fields["Meta description"] ?? "");
+  const rawMetaTitle = result.fields["Meta title"] ?? "";
+  const rawMetaDesc  = result.fields["Meta description"] ?? "";
+  const newMetaTitle = cleanMetaText(rawMetaTitle);
+  const newMetaDesc  = cleanMetaText(rawMetaDesc);
 
   const delta = wordCount - origWordCount;
   const deltaLabel = delta > 0
@@ -213,23 +272,35 @@ function RefreshedPanel({
         )}
       </div>
 
-      {/* Meta fields */}
-      {(metaTitle || metaDesc) && (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5">
-          {metaTitle && (
+      {/* Meta fields — render through bracketToHtml so [CHANGED] shows del/ins */}
+      {(rawMetaTitle || rawMetaDesc) && (
+        <div className={`bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5 ${CT_INLINE}`}>
+          {rawMetaTitle && (
             <div>
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                Meta title ({metaTitle.length}/60)
+                Meta title ({newMetaTitle.length}/60)
+                {metaWasChanged(rawMetaTitle) && (
+                  <span className="ml-1.5 text-amber-600 normal-case font-medium">proposed</span>
+                )}
               </div>
-              <p className="text-[12px] text-slate-700 font-medium mt-0.5">{metaTitle}</p>
+              <div
+                className="text-[12px] text-slate-700 font-medium mt-0.5"
+                dangerouslySetInnerHTML={{ __html: bracketToHtml(rawMetaTitle) }}
+              />
             </div>
           )}
-          {metaDesc && (
+          {rawMetaDesc && (
             <div>
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                Meta description ({metaDesc.length}/160)
+                Meta description ({newMetaDesc.length}/160)
+                {metaWasChanged(rawMetaDesc) && (
+                  <span className="ml-1.5 text-amber-600 normal-case font-medium">proposed</span>
+                )}
               </div>
-              <p className="text-[12px] text-slate-600 italic mt-0.5">{metaDesc}</p>
+              <div
+                className="text-[12px] text-slate-600 italic mt-0.5"
+                dangerouslySetInnerHTML={{ __html: bracketToHtml(rawMetaDesc) }}
+              />
             </div>
           )}
         </div>
@@ -273,7 +344,9 @@ function DetailPanel({
   const refreshUrl = job.fields.refresh_url!;
   const keyword = job.fields.target_keyword;
 
-  const body = result?.fields["Article body"] ?? "";
+  const body         = result?.fields["Article body"] ?? "";
+  const rawMetaTitle = result?.fields["Meta title"] ?? "";
+  const rawMetaDesc  = result?.fields["Meta description"] ?? "";
   const origWordCount = countWords(deriveOriginalBody(body));
 
   return (
@@ -410,7 +483,7 @@ function DetailPanel({
                 </a>
               </div>
             </div>
-            <OriginalPanel body={body} />
+            <OriginalPanel body={body} rawMetaTitle={rawMetaTitle} rawMetaDesc={rawMetaDesc} />
           </div>
 
           {/* Right — proposed */}
