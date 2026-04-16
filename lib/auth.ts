@@ -162,6 +162,17 @@ export async function destroySession(): Promise<void> {
   cookieStore.delete(SESSION_COOKIE);
 }
 
+/** Fast check — just verifies the HMAC signature. No Supabase call. */
+export async function isAdminAuthenticated(): Promise<boolean> {
+  const secret = process.env.ADMIN_PASSWORD;
+  if (!secret) return false;
+  const cookieStore = await cookies();
+  const cookie = cookieStore.get(SESSION_COOKIE);
+  if (!cookie?.value) return false;
+  const username = await verifyToken(cookie.value, secret);
+  return username !== null;
+}
+
 export async function getSession(): Promise<AdminSession | null> {
   const secret = process.env.ADMIN_PASSWORD;
   if (!secret) return null;

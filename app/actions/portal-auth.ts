@@ -7,6 +7,7 @@ import {
   createPortalSession,
   destroyPortalSession,
 } from "@/lib/portal-auth";
+import { createSession as createAdminSession } from "@/lib/auth";
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
@@ -48,20 +49,38 @@ async function checkRateLimit(): Promise<boolean> {
 export async function portalLogin(formData: FormData) {
   const username = (formData.get("username") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
+  const token = formData.get("token") as string | null;
 
-  if (!username || !password) redirect("/portal/login?error=1");
+  const errorUrl = token
+    ? `/portal/login?error=1&token=${encodeURIComponent(token)}`
+    : "/portal/login?error=1";
+
+  if (!username || !password) redirect(errorUrl);
 
   const allowed = await checkRateLimit();
-  if (!allowed) redirect("/portal/login?error=rate_limited");
+  if (!allowed) {
+    redirect(token ? `/portal/login?error=rate_limited&token=${encodeURIComponent(token)}` : "/portal/login?error=rate_limited");
+  }
 
+  // --- Try admin credentials first ---
+  const isAdmin = await createAdminSession(username, password);
+  if (isAdmin) {
+    const cookieStore = await cookies();
+    cookieStore.delete(RATE_LIMIT_COOKIE);
+    // If we know which portal they were heading to, go there; otherwise admin dashboard
+    if (token) redirect(`/portal/${token}`);
+    redirect("/");
+  }
+
+  // --- Try client credentials ---
   const client = await getClientByUsername(username);
-  if (!client) redirect("/portal/login?error=1");
+  if (!client) redirect(errorUrl);
 
   const hash = client.fields.portal_password_hash;
-  if (!hash) redirect("/portal/login?error=1");
+  if (!hash) redirect(errorUrl);
 
   const valid = await verifyPassword(password, hash);
-  if (!valid) redirect("/portal/login?error=1");
+  if (!valid) redirect(errorUrl);
 
   // Clear rate limit on success
   const cookieStore = await cookies();

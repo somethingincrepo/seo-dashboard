@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getPortalSession } from "@/lib/portal-auth";
-import { getSession as getAdminSession } from "@/lib/auth";
+import { isAdminAuthenticated } from "@/lib/auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { getEngainMentionStats } from "@/lib/engain";
@@ -21,24 +21,24 @@ export default async function PortalLayout({
   const { token } = await params;
 
   // --- Auth ---
-  // Accept either a valid portal session (client) or a valid admin session
-  const [portalSession, adminSession] = await Promise.all([
+  // Accept either a valid portal session (client) or a valid admin session.
+  // isAdminAuthenticated() is a fast HMAC-only check — no DB call.
+  const [portalSession, isAdmin] = await Promise.all([
     getPortalSession(),
-    getAdminSession(),
+    isAdminAuthenticated(),
   ]);
 
-  if (!portalSession && !adminSession) {
-    // Not authenticated at all — send to portal login, preserving destination
+  if (!portalSession && !isAdmin) {
     redirect(`/portal/login?token=${encodeURIComponent(token)}`);
   }
 
-  if (portalSession && !adminSession) {
-    // Client session: make sure it's for this portal, not another client's
+  if (portalSession && !isAdmin) {
+    // Client session must belong to this portal
     if (portalSession.portal_token !== token) {
       redirect(`/portal/${portalSession.portal_token}`);
     }
   }
-  // Admin session: allowed through to any portal without further checks
+  // Admins pass through to any portal
 
   const client = await getClientByToken(token);
   if (!client) notFound();
