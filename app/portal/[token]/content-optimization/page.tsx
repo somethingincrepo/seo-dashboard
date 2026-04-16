@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getContentJobsForClient, getContentResultsForClient, type ContentJob, type ContentResult } from "@/lib/content";
+import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { ContentOptimization } from "@/components/portal/ContentOptimization";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,13 @@ export default async function ContentOptimizationPage({
   if (!client) notFound();
 
   const companyName = client.fields.company_name || "Your Company";
+
+  const clientPackage = (client.fields.package ?? "starter") as PackageTier;
+  const limit = PACKAGES[clientPackage in PACKAGES ? clientPackage : "starter"].content_refreshes;
+
+  // First day of current month (UTC)
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
   const [allJobs, allResults] = await Promise.all([
     getContentJobsForClient(companyName).catch(() => []),
@@ -32,24 +40,30 @@ export default async function ContentOptimizationPage({
     }
   }
 
-  const items: { job: ContentJob; result: ContentResult | null }[] = refreshJobs.map((job) => ({
-    job,
-    result: resultByJobId.get(job.id) ?? null,
-  }));
+  const toItem = (job: ContentJob) => ({ job, result: resultByJobId.get(job.id) ?? null });
 
-  // Sort: ready-for-review → in-progress → completed
-  items.sort((a, b) => {
-    const rank = (x: typeof a) => {
-      const ts = x.job.fields.title_status;
-      const approved = x.result?.fields.portal_approval;
-      if (ts === "completed" && !approved) return 0;
-      if (ts === "approved" && !x.result) return 1;
-      return 2;
-    };
-    return rank(a) - rank(b);
-  });
+  const sortItems = (arr: { job: ContentJob; result: ContentResult | null }[]) =>
+    arr.sort((a, b) => {
+      const rank = (x: typeof a) => {
+        const ts = x.job.fields.title_status;
+        const approved = x.result?.fields.portal_approval;
+        if (ts === "completed" && !approved) return 0;
+        if (ts === "approved" && !x.result) return 1;
+        return 2;
+      };
+      return rank(a) - rank(b);
+    });
 
-  const clientPackage = client.fields.package ?? "starter";
+  // Separate this month from previous months (by proposed_at, fallback to Created At)
+  const jobDate = (j: ContentJob) => j.fields.proposed_at ?? j.fields["Created At"] ?? "";
+  const thisMonthJobs = refreshJobs.filter((j) => jobDate(j) >= monthStart);
+  const prevMonthJobs = refreshJobs.filter((j) => jobDate(j) < monthStart);
+
+  // Current month: show up to plan limit (agent should only create N, but cap defensively)
+  const items = sortItems(thisMonthJobs.map(toItem)).slice(0, limit);
+  // Historical: most recent first, all approved/completed ones
+  const historicalItems = sortItems(prevMonthJobs.map(toItem))
+    .filter((i) => i.job.fields.title_status === "completed" || i.result)
 
   return (
     <div className="-mx-10 flex flex-col min-h-[calc(100vh-5rem)]">
@@ -62,7 +76,12 @@ export default async function ContentOptimizationPage({
         </p>
       </div>
 
-      <ContentOptimization items={items} token={token} clientPackage={clientPackage} />
+      <ContentOptimization
+        items={items}
+        historicalItems={historicalItems}
+        token={token}
+        clientPackage={clientPackage}
+      />
     </div>
   );
 }

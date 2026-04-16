@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { bracketToHtml } from "@/lib/bracketToHtml";
+import { PACKAGES, type PackageTier } from "@/lib/packages";
 import type { ContentJob, ContentResult } from "@/lib/content";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -11,13 +12,11 @@ type RefreshItem = {
   result: ContentResult | null;
 };
 
-// ── Package allocations ───────────────────────────────────────────────────────
+// ── Package allocation helper ─────────────────────────────────────────────────
 
-const PACKAGE_REFRESHES: Record<string, number> = {
-  starter:   2,
-  growth:    4,
-  authority: 8,
-};
+function refreshLimit(pkg: string): number {
+  return PACKAGES[(pkg as PackageTier) in PACKAGES ? (pkg as PackageTier) : "starter"].content_refreshes;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -566,7 +565,7 @@ function RefreshListItem({
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 function EmptyState({ clientPackage }: { clientPackage: string }) {
-  const refreshCount = PACKAGE_REFRESHES[clientPackage] ?? 2;
+  const refreshCount = refreshLimit(clientPackage);
   const packageLabel = clientPackage.charAt(0).toUpperCase() + clientPackage.slice(1);
 
   return (
@@ -612,10 +611,12 @@ function EmptyState({ clientPackage }: { clientPackage: string }) {
 
 export function ContentOptimization({
   items,
+  historicalItems = [],
   token,
   clientPackage,
 }: {
   items: RefreshItem[];
+  historicalItems?: RefreshItem[];
   token: string;
   clientPackage: string;
 }) {
@@ -671,7 +672,7 @@ export function ContentOptimization({
   const runningCount  = localItems.filter((i) => getItemStatus(i) === "running").length;
   const approvedCount = localItems.filter((i) => getItemStatus(i) === "approved").length;
   const scheduledCount= localItems.filter((i) => getItemStatus(i) === "proposed").length;
-  const refreshCount  = PACKAGE_REFRESHES[clientPackage] ?? 2;
+  const refreshCount  = refreshLimit(clientPackage);
   const packageLabel  = clientPackage.charAt(0).toUpperCase() + clientPackage.slice(1);
   const progressPct   = Math.min(100, Math.round((approvedCount / refreshCount) * 100));
 
@@ -736,6 +737,7 @@ export function ContentOptimization({
           </div>
 
           <div className="flex-1 overflow-y-auto">
+            {/* This month */}
             {localItems.map((item) => (
               <RefreshListItem
                 key={item.job.id}
@@ -744,6 +746,25 @@ export function ContentOptimization({
                 onClick={() => setSelectedId(item.job.id)}
               />
             ))}
+
+            {/* Previous months */}
+            {historicalItems.length > 0 && (
+              <>
+                <div className="px-4 py-2 border-t border-b border-slate-100 bg-slate-50">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
+                    Previous months
+                  </span>
+                </div>
+                {historicalItems.map((item) => (
+                  <RefreshListItem
+                    key={item.job.id}
+                    item={item}
+                    selected={selectedId === item.job.id}
+                    onClick={() => setSelectedId(item.job.id)}
+                  />
+                ))}
+              </>
+            )}
           </div>
         </div>
 
