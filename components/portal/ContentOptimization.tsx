@@ -18,6 +18,14 @@ type ExtractedPage = {
   wordCount: number;
 };
 
+// ── Package allocations ───────────────────────────────────────────────────────
+
+const PACKAGE_REFRESHES: Record<string, number> = {
+  starter:   2,
+  growth:    4,
+  authority: 8,
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getItemStatus(item: RefreshItem): "review" | "running" | "approved" | "proposed" {
@@ -31,9 +39,9 @@ function getItemStatus(item: RefreshItem): "review" | "running" | "approved" | "
 
 const STATUS_CONFIG = {
   review:   { label: "Ready for Review", dot: "bg-indigo-400", badge: "bg-indigo-50 text-indigo-700 ring-indigo-200/60" },
-  running:  { label: "Refresh Running",  dot: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 ring-amber-200/60" },
-  approved: { label: "Approved",         dot: "bg-emerald-400",badge: "bg-emerald-50 text-emerald-700 ring-emerald-200/60" },
-  proposed: { label: "Proposed",         dot: "bg-slate-300",  badge: "bg-slate-100 text-slate-500 ring-slate-200/60" },
+  running:  { label: "Update in Progress", dot: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 ring-amber-200/60" },
+  approved: { label: "Approved",          dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200/60" },
+  proposed: { label: "Scheduled",         dot: "bg-slate-300",   badge: "bg-slate-100 text-slate-500 ring-slate-200/60" },
 };
 
 const PAGE_TYPE_COLORS: Record<string, string> = {
@@ -43,26 +51,23 @@ const PAGE_TYPE_COLORS: Record<string, string> = {
   "Other":        "bg-slate-100 text-slate-600",
 };
 
-// ── SOP Pipeline strip ────────────────────────────────────────────────────────
+// ── How it works strip ────────────────────────────────────────────────────────
 
-function SopPipeline({ status }: { status: ReturnType<typeof getItemStatus> }) {
+function HowItWorks({ status }: { status: ReturnType<typeof getItemStatus> }) {
   const steps = [
     {
-      sop: "audit_content",
-      label: "Opportunity found",
-      desc: "audit_content SOP scanned this page during the site audit and flagged it for improvement",
+      label: "Opportunity identified",
+      desc: "We scanned your site and flagged this page for improvement based on keyword gaps and content quality",
       done: true,
     },
     {
-      sop: "content_refresh",
-      label: "Page refreshed",
-      desc: "content_refresh SOP fetched the live URL, rewrote headers and body, added missing sections",
+      label: "Page updated",
+      desc: "We rewrote the headings and body copy, added missing sections, and aligned the content with target keywords",
       done: status === "review" || status === "approved",
     },
     {
-      sop: "publish_article_wordpress",
       label: "Published to site",
-      desc: "publish_article_wordpress SOP pushes the approved refresh to WordPress as a page update",
+      desc: "Once you approve, the refreshed version replaces the existing page on your live site",
       done: status === "approved",
     },
   ];
@@ -70,11 +75,11 @@ function SopPipeline({ status }: { status: ReturnType<typeof getItemStatus> }) {
   return (
     <div className="border border-slate-200 rounded-xl px-5 py-4 mb-5">
       <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
-        How this works — automated SOP pipeline
+        How this works
       </div>
       <div className="flex gap-0">
         {steps.map((step, i) => (
-          <div key={step.sop} className="flex items-start gap-0 flex-1 min-w-0">
+          <div key={step.label} className="flex items-start gap-0 flex-1 min-w-0">
             <div className="flex flex-col items-center shrink-0">
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-colors ${
@@ -97,7 +102,6 @@ function SopPipeline({ status }: { status: ReturnType<typeof getItemStatus> }) {
             </div>
             <div className="ml-3 pb-4 min-w-0 flex-1 pr-4">
               <div className="text-[12px] font-semibold text-slate-800 leading-tight">{step.label}</div>
-              <code className="text-[10px] text-slate-400 font-mono">{step.sop}</code>
               <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{step.desc}</p>
             </div>
           </div>
@@ -293,7 +297,6 @@ function DetailPanel({
   const pageType = job.fields.page_type;
   const refreshUrl = job.fields.refresh_url!;
   const keyword = job.fields.target_keyword;
-  const wordCountBefore = result?.fields["Source URLs"] ? null : null; // from result metadata if available
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -364,15 +367,15 @@ function DetailPanel({
           {status === "running" && (
             <span className="shrink-0 flex items-center gap-1.5 text-[12px] font-medium text-amber-600">
               <div className="w-3 h-3 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin" />
-              content_refresh running…
+              Updating…
             </span>
           )}
         </div>
       </div>
 
-      {/* SOP pipeline */}
+      {/* How it works */}
       <div className="px-6 pt-4 shrink-0">
-        <SopPipeline status={status} />
+        <HowItWorks status={status} />
       </div>
 
       {/* Content — in-progress state */}
@@ -380,10 +383,9 @@ function DetailPanel({
         <div className="flex-1 flex items-center justify-center text-center px-8">
           <div>
             <div className="w-8 h-8 border-3 border-slate-200 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
-            <div className="text-[14px] font-medium text-slate-700 mb-1.5">Refresh in progress</div>
+            <div className="text-[14px] font-medium text-slate-700 mb-1.5">Update in progress</div>
             <p className="text-[13px] text-slate-500 max-w-sm">
-              The <code className="text-[11px] font-mono bg-slate-100 px-1 rounded">content_refresh</code> SOP is fetching the live
-              page, rewriting it, and expanding sections. This usually takes 2–4 minutes.
+              We&apos;re rewriting the headings and body copy for this page. This usually takes 2–4 minutes.
             </p>
             <a
               href={refreshUrl}
@@ -391,21 +393,20 @@ function DetailPanel({
               rel="noopener noreferrer"
               className="mt-4 inline-flex items-center gap-1 text-[12px] text-indigo-600 hover:underline"
             >
-              View original page →
+              View current page →
             </a>
           </div>
         </div>
       )}
 
-      {/* Content — proposed (title not yet approved) */}
+      {/* Content — scheduled (not yet started) */}
       {status === "proposed" && (
         <div className="flex-1 flex items-center justify-center text-center px-8">
           <div>
             <div className="text-3xl text-slate-200 mb-3">◆</div>
-            <div className="text-[14px] font-medium text-slate-600 mb-1">Refresh not yet approved</div>
+            <div className="text-[14px] font-medium text-slate-600 mb-1">Scheduled for this month</div>
             <p className="text-[13px] text-slate-400 max-w-sm">
-              This refresh is still in the title proposals queue. Once approved there, the{" "}
-              <code className="text-[11px] font-mono">content_refresh</code> SOP will run automatically.
+              This page is queued for a content refresh. We&apos;ll update the headings, body copy, and keyword targeting — the updated draft will appear here for your review once it&apos;s ready.
             </p>
           </div>
         </div>
@@ -420,7 +421,7 @@ function DetailPanel({
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-slate-400" />
                 <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
-                  Original page (live)
+                  Current page (live)
                 </span>
               </div>
             </div>
@@ -433,7 +434,7 @@ function DetailPanel({
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-indigo-500" />
                 <span className="text-[11px] font-semibold text-indigo-500 uppercase tracking-widest">
-                  Refreshed draft
+                  Updated draft
                 </span>
               </div>
             </div>
@@ -497,34 +498,43 @@ function RefreshListItem({
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState() {
+function EmptyState({ clientPackage }: { clientPackage: string }) {
+  const refreshCount = PACKAGE_REFRESHES[clientPackage] ?? 2;
+  const packageLabel = clientPackage.charAt(0).toUpperCase() + clientPackage.slice(1);
+
   return (
     <div className="flex-1 flex items-center justify-center text-center px-8">
       <div>
         <div className="text-3xl text-slate-200 mb-4">◇</div>
         <div className="text-[15px] font-medium text-slate-600 mb-2">No content refreshes yet</div>
         <p className="text-[13px] text-slate-400 max-w-sm">
-          Content refreshes are generated when you approve a Refresh proposal in{" "}
-          <strong className="text-slate-500">Title Proposals</strong>. The{" "}
-          <code className="text-[11px] font-mono bg-slate-100 px-1 rounded">audit_content</code> SOP also identifies
-          opportunities during site audits.
+          Each month we identify pages across your site that have keyword gaps, thin content, or outdated headings
+          and rewrite them to improve rankings.
         </p>
+
         <div className="mt-5 text-left bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 max-w-sm mx-auto">
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2">SOPs involved</div>
-          <ul className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">What gets updated</div>
+          <ul className="space-y-2.5">
             {[
-              ["audit_content", "Finds underperforming pages during the audit"],
-              ["content_refresh", "Rewrites and expands the live page"],
-              ["publish_article_wordpress", "Publishes the approved refresh"],
-            ].map(([sop, desc]) => (
-              <li key={sop} className="flex items-start gap-2">
-                <code className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 rounded px-1 py-0.5 shrink-0">
-                  {sop}
-                </code>
-                <span className="text-[11px] text-slate-500 leading-snug">{desc}</span>
+              ["Blog posts", "Existing articles updated with stronger keyword targeting, improved structure, and expanded content"],
+              ["Service & landing pages", "Headers and body copy rewritten to better match search intent and improve rankings"],
+            ].map(([type, desc]) => (
+              <li key={type} className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0" />
+                <div>
+                  <div className="text-[12px] font-semibold text-slate-700">{type}</div>
+                  <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{desc}</div>
+                </div>
               </li>
             ))}
           </ul>
+          <div className="mt-4 pt-3 border-t border-slate-200">
+            <div className="text-[11px] text-slate-500">
+              Your <span className="font-semibold text-slate-700">{packageLabel}</span> plan includes{" "}
+              <span className="font-semibold text-slate-700">{refreshCount} content refresh{refreshCount !== 1 ? "es" : ""}</span> per month.
+              Updated drafts will appear here for your review before anything goes live.
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -536,9 +546,11 @@ function EmptyState() {
 export function ContentOptimization({
   items,
   token,
+  clientPackage,
 }: {
   items: RefreshItem[];
   token: string;
+  clientPackage: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
     items.find((i) => getItemStatus(i) === "review")?.job.id ?? items[0]?.job.id ?? null
@@ -584,15 +596,67 @@ export function ContentOptimization({
   if (localItems.length === 0) {
     return (
       <div className="flex-1 flex flex-col px-10">
-        <EmptyState />
+        <EmptyState clientPackage={clientPackage} />
       </div>
     );
   }
 
-  const readyCount = localItems.filter((i) => getItemStatus(i) === "review").length;
+  const readyCount    = localItems.filter((i) => getItemStatus(i) === "review").length;
+  const runningCount  = localItems.filter((i) => getItemStatus(i) === "running").length;
+  const approvedCount = localItems.filter((i) => getItemStatus(i) === "approved").length;
+  const scheduledCount= localItems.filter((i) => getItemStatus(i) === "proposed").length;
+  const refreshCount  = PACKAGE_REFRESHES[clientPackage] ?? 2;
+  const packageLabel  = clientPackage.charAt(0).toUpperCase() + clientPackage.slice(1);
+  const completedCount = approvedCount;
+  const progressPct   = Math.min(100, Math.round((completedCount / refreshCount) * 100));
 
   return (
-    <div className="flex flex-1 min-h-0" style={{ height: "calc(100vh - 12rem)" }}>
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* ── Monthly tracker strip ─────────────────────────────────────────── */}
+      <div className="px-10 pb-5">
+        <div className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+              This month — {packageLabel} plan
+            </div>
+            <div className="text-[11px] text-slate-500">
+              <span className="font-semibold text-slate-800">{completedCount}</span>
+              {" of "}
+              <span className="font-semibold text-slate-800">{refreshCount}</span>
+              {" refresh"}{refreshCount !== 1 ? "es" : ""}{" approved"}
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+
+          {/* Status counts */}
+          <div className="flex gap-5">
+            {[
+              { label: "Scheduled",       count: scheduledCount, dot: "bg-slate-300"   },
+              { label: "In Progress",     count: runningCount,   dot: "bg-amber-400"   },
+              { label: "Ready to Review", count: readyCount,     dot: "bg-indigo-400"  },
+              { label: "Approved",        count: approvedCount,  dot: "bg-emerald-400" },
+            ].map(({ label, count, dot }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                <span className="text-[12px] text-slate-600">
+                  <span className="font-semibold text-slate-800">{count}</span>{" "}
+                  <span className="text-slate-400">{label}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Master-detail ─────────────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0" style={{ height: "calc(100vh - 18rem)" }}>
       {/* Left sidebar list */}
       <div className="w-[280px] shrink-0 border-r border-slate-200 flex flex-col bg-white overflow-hidden">
         {/* List header */}
@@ -637,6 +701,7 @@ export function ContentOptimization({
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

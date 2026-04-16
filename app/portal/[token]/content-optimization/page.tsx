@@ -49,18 +49,20 @@ export default async function ContentOptimizationPage({
     return rank(a) - rank(b);
   });
 
+  const clientPackage = client.fields.package ?? "starter";
+
   return (
     <div className="-mx-10 flex flex-col min-h-[calc(100vh-5rem)]">
       <div className="px-10 mb-6">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-          Content Optimization
+          Content Refreshes
         </h1>
         <p className="text-base text-slate-500 mt-1">
-          Review AI-refreshed pages side-by-side with originals before publishing
+          Each month we update existing pages and blog posts to improve keyword coverage, strengthen headings, and sharpen body copy
         </p>
       </div>
 
-      <ContentOptimization items={items} token={token} />
+      <ContentOptimization items={items} token={token} clientPackage={clientPackage} />
     </div>
   );
 }

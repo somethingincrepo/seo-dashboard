@@ -47,6 +47,7 @@ const TOC_SECTIONS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "approvals", label: "Approvals" },
   { id: "content", label: "Content pipeline" },
+  { id: "content-refreshes", label: "Content refreshes" },
   { id: "reports", label: "Reports" },
   { id: "activity", label: "Activity log" },
   { id: "statuses", label: "Statuses" },
@@ -451,6 +452,101 @@ export default async function GuidePage({
                   from your onboarding and informs every article generated for your site. Contact our team
                   if anything here needs updating.
                 </p>
+              </AccordionItem>
+            </div>
+          </GlassCard>
+        </section>
+
+        {/* Content Refreshes */}
+        <section id="content-refreshes">
+          <GlassCard className="overflow-hidden">
+            <div className="p-6">
+              <SectionLabel>Content refreshes</SectionLabel>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Each month we identify existing pages on your site that are underperforming and update them
+                to improve keyword coverage, strengthen headings, and sharpen body copy. Updated drafts appear
+                in the <strong className="text-slate-700">Content Refreshes</strong> tab for your review before anything goes live.
+              </p>
+            </div>
+            <Divider />
+            <div className="p-6 space-y-2">
+              <AccordionItem label="What gets refreshed">
+                <p className="mb-3">
+                  We look at two types of pages each month:
+                </p>
+                <div className="space-y-2 mb-3">
+                  <div className="grid grid-cols-[120px_1fr] gap-2">
+                    <span className="text-[12px] font-medium text-slate-700">Blog posts</span>
+                    <span className="text-[12px] text-slate-500">Existing articles that have lost rankings or are missing keywords competitors are capturing. We rewrite the content to be more comprehensive and better targeted.</span>
+                  </div>
+                  <div className="grid grid-cols-[120px_1fr] gap-2">
+                    <span className="text-[12px] font-medium text-slate-700">Service pages</span>
+                    <span className="text-[12px] text-slate-500">Core pages that are ranking but not converting at their potential — thin body copy, weak headings, or keyword gaps compared to top-ranking competitors.</span>
+                  </div>
+                </div>
+                <p className="text-[12px] text-slate-500">
+                  Pages are selected based on their current keyword coverage, GSC performance, and how long it has been since they were last updated.
+                </p>
+              </AccordionItem>
+
+              <AccordionItem label="Monthly allocation">
+                <p className="mb-3">
+                  The number of content refreshes per month depends on your plan:
+                </p>
+                <div className="space-y-1.5">
+                  {[
+                    ["Starter", "2 refreshes per month"],
+                    ["Growth", "4 refreshes per month"],
+                    ["Authority", "8 refreshes per month"],
+                  ].map(([plan, desc]) => (
+                    <div key={plan} className="grid grid-cols-[80px_1fr] gap-2">
+                      <span className="text-[12px] font-medium text-slate-700">{plan}</span>
+                      <span className="text-[12px] text-slate-500">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[12px] text-slate-500 mt-3">
+                  Refresh candidates are identified during the monthly site audit. They appear in the Content Refreshes tab once the updated draft is ready for your review.
+                </p>
+              </AccordionItem>
+
+              <AccordionItem label="How to review and approve">
+                <p className="mb-3">
+                  Go to <strong className="text-slate-700">Content Refreshes</strong> in the sidebar. Each refresh shows:
+                </p>
+                <div className="space-y-1.5 mb-3">
+                  {[
+                    ["Current page", "The live version fetched directly from your site — headlines, body copy, and meta tags."],
+                    ["Updated draft", "The new version we've written, with improved headings, expanded content, and better keyword targeting."],
+                  ].map(([label, desc]) => (
+                    <div key={label} className="grid grid-cols-[110px_1fr] gap-2">
+                      <span className="text-[12px] font-medium text-slate-700">{label}</span>
+                      <span className="text-[12px] text-slate-500">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[12px] text-slate-500">
+                  Click <strong className="text-slate-700">Approve &amp; Publish</strong> to push the updated version live. On WordPress this happens automatically. The original is never deleted — just replaced.
+                </p>
+              </AccordionItem>
+
+              <AccordionItem label="Tracking progress">
+                <p className="mb-2">
+                  The top of the Content Refreshes page shows a monthly progress tracker with counts for each status:
+                </p>
+                <div className="space-y-1.5">
+                  {[
+                    ["Scheduled", "Identified and queued — the updated draft is being prepared."],
+                    ["In Progress", "The page is actively being rewritten."],
+                    ["Ready to Review", "The draft is ready — your approval is needed before it goes live."],
+                    ["Approved", "You've signed off and the update is live or queued to publish."],
+                  ].map(([status, desc]) => (
+                    <div key={status} className="grid grid-cols-[130px_1fr] gap-2">
+                      <span className="text-[12px] font-medium text-slate-700">{status}</span>
+                      <span className="text-[12px] text-slate-500">{desc}</span>
+                    </div>
+                  ))}
+                </div>
               </AccordionItem>
             </div>
           </GlassCard>
