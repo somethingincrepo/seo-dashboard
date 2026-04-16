@@ -91,7 +91,7 @@ const NAV_ITEMS = [
   { suffix: "",                      label: "Dashboard",           Icon: IconDashboard },
   { suffix: "/approvals",            label: "Approvals",           Icon: IconApprovals },
   { suffix: "/content",              label: "Content",             Icon: IconContent },
-  { suffix: "/content-optimization", label: "Content Optimization",Icon: IconOptimization },
+  { suffix: "/content-optimization", label: "Content Refreshes",  Icon: IconOptimization },
   { suffix: "/indexation",           label: "Indexation",          Icon: IconIndexation },
   { suffix: "/reports",              label: "Reports",             Icon: IconReports },
   { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
