@@ -4,6 +4,24 @@ import { getSupabase } from "./supabase";
 const SESSION_COOKIE = "seo_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type AdminRole = "admin" | "viewer";
+
+export type AdminUser = {
+  id: string;
+  username: string;
+  role: AdminRole;
+  assigned_client_ids: string[];
+  created_at: string;
+};
+
+export type AdminSession = {
+  username: string;
+  role: AdminRole;
+  assigned_client_ids: string[];
+};
+
 // ── Crypto helpers ────────────────────────────────────────────────────────────
 
 function toHex(buf: Uint8Array): string {
@@ -51,7 +69,6 @@ async function makeToken(username: string, secret: string): Promise<string> {
   return `${payload}.${sig}`;
 }
 
-/** Verifies an HMAC-signed session token. Returns username on success, null on failure. */
 export async function verifyToken(token: string, secret: string): Promise<string | null> {
   const lastDot = token.lastIndexOf(".");
   if (lastDot === -1) return null;
@@ -71,6 +88,18 @@ export async function verifyToken(token: string, secret: string): Promise<string
   return username;
 }
 
+async function setSessionCookie(username: string, secret: string): Promise<void> {
+  const token = await makeToken(username, secret);
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: SESSION_MAX_AGE,
+    path: "/",
+  });
+}
+
 // ── Session CRUD ──────────────────────────────────────────────────────────────
 
 export async function createSession(username: string, password: string): Promise<boolean> {
@@ -79,8 +108,7 @@ export async function createSession(username: string, password: string): Promise
 
   const supabase = getSupabase();
 
-  // Bootstrap: if the table doesn't exist yet (error) or is empty (count === 0),
-  // accept username "admin" + ADMIN_PASSWORD and auto-create the first account.
+  // Bootstrap: table missing or empty → accept "admin" + ADMIN_PASSWORD
   const { count, error: countError } = await supabase
     .from("admin_users")
     .select("*", { count: "exact", head: true });
@@ -89,7 +117,6 @@ export async function createSession(username: string, password: string): Promise
 
   if (tableEmptyOrMissing) {
     if (username === "admin" && password === secret) {
-      // If the table exists and is empty, persist the account for next time
       if (!countError) {
         const salt = randomHex();
         const hash = await hashPassword(salt, password);
@@ -97,17 +124,11 @@ export async function createSession(username: string, password: string): Promise
           username: "admin",
           password_hash: hash,
           password_salt: salt,
+          role: "admin",
+          assigned_client_ids: [],
         });
       }
-      const token = await makeToken("admin", secret);
-      const cookieStore = await cookies();
-      cookieStore.set(SESSION_COOKIE, token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: SESSION_MAX_AGE,
-        path: "/",
-      });
+      await setSessionCookie("admin", secret);
       return true;
     }
     return false;
@@ -124,15 +145,7 @@ export async function createSession(username: string, password: string): Promise
   const hash = await hashPassword(user.password_salt as string, password);
   if (hash !== user.password_hash) return false;
 
-  const token = await makeToken(username, secret);
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: SESSION_MAX_AGE,
-    path: "/",
-  });
+  await setSessionCookie(username, secret);
   return true;
 }
 
@@ -141,7 +154,7 @@ export async function destroySession(): Promise<void> {
   cookieStore.delete(SESSION_COOKIE);
 }
 
-export async function getSession(): Promise<{ username: string } | null> {
+export async function getSession(): Promise<AdminSession | null> {
   const secret = process.env.ADMIN_PASSWORD;
   if (!secret) return null;
   const cookieStore = await cookies();
@@ -149,14 +162,27 @@ export async function getSession(): Promise<{ username: string } | null> {
   if (!cookie?.value) return null;
   const username = await verifyToken(cookie.value, secret);
   if (!username) return null;
-  return { username };
+
+  // Fetch role + assigned clients from Supabase
+  const { data } = await getSupabase()
+    .from("admin_users")
+    .select("role, assigned_client_ids")
+    .eq("username", username)
+    .maybeSingle();
+
+  // Default to admin if user not found (bootstrap case before table has role column)
+  const role: AdminRole = (data?.role as AdminRole) ?? "admin";
+  const assigned_client_ids: string[] = (data?.assigned_client_ids as string[]) ?? [];
+
+  return { username, role, assigned_client_ids };
 }
 
 // ── Admin user management ─────────────────────────────────────────────────────
 
 export async function createAdminUser(
   username: string,
-  password: string
+  password: string,
+  role: AdminRole = "viewer"
 ): Promise<{ error?: string }> {
   if (!username.trim() || !password) return { error: "Username and password are required" };
 
@@ -176,22 +202,89 @@ export async function createAdminUser(
     username: username.trim(),
     password_hash: hash,
     password_salt: salt,
+    role,
+    assigned_client_ids: [],
   });
 
   if (error) return { error: error.message };
   return {};
 }
 
-export async function listAdminUsers(): Promise<
-  { id: string; username: string; created_at: string }[]
-> {
+export async function listAdminUsers(): Promise<AdminUser[]> {
   const { data } = await getSupabase()
     .from("admin_users")
-    .select("id, username, created_at")
+    .select("id, username, role, assigned_client_ids, created_at")
     .order("created_at", { ascending: true });
-  return (data ?? []) as { id: string; username: string; created_at: string }[];
+  return (data ?? []).map((u) => ({
+    id: u.id,
+    username: u.username,
+    role: (u.role ?? "admin") as AdminRole,
+    assigned_client_ids: (u.assigned_client_ids ?? []) as string[],
+    created_at: u.created_at,
+  }));
+}
+
+export async function updateAdminUser(
+  id: string,
+  updates: { role?: AdminRole; assigned_client_ids?: string[] }
+): Promise<{ error?: string }> {
+  const { error } = await getSupabase()
+    .from("admin_users")
+    .update(updates)
+    .eq("id", id);
+  if (error) return { error: error.message };
+  return {};
 }
 
 export async function deleteAdminUser(id: string): Promise<void> {
   await getSupabase().from("admin_users").delete().eq("id", id);
+}
+
+export async function changePassword(
+  username: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ error?: string }> {
+  if (newPassword.length < 8) return { error: "New password must be at least 8 characters" };
+
+  const supabase = getSupabase();
+  const { data: user } = await supabase
+    .from("admin_users")
+    .select("id, password_hash, password_salt")
+    .eq("username", username)
+    .single();
+
+  if (!user) return { error: "User not found" };
+
+  const currentHash = await hashPassword(user.password_salt as string, currentPassword);
+  if (currentHash !== user.password_hash) return { error: "Current password is incorrect" };
+
+  const newSalt = randomHex();
+  const newHash = await hashPassword(newSalt, newPassword);
+
+  const { error } = await supabase
+    .from("admin_users")
+    .update({ password_hash: newHash, password_salt: newSalt })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function resetPassword(
+  userId: string,
+  newPassword: string
+): Promise<{ error?: string }> {
+  if (newPassword.length < 8) return { error: "Password must be at least 8 characters" };
+
+  const newSalt = randomHex();
+  const newHash = await hashPassword(newSalt, newPassword);
+
+  const { error } = await getSupabase()
+    .from("admin_users")
+    .update({ password_hash: newHash, password_salt: newSalt })
+    .eq("id", userId);
+
+  if (error) return { error: error.message };
+  return {};
 }

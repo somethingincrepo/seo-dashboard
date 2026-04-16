@@ -11,6 +11,7 @@ import { GenerateTokenButton } from "@/components/ui/GenerateTokenButton";
 import { GenerateCredentialsButton } from "@/components/ui/GenerateCredentialsButton";
 import { DeleteClientButton } from "@/components/ui/DeleteClientButton";
 import { CmsCredentialsForm } from "@/components/ui/CmsCredentialsForm";
+import { EngainLinkButton } from "@/components/ui/EngainLinkButton";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 
 export const dynamic = "force-dynamic";
@@ -251,6 +252,39 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           />
         </GlassCard>
       )}
+
+      {/* Engain — Reddit brand monitoring */}
+      <GlassCard className="p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1">
+            <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+              Reddit Monitoring
+              <span className="ml-2 text-slate-400 normal-case font-normal">
+                — Engain brand mentions
+              </span>
+            </div>
+            {f.engain_project_id ? (
+              <div className="space-y-1">
+                <div className="font-mono text-sm text-orange-600 break-all">{f.engain_project_id}</div>
+                <Link
+                  href={`/reddit/${id}`}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
+                >
+                  View mentions →
+                </Link>
+              </div>
+            ) : (
+              <div className="text-sm text-amber-600">
+                No project linked — connect an Engain project to enable Reddit monitoring
+              </div>
+            )}
+          </div>
+          <EngainLinkButton
+            clientId={id}
+            currentProjectId={f.engain_project_id || undefined}
+          />
+        </div>
+      </GlassCard>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
