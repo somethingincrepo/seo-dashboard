@@ -258,21 +258,38 @@ function RefreshedPanel({
       ? "text-red-500"
       : "text-slate-400";
 
+  // Detect whether this is a tracked-changes format (contains [ADDED] or [CHANGED])
+  const hasChangeMarkers = /\[ADDED\]|\[CHANGED |\[REMOVED\]/.test(body);
+
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
-      {/* Stats bar */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
-          ~{wordCount.toLocaleString()} words
-        </span>
-        {deltaLabel && (
-          <span className={`text-[10px] font-semibold ${deltaColor}`}>
-            ({deltaLabel})
+      {/* Stats + legend row */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
+            ~{wordCount.toLocaleString()} words
           </span>
+          {deltaLabel && (
+            <span className={`text-[10px] font-semibold ${deltaColor}`}>
+              ({deltaLabel})
+            </span>
+          )}
+        </div>
+        {hasChangeMarkers && (
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300" />
+              <span className="text-[10px] text-slate-500">Added</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-300" />
+              <span className="text-[10px] text-slate-500">Edited</span>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Meta fields */}
+      {/* Meta fields — highlight if changed */}
       {(metaTitle || metaDesc) && (
         <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5">
           {metaTitle && (
@@ -290,15 +307,7 @@ function RefreshedPanel({
         </div>
       )}
 
-      {/* Outline */}
-      {outline && (
-        <div className="bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2.5 mb-5">
-          <div className="text-[10px] font-semibold text-indigo-400 uppercase tracking-widest mb-1.5">Page outline</div>
-          <pre className="text-[11px] text-indigo-800 font-mono whitespace-pre-wrap leading-relaxed">{outline}</pre>
-        </div>
-      )}
-
-      {/* Article body */}
+      {/* Article body — change-aware rendering */}
       <div
         className="
           text-[13px] text-slate-700 leading-relaxed
@@ -310,6 +319,14 @@ function RefreshedPanel({
           [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:space-y-1
           [&_li]:text-[13px]
           [&_strong]:font-semibold [&_strong]:text-slate-900
+          [&_.ct-added]:block [&_.ct-added]:bg-emerald-50 [&_.ct-added]:border-l-2 [&_.ct-added]:border-emerald-400 [&_.ct-added]:pl-3 [&_.ct-added]:my-3 [&_.ct-added]:rounded-r
+          [&_.ct-label]:inline-block [&_.ct-label]:text-[9px] [&_.ct-label]:font-bold [&_.ct-label]:uppercase [&_.ct-label]:tracking-widest [&_.ct-label]:px-1.5 [&_.ct-label]:py-0.5 [&_.ct-label]:rounded [&_.ct-label]:mb-1.5
+          [&_.ct-label-added]:bg-emerald-100 [&_.ct-label-added]:text-emerald-700
+          [&_.ct-label-removed]:bg-red-100 [&_.ct-label-removed]:text-red-700
+          [&_.ct-removed]:block [&_.ct-removed]:bg-red-50 [&_.ct-removed]:border-l-2 [&_.ct-removed]:border-red-300 [&_.ct-removed]:pl-3 [&_.ct-removed]:my-3 [&_.ct-removed]:rounded-r [&_.ct-removed]:opacity-60
+          [&_.ct-changed]:inline [&_.ct-changed]:rounded [&_.ct-changed]:px-0.5
+          [&_.ct-del]:line-through [&_.ct-del]:text-red-400 [&_.ct-del]:mr-1 [&_.ct-del]:text-[11px] [&_.ct-del]:bg-red-50 [&_.ct-del]:px-0.5 [&_.ct-del]:rounded
+          [&_.ct-ins]:text-emerald-700 [&_.ct-ins]:bg-emerald-50 [&_.ct-ins]:px-0.5 [&_.ct-ins]:rounded [&_.ct-ins]:font-medium
         "
         dangerouslySetInnerHTML={{ __html: html }}
       />
@@ -476,7 +493,7 @@ function DetailPanel({
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-indigo-500" />
                 <span className="text-[11px] font-semibold text-indigo-500 uppercase tracking-widest">
-                  Updated draft
+                  Proposed changes
                 </span>
               </div>
             </div>

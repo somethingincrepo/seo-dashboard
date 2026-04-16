@@ -1,16 +1,17 @@
 /**
- * Convert n8n article bracket markup to HTML.
+ * Convert article bracket markup to HTML.
  *
- * n8n outputs a custom format:
+ * Standard tags:
  *   [H1]Title[/H1]  [H2]...[/H2]  [H3]...[/H3]
  *   [P]paragraph[/P]
- *   [UL]
- *   [LI]item[/LI]          ← single-line form
- *   [LI]                    ← multi-line form (content on next lines, closed by [/LI])
- *   long item text here
- *   [/LI]
- *   [/UL]
- *   [B]bold[/B]
+ *   [UL] [LI]item[/LI] [/UL]
+ *   [OL] [LI]item[/LI] [/OL]
+ *   [B]bold[/B]  [STRONG]bold[/STRONG]
+ *
+ * Change-tracking tags (used by content-refresh agent):
+ *   [ADDED]new content[/ADDED]          — entirely new section/paragraph (green)
+ *   [CHANGED from="old text"]new[/CHANGED] — in-place edit (shows del + ins)
+ *   [REMOVED]content[/REMOVED]          — removed content (strikethrough, shown for audit trail)
  *
  * The multi-line [LI]...[/LI] form is collapsed into a single line first,
  * then the line-by-line pass converts everything to HTML.
@@ -18,12 +19,35 @@
 export function bracketToHtml(text: string): string {
   if (!text) return "";
 
-  // ── Pre-pass: collapse multi-line [LI]...[/LI] into a single line ──────────
-  // Handles both [LI]\ncontent\n[/LI] and [LI]content\nmore\n[/LI]
+  // ── Pre-pass 1: collapse multi-line [LI]...[/LI] ──────────────────────────
   let processed = text.replace(
     /\[LI\]([\s\S]*?)\[\/LI\]/g,
     (_match, content: string) =>
       `[LI]${content.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim()}[/LI]`,
+  );
+
+  // ── Pre-pass 2: collapse multi-line [ADDED]...[/ADDED] into block ──────────
+  // Wrap inner content, preserve internal newlines for further processing
+  processed = processed.replace(
+    /\[ADDED\]([\s\S]*?)\[\/ADDED\]/g,
+    (_match, inner: string) => {
+      const innerHtml = bracketToHtml(inner.trim());
+      return `<div class="ct-added"><span class="ct-label ct-label-added">+ Added</span>${innerHtml}</div>`;
+    }
+  );
+
+  // ── Pre-pass 3: [CHANGED from="..."]new[/CHANGED] ─────────────────────────
+  processed = processed.replace(
+    /\[CHANGED from="([^"]*)"\]([\s\S]*?)\[\/CHANGED\]/g,
+    (_match, oldText: string, newText: string) =>
+      `<span class="ct-changed"><del class="ct-del">${escapeHtml(oldText.trim())}</del><ins class="ct-ins">${escapeHtml(newText.trim())}</ins></span>`
+  );
+
+  // ── Pre-pass 4: [REMOVED]...[/REMOVED] ────────────────────────────────────
+  processed = processed.replace(
+    /\[REMOVED\]([\s\S]*?)\[\/REMOVED\]/g,
+    (_match, content: string) =>
+      `<div class="ct-removed"><span class="ct-label ct-label-removed">− Removed</span><del>${escapeHtml(content.trim())}</del></div>`
   );
 
   // ── Line-by-line pass ───────────────────────────────────────────────────────
@@ -34,11 +58,12 @@ export function bracketToHtml(text: string): string {
     const line = raw.trimEnd();
     if (!line) { out.push(""); continue; }
 
-    // Inline replacements first
+    // Inline replacements
     const inlined = line
       .replace(/\[B\]/g, "<strong>")
       .replace(/\[\/B\]/g, "</strong>")
-      // Same-line list items: [LI]content[/LI] or [LI]content (no close)
+      .replace(/\[STRONG\]/g, "<strong>")
+      .replace(/\[\/STRONG\]/g, "</strong>")
       .replace(/\[LI\]\s*(.*?)\[\/LI\]/g, "<li>$1</li>")
       .replace(/\[LI\]\s*(.*)/g, "<li>$1</li>");
 
@@ -52,14 +77,20 @@ export function bracketToHtml(text: string): string {
       .replace(/^\[\/UL\]$/, "</ul>")
       .replace(/^\[OL\]$/, "<ol>")
       .replace(/^\[\/OL\]$/, "</ol>")
-      // Strip orphaned close tags that survive the pre-pass
       .replace(/^\[\/LI\]$/, "")
       .replace(/^\[\/H[123]\]$/, "")
       .replace(/^\[\/P\]$/, "");
 
-    // Skip lines that became empty after stripping close tags
     if (mapped.trim()) out.push(mapped);
   }
 
   return out.join("\n");
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
