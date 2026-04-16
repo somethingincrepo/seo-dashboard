@@ -188,10 +188,13 @@ function OriginalPanel({
         <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5">
           {origTitle && (
             <div>
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                Meta title ({origTitle.length}/60)
+              <div className="text-[10px] font-semibold uppercase tracking-widest flex items-center gap-1.5">
+                <span className="text-slate-400">Meta title</span>
+                <span className={origTitle.length > 60 ? "text-red-500 font-bold" : "text-slate-400"}>
+                  ({origTitle.length}/60)
+                </span>
                 {metaWasChanged(rawMetaTitle) && (
-                  <span className="ml-1.5 text-amber-600 normal-case font-medium">current</span>
+                  <span className="text-amber-600 normal-case font-medium">current</span>
                 )}
               </div>
               <p className="text-[12px] text-slate-700 font-medium mt-0.5">{origTitle}</p>
@@ -199,10 +202,13 @@ function OriginalPanel({
           )}
           {origDesc && (
             <div>
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                Meta description ({origDesc.length}/160)
+              <div className="text-[10px] font-semibold uppercase tracking-widest flex items-center gap-1.5">
+                <span className="text-slate-400">Meta description</span>
+                <span className={origDesc.length > 155 ? "text-red-500 font-bold" : "text-slate-400"}>
+                  ({origDesc.length}/155)
+                </span>
                 {metaWasChanged(rawMetaDesc) && (
-                  <span className="ml-1.5 text-amber-600 normal-case font-medium">current</span>
+                  <span className="text-amber-600 normal-case font-medium">current</span>
                 )}
               </div>
               <p className="text-[12px] text-slate-600 italic mt-0.5">{origDesc}</p>
@@ -277,10 +283,13 @@ function RefreshedPanel({
         <div className={`bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5 ${CT_INLINE}`}>
           {rawMetaTitle && (
             <div>
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                Meta title ({newMetaTitle.length}/60)
+              <div className="text-[10px] font-semibold uppercase tracking-widest flex items-center gap-1.5">
+                <span className="text-slate-400">Meta title</span>
+                <span className={newMetaTitle.length > 60 ? "text-red-500 font-bold" : "text-slate-400"}>
+                  ({newMetaTitle.length}/60)
+                </span>
                 {metaWasChanged(rawMetaTitle) && (
-                  <span className="ml-1.5 text-amber-600 normal-case font-medium">proposed</span>
+                  <span className="text-amber-600 normal-case font-medium">proposed</span>
                 )}
               </div>
               <div
@@ -291,10 +300,13 @@ function RefreshedPanel({
           )}
           {rawMetaDesc && (
             <div>
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                Meta description ({newMetaDesc.length}/160)
+              <div className="text-[10px] font-semibold uppercase tracking-widest flex items-center gap-1.5">
+                <span className="text-slate-400">Meta description</span>
+                <span className={newMetaDesc.length > 155 ? "text-red-500 font-bold" : "text-slate-400"}>
+                  ({newMetaDesc.length}/155)
+                </span>
                 {metaWasChanged(rawMetaDesc) && (
-                  <span className="ml-1.5 text-amber-600 normal-case font-medium">proposed</span>
+                  <span className="text-amber-600 normal-case font-medium">proposed</span>
                 )}
               </div>
               <div
