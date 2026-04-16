@@ -438,6 +438,8 @@ function ApprovalMasterDetailInner({
   // Compute triage card data — safe types that can be bulk-approved without review
   const safeIds = effectivePending
     .filter((c) => {
+      const local = localChanges.get(c.id);
+      if (local && local.approval !== "pending") return false;
       const t = normalizeType(c.fields.type || c.fields.change_type);
       if (SAFE_TYPES.includes(t)) return true;
       if (t === SAFE_TYPE_SCHEMA && c.fields.priority !== "Critical") return true;
@@ -746,6 +748,13 @@ function ApprovalMasterDetailInner({
                   recordIds={safeIds}
                   token={token}
                   label={`Approve all ${safeIds.length} fixes`}
+                  onApproved={(ids) => {
+                    setLocalChanges((prev) => {
+                      const next = new Map(prev);
+                      for (const id of ids) next.set(id, { approval: "approved", client_notes: "" });
+                      return next;
+                    });
+                  }}
                 />
               </div>
             )}

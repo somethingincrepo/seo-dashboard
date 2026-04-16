@@ -6,9 +6,10 @@ interface BatchApproveButtonProps {
   recordIds: string[];
   token: string;
   label?: string;
+  onApproved?: (ids: string[]) => void;
 }
 
-export function BatchApproveButton({ recordIds, token, label }: BatchApproveButtonProps) {
+export function BatchApproveButton({ recordIds, token, label, onApproved }: BatchApproveButtonProps) {
   const [state, setState] = useState<"idle" | "running" | "done">("idle");
   const [progress, setProgress] = useState(0);
   const router = useRouter();
@@ -26,6 +27,7 @@ export function BatchApproveButton({ recordIds, token, label }: BatchApproveButt
       setProgress(i + 1);
     }
     setState("done");
+    onApproved?.(recordIds);
     setTimeout(() => router.refresh(), 800);
   }
 

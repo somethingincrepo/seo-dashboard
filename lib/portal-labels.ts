@@ -159,8 +159,11 @@ export function getListItemTitle(
   /** Pass ChangeFields for metadata-aware titles */
   fields?: { current_value?: string; proposed_value?: string }
 ): string {
-  if (changeTitle?.trim()) return cleanChangeTitle(changeTitle);
   const normalizedType = normalizeType(type);
+  // For Metadata, skip the agent-written change_title — it's inconsistent
+  // ("Expand services page title", "Update homepage title tag", etc.).
+  // All metadata changes use the standardized computed action label instead.
+  if (normalizedType !== "Metadata" && changeTitle?.trim()) return cleanChangeTitle(changeTitle);
   let action = ACTION_VERBS[normalizedType] || `Update ${normalizedType.toLowerCase()}`;
   // For metadata, detect title vs description vs both
   if (normalizedType === "Metadata" && fields) {
