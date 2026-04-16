@@ -22,9 +22,15 @@ export async function GET(request: NextRequest) {
 
   const records = await airtableFetch<Change>("Changes", {
     filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id})),{execution_status}="complete")`,
-    fields: ["page_url", "type", "cat", "implemented_at", "indexing_status", "indexing_submitted_at", "change_title"] as never[],
+    fields: [
+      "page_url", "type", "cat", "implemented_at",
+      "indexing_status", "indexing_submitted_at", "change_title",
+      "gsc_coverage_state", "gsc_verdict", "gsc_last_checked", "gsc_last_crawled",
+    ] as never[],
     sort: [{ field: "implemented_at", direction: "desc" }],
   });
+
+  const f = (r: Change, key: string) => (r.fields as Record<string, unknown>)[key] as string | null ?? null;
 
   const changes = records
     .filter((r) => r.fields.page_url)
@@ -34,12 +40,16 @@ export async function GET(request: NextRequest) {
       type: r.fields.type || "",
       cat: r.fields.cat || r.fields.category || "",
       implemented_at: r.fields.implemented_at || "",
-      indexing_status: (r.fields as Record<string, unknown>).indexing_status as string || "not_submitted",
-      indexing_submitted_at: (r.fields as Record<string, unknown>).indexing_submitted_at as string | null || null,
+      indexing_status: f(r, "indexing_status") || "not_submitted",
+      indexing_submitted_at: f(r, "indexing_submitted_at"),
       change_title: r.fields.change_title || "",
+      gsc_coverage_state: f(r, "gsc_coverage_state"),
+      gsc_verdict: f(r, "gsc_verdict"),
+      gsc_last_checked: f(r, "gsc_last_checked"),
+      gsc_last_crawled: f(r, "gsc_last_crawled"),
     }));
 
-  return NextResponse.json({ changes });
+  return NextResponse.json({ changes, gsc_property: client.fields.gsc_property || null });
 }
 
 /**

@@ -35,6 +35,12 @@ export type ChangeFields = {
   indexing_status: "not_submitted" | "submitted" | "failed";
   indexing_submitted_at: string;
 
+  // GSC URL Inspection fields (written by gsc-inspection tool)
+  gsc_coverage_state: string;  // e.g. "Submitted and indexed", "Crawled - currently not indexed"
+  gsc_verdict: string;         // PASS | FAIL | NEUTRAL | VERDICT_UNSPECIFIED
+  gsc_last_checked: string;    // ISO datetime of last inspection API call
+  gsc_last_crawled: string;    // ISO datetime Google last crawled this URL
+
   // Client-facing fields (populated by audit agent for portal display)
   plain_english_explanation: string;    // "What We Recommend" — client-friendly summary
   business_impact_explanation: string;  // "Why It Matters" — business value, not agent logic
