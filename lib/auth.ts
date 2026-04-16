@@ -85,7 +85,7 @@ export async function createSession(username: string, password: string): Promise
     .from("admin_users")
     .select("*", { count: "exact", head: true });
 
-  const tableEmptyOrMissing = countError !== null || count === 0;
+  const tableEmptyOrMissing = countError !== null || (count ?? 0) === 0;
 
   if (tableEmptyOrMissing) {
     if (username === "admin" && password === secret) {
