@@ -3,6 +3,7 @@ import { getClientByToken } from "@/lib/clients";
 import { getPortalSession } from "@/lib/portal-auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
+import { getEngainMentionStats } from "@/lib/engain";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
 import { MonthlyProgressSidebar } from "@/components/portal/MonthlyProgress";
 
@@ -38,10 +39,15 @@ export default async function PortalLayout({
   const recordId = client.id;
   const companyName = client.fields.company_name || "";
 
-  const [pending, contentResults, contentJobs] = await Promise.all([
+  const engainProjectId = client.fields.engain_project_id || "";
+
+  const [pending, contentResults, contentJobs, engainStats] = await Promise.all([
     getPendingApprovals(clientId, recordId),
     getContentResultsForClient(companyName).catch(() => []),
     getContentJobsForClient(companyName).catch(() => []),
+    engainProjectId
+      ? getEngainMentionStats(engainProjectId).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const KNOWN_CATS = ["Technical", "On-Page", "Content", "AI-GEO"];
@@ -91,6 +97,8 @@ export default async function PortalLayout({
       categoryBreakdown={categoryBreakdown}
       isLoggedIn={isLoggedIn}
       monthlyProgress={<MonthlyProgressSidebar client={client} />}
+      hasReddit={!!engainProjectId}
+      redditMentionCount={engainStats?.total ?? 0}
     >
       {children}
     </PortalSidebar>

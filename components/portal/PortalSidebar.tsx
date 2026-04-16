@@ -15,6 +15,8 @@ interface PortalSidebarProps {
   categoryBreakdown: Record<string, number>;
   isLoggedIn: boolean;
   monthlyProgress?: React.ReactNode;
+  hasReddit?: boolean;
+  redditMentionCount?: number;
 }
 
 const CATEGORY_ROUTES: Record<string, string> = {
@@ -88,6 +90,18 @@ function IconLinks({ className }: { className?: string }) {
     </svg>
   );
 }
+function IconReddit({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M15.5 8.5a1 1 0 1 0 2 0 1 1 0 0 0-2 0"/>
+      <path d="M8 12a4 4 0 0 0 8 0"/>
+      <circle cx="9" cy="13" r="0.5" fill="currentColor"/>
+      <circle cx="15" cy="13" r="0.5" fill="currentColor"/>
+      <path d="M12 7v2"/>
+    </svg>
+  );
+}
 function IconBook({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -105,6 +119,7 @@ const NAV_ITEMS = [
   { suffix: "/indexation",           label: "Indexation",          Icon: IconIndexation },
   { suffix: "/reports",              label: "Reports",             Icon: IconReports },
   { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
+  { suffix: "/reddit",               label: "Reddit Mentions",     Icon: IconReddit },
 ] as const;
 
 export function PortalSidebar({
@@ -119,6 +134,8 @@ export function PortalSidebar({
   categoryBreakdown,
   isLoggedIn,
   monthlyProgress,
+  hasReddit,
+  redditMentionCount,
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const base = `/portal/${token}`;
@@ -146,6 +163,9 @@ export function PortalSidebar({
         {/* Nav */}
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
+            // Hide Reddit nav item if no Engain project is linked
+            if (item.suffix === "/reddit" && !hasReddit) return null;
+
             const href = `${base}${item.suffix}`;
             const isActive =
               item.suffix === ""
@@ -186,6 +206,11 @@ export function PortalSidebar({
                   {item.suffix === "/internal-links" && (internalLinksPendingCount ?? 0) > 0 && (
                     <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
                       {internalLinksPendingCount}
+                    </span>
+                  )}
+                  {item.suffix === "/reddit" && (redditMentionCount ?? 0) > 0 && (
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 ring-1 ring-inset ring-orange-200/60">
+                      {redditMentionCount}
                     </span>
                   )}
                 </Link>
