@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getEngainMentions, getEngainMentionStats, getEngainBrands } from "@/lib/engain";
 import { PACKAGES, PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
@@ -50,13 +49,50 @@ export default async function PortalRedditPage({
   const sp = await searchParams;
 
   const client = await getClientByToken(token);
-  if (!client) notFound();
+  if (!client) return null;
 
   const projectId = client.fields.engain_project_id;
   const pkg = client.fields.package as PackageTier | undefined;
   const budget = pkg ? PACKAGES[pkg].reddit_comments : null;
 
-  if (!projectId) notFound();
+  // Not yet configured — show the plan info with a setup-in-progress state
+  if (!projectId) {
+    return (
+      <div className="space-y-8 max-w-3xl">
+        <div>
+          <h1 className="text-[22px] font-semibold text-slate-900">Reddit Mentions</h1>
+          <p className="text-slate-500 text-sm mt-1">
+            What people are saying about {client.fields.company_name} on Reddit
+          </p>
+        </div>
+
+        {budget !== null && pkg && (
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]">
+            <div className="flex items-start justify-between gap-6">
+              <div>
+                <div className="text-sm font-semibold text-slate-800 mb-1">Reddit monitoring is included in your plan</div>
+                <div className="text-sm text-slate-500 leading-relaxed">
+                  Your {PACKAGE_LABELS[pkg]} plan includes <span className="font-semibold text-slate-700">{budget} Reddit comments per month</span>. We&apos;re setting up brand monitoring for your account — check back soon for your first mentions report.
+                </div>
+              </div>
+              <div className="shrink-0 text-center bg-orange-50 rounded-xl px-5 py-3">
+                <div className="text-3xl font-bold text-orange-500">{budget}</div>
+                <div className="text-[10px] text-orange-400 mt-0.5 uppercase tracking-wide">comments/mo</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl border border-dashed border-slate-200 p-12 text-center">
+          <div className="text-3xl mb-3">▲</div>
+          <div className="text-slate-600 font-medium mb-1">Monitoring being set up</div>
+          <div className="text-slate-400 text-sm">
+            Your Reddit brand tracking is being configured. You&apos;ll see mentions here once it&apos;s live.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const currentPage = Number(sp.page ?? 1);
   const sentiment = sp.sentiment ?? "";

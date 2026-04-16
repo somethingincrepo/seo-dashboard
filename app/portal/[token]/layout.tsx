@@ -4,6 +4,7 @@ import { getPortalSession } from "@/lib/portal-auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { getEngainMentionStats } from "@/lib/engain";
+import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
 import { MonthlyProgressSidebar } from "@/components/portal/MonthlyProgress";
 
@@ -40,6 +41,9 @@ export default async function PortalLayout({
   const companyName = client.fields.company_name || "";
 
   const engainProjectId = client.fields.engain_project_id || "";
+  const pkg = client.fields.package as PackageTier | undefined;
+  // Show Reddit tab for any client on a package (all tiers include reddit_comments)
+  const hasReddit = !!(pkg && PACKAGES[pkg].reddit_comments > 0);
 
   const [pending, contentResults, contentJobs, engainStats] = await Promise.all([
     getPendingApprovals(clientId, recordId),
@@ -97,7 +101,7 @@ export default async function PortalLayout({
       categoryBreakdown={categoryBreakdown}
       isLoggedIn={isLoggedIn}
       monthlyProgress={<MonthlyProgressSidebar client={client} />}
-      hasReddit={!!engainProjectId}
+      hasReddit={hasReddit}
       redditMentionCount={engainStats?.total ?? 0}
     >
       {children}
