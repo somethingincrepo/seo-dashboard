@@ -31,6 +31,10 @@ export type ChangeFields = {
   change_title: string;  // Agent-written short title — e.g. "Fix meta description on Pricing page"
   month: number;
 
+  // Indexing API fields (written by google-indexing tool after submission)
+  indexing_status: "not_submitted" | "submitted" | "failed";
+  indexing_submitted_at: string;
+
   // Client-facing fields (populated by audit agent for portal display)
   plain_english_explanation: string;    // "What We Recommend" — client-friendly summary
   business_impact_explanation: string;  // "Why It Matters" — business value, not agent logic

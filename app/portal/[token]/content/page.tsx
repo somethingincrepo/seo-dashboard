@@ -16,17 +16,27 @@ export default async function ContentPage({
 
   const companyName = client.fields.company_name || "Your Company";
 
-  const [jobs, results] = await Promise.all([
+  const [allJobs, allResults] = await Promise.all([
     getContentJobsForClient(companyName).catch(() => []),
     getContentResultsForClient(companyName).catch(() => []),
   ]);
+
+  // Refresh jobs live in Content Optimization — exclude them here
+  const jobs = allJobs.filter((j) => !j.fields.refresh_url);
+
+  // Exclude results linked to refresh jobs
+  const refreshJobIds = new Set(allJobs.filter((j) => !!j.fields.refresh_url).map((j) => j.id));
+  const results = allResults.filter(
+    (r) => !(r.fields["Job ID"] ?? []).some((jid) => refreshJobIds.has(jid))
+  );
 
   return (
     <div className="-mx-10 flex flex-col min-h-[calc(100vh-5rem)]">
       <div className="px-10 mb-6">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Content Pipeline</h1>
         <p className="text-base text-slate-500 mt-1">
-          Track every piece of content from title approval through publication
+          Track every article from title approval through publication — refreshes are in{" "}
+          <strong>Content Optimization</strong>
         </p>
       </div>
 

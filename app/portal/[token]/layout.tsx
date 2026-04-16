@@ -64,6 +64,16 @@ export default async function PortalLayout({
     (j) => j.fields.title_status === "titled"
   ).length;
 
+  // Refresh jobs that have completed results awaiting portal approval
+  const refreshResultJobIds = new Set(
+    contentResults
+      .filter((r) => !r.fields.portal_approval)
+      .flatMap((r) => r.fields["Job ID"] ?? [])
+  );
+  const contentOptimizationCount = contentJobs.filter(
+    (j) => !!j.fields.refresh_url && refreshResultJobIds.has(j.id)
+  ).length;
+
   return (
     <PortalSidebar
       companyName={companyName || "Your Portal"}
@@ -71,6 +81,7 @@ export default async function PortalLayout({
       pendingCount={navigablePendingCount}
       contentReviewCount={contentReviewCount}
       titleProposalCount={titleProposalCount}
+      contentOptimizationCount={contentOptimizationCount}
       categoryBreakdown={categoryBreakdown}
       isLoggedIn={isLoggedIn}
       monthlyProgress={<MonthlyProgressSidebar client={client} />}

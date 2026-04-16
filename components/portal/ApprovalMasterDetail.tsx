@@ -12,6 +12,7 @@ import {
   normalizeCat,
 } from "@/lib/portal-labels";
 import { ChangePreview } from "@/components/portal/ChangePreview";
+import { IndexingBadge } from "@/components/portal/IndexingBadge";
 import { useApprovalActions } from "./useApprovalActions";
 import { ApprovalActionBar } from "./ApprovalActionBar";
 import type { Change } from "@/lib/changes";
@@ -815,7 +816,7 @@ function ApprovalMasterDetailInner({
                 const page_url = fields.page_url;
                 const whyText = getWhyItMatters(fields);
                 return <>
-              {/* Badges — max 3: category, type (if different from cat), nav page */}
+              {/* Badges — category, type (if different from cat), nav page, indexing status */}
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <StatusBadge value={cat || "Other"} variant="category" />
                 {type && type !== cat && (
@@ -823,6 +824,12 @@ function ApprovalMasterDetailInner({
                 )}
                 {fields.is_nav_page && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Nav page</span>
+                )}
+                {fields.implemented_at && (
+                  <IndexingBadge
+                    status={fields.indexing_status}
+                    submittedAt={fields.indexing_submitted_at}
+                  />
                 )}
               </div>
 

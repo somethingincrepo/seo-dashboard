@@ -4,6 +4,7 @@ import { getClientByToken } from "@/lib/clients";
 import { airtableCreate, airtableFetch, airtablePatch } from "@/lib/airtable";
 import { getSupabase } from "@/lib/supabase";
 import { PACKAGES, type PackageTier, type PackageDeliverables } from "@/lib/packages";
+import { submitUrlToIndexingAPI } from "@/lib/tools/google-indexing";
 
 // Change types that consume a monthly quota slot
 const TYPE_QUOTAS: Record<string, keyof PackageDeliverables> = {
@@ -48,10 +49,10 @@ export async function POST(request: NextRequest) {
 
     if (decision === "approved") {
       // Three-gate check before dispatching implement job
-      type ChangeRecord = { id: string; fields: { auto_executable?: boolean; requires_design_review?: boolean; type?: string } };
+      type ChangeRecord = { id: string; fields: { auto_executable?: boolean; requires_design_review?: boolean; type?: string; page_url?: string } };
       const changeRecords = await airtableFetch<ChangeRecord>("Changes", {
         filterByFormula: `RECORD_ID()="${recordId}"`,
-        fields: ["auto_executable", "requires_design_review", "type"],
+        fields: ["auto_executable", "requires_design_review", "type", "page_url"],
         maxRecords: 1,
       });
       const changeFields = changeRecords[0]?.fields ?? {};
@@ -118,6 +119,19 @@ export async function POST(request: NextRequest) {
         });
       } catch (err) {
         console.error("Supabase job insert failed (non-fatal):", err);
+      }
+
+      // Fire-and-forget: submit the page URL to Google Indexing API so Google
+      // crawls it as soon as the implementation goes live.
+      const pageUrl = changeFields.page_url as string | undefined;
+      if (pageUrl) {
+        submitUrlToIndexingAPI(pageUrl).then((result) => {
+          const status = "error" in result ? "failed" : "submitted";
+          airtablePatch("Changes", recordId, {
+            indexing_status: status,
+            indexing_submitted_at: new Date().toISOString(),
+          }).catch(() => {});
+        }).catch(() => {});
       }
 
       return NextResponse.json({ ok: true, queued: true, outcome: "queued" });
