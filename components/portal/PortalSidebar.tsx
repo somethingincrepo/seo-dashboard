@@ -179,9 +179,18 @@ export function PortalSidebar({
         {/* Brand */}
         <div className="px-4 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-semibold text-sm shrink-0">
-              {companyName.charAt(0).toUpperCase()}
-            </div>
+            {showLogo ? (
+              <img
+                src={logoUrl}
+                alt={companyName}
+                onError={() => setLogoError(true)}
+                className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200 shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+                {companyName.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="flex flex-col min-w-0">
               <span className="text-[13px] font-semibold text-slate-900 leading-tight truncate">{companyName}</span>
               <span className="text-[11px] text-slate-500 leading-tight">Client Portal</span>

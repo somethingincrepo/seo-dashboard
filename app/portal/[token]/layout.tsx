@@ -42,6 +42,17 @@ export default async function PortalLayout({
 
   const engainProjectId = client.fields.engain_project_id || "";
   const pkg = client.fields.package as PackageTier | undefined;
+
+  // Logo: use explicit logo_url, fall back to Google favicon from site_url
+  const logoUrl = (() => {
+    if (client.fields.logo_url) return client.fields.logo_url;
+    try {
+      const domain = new URL(client.fields.site_url || "").hostname;
+      return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=64` : "";
+    } catch {
+      return "";
+    }
+  })();
   // Show Reddit tab for any client on a package (all tiers include reddit_comments)
   const hasReddit = !!(pkg && PACKAGES[pkg].reddit_comments > 0);
 
@@ -93,6 +104,7 @@ export default async function PortalLayout({
     <PortalSidebar
       companyName={companyName || "Your Portal"}
       token={token}
+      logoUrl={logoUrl}
       pendingCount={navigablePendingCount}
       contentReviewCount={contentReviewCount}
       titleProposalCount={titleProposalCount}
