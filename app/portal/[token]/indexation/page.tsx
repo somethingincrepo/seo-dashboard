@@ -187,6 +187,8 @@ export default function IndexationPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
   const [hasGsc, setHasGsc] = useState(true);
   const autoInspectRan = useRef(false);
+  const [manualUrl, setManualUrl] = useState("");
+  const [manualSubmitting, setManualSubmitting] = useState(false);
 
   // Build deduplicated rows from Change records
   function buildRows(changes: Change[], checkingUrls: Set<string> = new Set()): Row[] {
@@ -389,6 +391,31 @@ export default function IndexationPage() {
     }
   }
 
+  async function submitManualUrl() {
+    const url = manualUrl.trim();
+    if (!url) return;
+    setManualSubmitting(true);
+    try {
+      const res = await fetch("/api/portal/indexation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, urls: [url] }),
+      });
+      const data = await res.json();
+      if (data.succeeded?.includes(url)) {
+        setToast({ message: "URL submitted to Google.", type: "success" });
+        setManualUrl("");
+      } else {
+        const err = data.failed?.[0]?.error || "Submission failed.";
+        setToast({ message: err, type: "error" });
+      }
+    } catch {
+      setToast({ message: "Something went wrong. Please try again.", type: "error" });
+    } finally {
+      setManualSubmitting(false);
+    }
+  }
+
   function fmtUrl(url: string) {
     try { return new URL(url).pathname || "/"; } catch { return url; }
   }
@@ -449,6 +476,29 @@ export default function IndexationPage() {
         <Tile label="Indexed" value={counts.indexed} color={counts.indexed > 0 ? "green" : "slate"} sub="confirmed by Google" />
         <Tile label="Issues" value={counts.issues} color={counts.issues > 0 ? "amber" : "slate"} sub="not indexed or blocked" />
         <Tile label="Not checked" value={counts.unchecked} color="slate" sub={hasGsc ? "auto-checks on load" : "no GSC configured"} />
+      </div>
+
+      {/* Manual URL submit */}
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white px-5 py-4">
+        <div className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-3">Submit a URL to Google</div>
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={manualUrl}
+            onChange={(e) => setManualUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitManualUrl()}
+            placeholder="https://example.com/page"
+            className="flex-1 text-[13px] px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          />
+          <button
+            onClick={submitManualUrl}
+            disabled={!manualUrl.trim() || manualSubmitting}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-[13px] font-medium hover:bg-slate-700 disabled:opacity-40 transition-colors"
+          >
+            {manualSubmitting ? <><Spinner className="w-3.5 h-3.5" />Submitting…</> : "Submit"}
+          </button>
+        </div>
+        <p className="mt-2 text-[11px] text-slate-400">Tells Google to re-crawl this URL and update its index. Results appear in the Google status column within a few days.</p>
       </div>
 
       {/* No GSC warning */}
