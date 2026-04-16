@@ -59,8 +59,9 @@ export default async function ContentOptimizationPage({
   const thisMonthJobs = refreshJobs.filter((j) => jobDate(j) >= monthStart);
   const prevMonthJobs = refreshJobs.filter((j) => jobDate(j) < monthStart);
 
-  // Current month: show up to plan limit (agent should only create N, but cap defensively)
-  const items = sortItems(thisMonthJobs.map(toItem)).slice(0, limit);
+  // Current month: only show jobs where content is ready (title_status = "completed")
+  // Hide "Scheduled" (not yet run) and "In Progress" (approved but no result yet)
+  const items = sortItems(thisMonthJobs.filter((j) => j.fields.title_status === "completed").map(toItem)).slice(0, limit);
   // Historical: most recent first, all approved/completed ones
   const historicalItems = sortItems(prevMonthJobs.map(toItem))
     .filter((i) => i.job.fields.title_status === "completed" || i.result)
