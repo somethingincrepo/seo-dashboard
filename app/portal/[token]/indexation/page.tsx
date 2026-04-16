@@ -601,32 +601,6 @@ export default function IndexationPage() {
         </div>
       )}
 
-      {/* Explainer */}
-      <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-5 py-4 space-y-3">
-        <div className="flex gap-3">
-          <div className="text-blue-400 shrink-0 mt-0.5">💡</div>
-          <div>
-            <div className="text-[13px] font-semibold text-blue-800 mb-1">How this works</div>
-            <p className="text-[13px] text-blue-700 leading-relaxed">
-              When we update your site, we submit each page directly to Google — that&apos;s the <strong>Submitted</strong> column. The <strong>Google status</strong> column shows what Google actually reports back after it visits the page. Most pages show &quot;Indexed&quot; within a few days.
-            </p>
-          </div>
-        </div>
-        <div className="pl-7 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-          {[
-            { chip: "Indexed", color: "bg-emerald-100 text-emerald-700", desc: "Live in Google Search" },
-            { chip: "Not indexed", color: "bg-amber-100 text-amber-700", desc: "Google visited but skipped" },
-            { chip: "Queued", color: "bg-amber-100 text-amber-700", desc: "Waiting to be crawled" },
-            { chip: "Blocked", color: "bg-red-100 text-red-700", desc: "Prevented from indexing" },
-          ].map(({ chip, color, desc }) => (
-            <div key={chip} className="flex items-start gap-1.5">
-              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${color}`}>{chip}</span>
-              <span className="text-blue-600">{desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
     </div>
   );
