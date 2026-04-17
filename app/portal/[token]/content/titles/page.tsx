@@ -82,8 +82,7 @@ function QuotaBanner({ quota, packageTier }: { quota: QuotaState; packageTier: P
   const pkg = PACKAGES[packageTier];
   const rows: { key: ContentTypeName; label: string }[] = [
     { key: "standard", label: "Standard Article" },
-    ...(pkg.articles_longform > 0 ? [{ key: "longform" as ContentTypeName, label: "Long-Form Article" }] : []),
-    { key: "refresh", label: "Content Refresh" },
+    ...(pkg.articles_longform > 0 ? [{ key: "longform" as ContentTypeName, label: "Long-Form Guide" }] : []),
   ];
 
   return (
@@ -118,13 +117,6 @@ function QuotaBanner({ quota, packageTier }: { quota: QuotaState; packageTier: P
 // ContentTypeModal — appears when "Approve…" is clicked
 // ---------------------------------------------------------------------------
 
-const PAGE_TYPE_OPTIONS = [
-  { value: "Blog Post", label: "Blog Post" },
-  { value: "Service Page", label: "Service Page" },
-  { value: "Landing Page", label: "Landing Page" },
-  { value: "Other", label: "Other" },
-];
-
 function ContentTypeModal({
   title,
   quota,
@@ -136,16 +128,15 @@ function ContentTypeModal({
   title: Title;
   quota: QuotaState;
   packageTier: PackageTier;
-  onConfirm: (type: ContentTypeName, refreshUrl?: string, pageType?: string) => void;
+  onConfirm: (type: ContentTypeName) => void;
   onCancel: () => void;
   busy: boolean;
 }) {
   const pkg = PACKAGES[packageTier];
 
-  // Pre-populate from title if it's already a refresh with URL
-  const [selectedType, setSelectedType] = useState<ContentTypeName>(title.content_type_name ?? "standard");
-  const [refreshUrl, setRefreshUrl] = useState(title.refresh_url ?? "");
-  const [pageType, setPageType] = useState(title.page_type ?? "Blog Post");
+  const [selectedType, setSelectedType] = useState<ContentTypeName>(
+    title.content_type_name === "longform" ? "longform" : "standard"
+  );
 
   const options: { type: ContentTypeName; label: string; desc: string; available: boolean; reason?: string }[] = [
     {
@@ -157,23 +148,14 @@ function ContentTypeModal({
     },
     ...(pkg.articles_longform > 0 ? [{
       type: "longform" as ContentTypeName,
-      label: "Long-Form Article",
+      label: "Long-Form Guide",
       desc: CONTENT_TYPE_CONFIG.longform.wordRange,
       available: quota.longform.used < quota.longform.limit,
       reason: quota.longform.used >= quota.longform.limit ? `${quota.longform.limit}/${quota.longform.limit} used this month` : undefined,
     }] : []),
-    {
-      type: "refresh",
-      label: "Content Refresh",
-      desc: "Rewrite & expand an existing page",
-      available: quota.refresh.used < quota.refresh.limit,
-      reason: quota.refresh.used >= quota.refresh.limit ? `${quota.refresh.limit}/${quota.refresh.limit} used this month` : undefined,
-    },
   ];
 
-  const canConfirm =
-    options.find((o) => o.type === selectedType)?.available &&
-    (selectedType !== "refresh" || refreshUrl.trim().length > 0);
+  const canConfirm = options.find((o) => o.type === selectedType)?.available ?? false;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onCancel}>
@@ -211,38 +193,6 @@ function ContentTypeModal({
               </div>
             </button>
           ))}
-
-          {/* Refresh-specific fields */}
-          {selectedType === "refresh" && (
-            <div className="mt-1 flex flex-col gap-2">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
-                  URL to refresh <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="url"
-                  value={refreshUrl}
-                  onChange={(e) => setRefreshUrl(e.target.value)}
-                  placeholder="https://yoursite.com/page-to-update"
-                  className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
-                  Page type
-                </label>
-                <select
-                  value={pageType}
-                  onChange={(e) => setPageType(e.target.value)}
-                  className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-                >
-                  {PAGE_TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="px-5 pb-5 flex gap-2">
@@ -253,7 +203,7 @@ function ContentTypeModal({
             Cancel
           </button>
           <button
-            onClick={() => canConfirm && onConfirm(selectedType, selectedType === "refresh" ? refreshUrl.trim() : undefined, selectedType === "refresh" ? pageType : undefined)}
+            onClick={() => canConfirm && onConfirm(selectedType)}
             disabled={!canConfirm || busy}
             className="flex-1 py-2 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
@@ -304,7 +254,6 @@ function ProposalCard({
   const pkg = PACKAGES[packageTier];
   const allAtLimit =
     quota.standard.used >= quota.standard.limit &&
-    quota.refresh.used >= quota.refresh.limit &&
     (pkg.articles_longform === 0 || quota.longform.used >= quota.longform.limit);
 
   const save = useCallback(async (extraFields?: Record<string, unknown>) => {
@@ -320,7 +269,7 @@ function ProposalCard({
     setShowTypeModal(true);
   };
 
-  const handleApproveConfirm = async (typeName: ContentTypeName, refreshUrl?: string, pageType?: string) => {
+  const handleApproveConfirm = async (typeName: ContentTypeName) => {
     setBusy(true);
     const res = await fetch(`/api/portal/titles?token=${token}`, {
       method: "PATCH",
@@ -332,8 +281,6 @@ function ProposalCard({
         target_keyword: editKeyword,
         keyword_group: editGroup,
         content_type_name: typeName,
-        refresh_url: refreshUrl,
-        page_type: pageType,
       }),
     });
     if (res.status === 409) {
@@ -350,8 +297,6 @@ function ProposalCard({
       title_status: "approved",
       airtable_status: "Queued",
       content_type_name: typeName,
-      refresh_url: refreshUrl ?? title.refresh_url,
-      page_type: pageType ?? title.page_type,
     });
     setShowTypeModal(false);
     setBusy(false);
@@ -389,7 +334,7 @@ function ProposalCard({
           title={title}
           quota={quota}
           packageTier={packageTier}
-          onConfirm={(type, url, pt) => void handleApproveConfirm(type, url, pt)}
+          onConfirm={(type) => void handleApproveConfirm(type)}
           onCancel={() => setShowTypeModal(false)}
           busy={busy}
         />
@@ -412,18 +357,12 @@ function ProposalCard({
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {editKeyword && <span className="text-[12px] font-medium text-slate-500">{editKeyword}</span>}
                 <IntentBadge intent={title.search_intent} />
-                {title.content_type_name === "refresh" && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-medium">refresh</span>
-                )}
-                {title.content_type_name === "longform" && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">long-form</span>
+                {title.content_type_name === "longform" ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">long-form guide</span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">standard</span>
                 )}
               </div>
-              {title.refresh_url && (
-                <div className="mt-1.5 text-[11px] text-slate-400 truncate">
-                  <span className="font-medium">Refreshing:</span> {title.refresh_url}
-                </div>
-              )}
             </div>
             <div className="flex flex-col items-end gap-2 shrink-0">
               <QualityDots score={title.quality_score} />
@@ -439,11 +378,9 @@ function ProposalCard({
         <div className="border-t border-slate-100 px-4 py-3">
           {!expanded ? (
             <div className="flex items-center gap-3">
-              {title.content_type_name !== "refresh" && (
-                <button onClick={() => setExpanded(true)} className="text-[12px] text-slate-400 hover:text-slate-700 transition-colors">
-                  ✦ Suggest a direction and regenerate
-                </button>
-              )}
+              <button onClick={() => setExpanded(true)} className="text-[12px] text-slate-400 hover:text-slate-700 transition-colors">
+                ✦ Suggest a direction and regenerate
+              </button>
               <div className="flex-1" />
               <button onClick={handleSkip} disabled={busy} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
                 Skip
@@ -520,13 +457,11 @@ function AddTitlePanel({
   onAdded: (t: Title) => void;
 }) {
   const pkg = PACKAGES[packageTier];
-  const [contentType, setContentType] = useState<ContentTypeName>("standard");
+  const [contentType, setContentType] = useState<"standard" | "longform">("standard");
   const [idea, setIdea] = useState("");
   const [group, setGroup] = useState("");
   const [keyword, setKeyword] = useState("");
   const [intent, setIntent] = useState("");
-  const [refreshUrl, setRefreshUrl] = useState("");
-  const [pageType, setPageType] = useState("Blog Post");
   const [generated, setGenerated] = useState("");
   const [generating, setBusyGen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -534,9 +469,7 @@ function AddTitlePanel({
 
   const groupObj = keywordGroups.find((g) => g.group === group);
   const subkeywords = groupObj?.subkeywords ?? [];
-  const canGenerate = idea.trim().length > 0 && !!group && contentType !== "refresh";
-
-  const isRefresh = contentType === "refresh";
+  const canGenerate = idea.trim().length > 0 && !!group;
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -546,7 +479,7 @@ function AddTitlePanel({
       const res = await fetch(`/api/portal/titles/generate?token=${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ suggestion: idea, keyword, group, search_intent: intent }),
+        body: JSON.stringify({ suggestion: idea, keyword, group, search_intent: intent, content_type_name: contentType }),
       });
       const data = await res.json() as { title?: string };
       if (data.title) setGenerated(data.title);
@@ -556,7 +489,6 @@ function AddTitlePanel({
   const handleAdd = async (finalTitle?: string) => {
     const t = (finalTitle ?? generated ?? idea).trim();
     if (!t) return;
-    if (isRefresh && !refreshUrl.trim()) return;
     setAdding(true);
     const res = await fetch(`/api/portal/titles?token=${token}`, {
       method: "POST",
@@ -567,14 +499,12 @@ function AddTitlePanel({
         keyword_group: group,
         search_intent: intent,
         content_type_name: contentType,
-        ...(isRefresh ? { refresh_url: refreshUrl.trim(), page_type: pageType } : {}),
       }),
     });
     const data = await res.json() as { title?: Title };
     if (data.title) {
       onAdded(data.title);
       setIdea(""); setGenerated(""); setGroup(""); setKeyword(""); setIntent("");
-      setRefreshUrl(""); setPageType("Blog Post");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
     }
@@ -583,14 +513,13 @@ function AddTitlePanel({
 
   const reset = () => { setGenerated(""); };
 
-  // Type selector tabs
-  const typeOptions: { type: ContentTypeName; label: string }[] = [
-    { type: "standard", label: "Article" },
-    ...(pkg.articles_longform > 0 ? [{ type: "longform" as ContentTypeName, label: "Long-Form" }] : []),
-    { type: "refresh", label: "Refresh" },
+  // Type selector tabs — only show long-form if package includes it
+  const typeOptions: { type: "standard" | "longform"; label: string }[] = [
+    { type: "standard", label: "Standard Article" },
+    ...(pkg.articles_longform > 0 ? [{ type: "longform" as const, label: "Long-Form Guide" }] : []),
   ];
 
-  if (generated && !isRefresh) {
+  if (generated) {
     return (
       <div className="p-4 flex flex-col gap-3">
         <div className="bg-indigo-50 rounded-lg px-3 pt-3 pb-2 border border-indigo-100">
@@ -625,152 +554,104 @@ function AddTitlePanel({
 
   return (
     <div className="p-4 flex flex-col gap-3">
-      {/* Content type tabs */}
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-        {typeOptions.map(({ type, label }) => (
-          <button
-            key={type}
-            onClick={() => { setContentType(type); setGenerated(""); }}
-            className={`flex-1 py-1.5 text-[12px] font-medium transition-colors ${
-              contentType === type
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Content type tabs — only shown when package includes long-form */}
+      {typeOptions.length > 1 && (
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          {typeOptions.map(({ type, label }) => (
+            <button
+              key={type}
+              onClick={() => { setContentType(type); setGenerated(""); }}
+              className={`flex-1 py-1.5 text-[12px] font-medium transition-colors ${
+                contentType === type
+                  ? "bg-slate-900 text-white"
+                  : "bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+          Topic or idea
+        </label>
+        <textarea
+          value={idea}
+          onChange={(e) => setIdea(e.target.value)}
+          placeholder={contentType === "longform"
+            ? "Describe a topic that deserves in-depth coverage — a common question, a how-to process, or a subject your audience needs to fully understand."
+            : "Describe what this article should cover — the more specific, the better. e.g. a post targeting first-time buyers who have questions about pricing or a common objection your team hears frequently."}
+          rows={6}
+          className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
+        />
       </div>
 
-      {isRefresh ? (
-        /* Refresh mode */
-        <>
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-              URL to refresh <span className="text-red-400 normal-case font-normal">*required</span>
-            </label>
-            <input
-              type="url"
-              value={refreshUrl}
-              onChange={(e) => setRefreshUrl(e.target.value)}
-              placeholder="https://yoursite.com/page-to-update"
-              className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-              Page type
-            </label>
-            <select
-              value={pageType}
-              onChange={(e) => setPageType(e.target.value)}
-              className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-            >
-              {PAGE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-              What should be updated or improved?
-            </label>
-            <textarea
-              value={idea}
-              onChange={(e) => setIdea(e.target.value)}
-              placeholder="Describe what needs improving — thin sections, outdated content, missing topics, or specific angles to strengthen."
-              rows={5}
-              className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
-            />
-          </div>
-          <button
-            onClick={() => void handleAdd(idea.trim() || `Content refresh: ${refreshUrl.trim()}`)}
-            disabled={adding || !refreshUrl.trim()}
-            className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+          Keyword group
+        </label>
+        <select
+          value={group}
+          onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
+          className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+        >
+          <option value="">— select a group —</option>
+          {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
+        </select>
+      </div>
+
+      {subkeywords.length > 0 && (
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+            Target keyword <span className="normal-case font-normal text-slate-300">(optional)</span>
+          </label>
+          <select
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
           >
-            {adding ? "Adding…" : success ? "Added ✓" : "Add to proposals"}
-          </button>
-        </>
-      ) : (
-        /* Standard / Long-Form mode */
-        <>
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-              Topic or idea
-            </label>
-            <textarea
-              value={idea}
-              onChange={(e) => setIdea(e.target.value)}
-              placeholder="Describe what this article should cover — the more specific, the better. e.g. a post targeting first-time buyers who have questions about pricing or a common objection your team hears frequently."
-              rows={6}
-              className="w-full text-[13px] border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder-slate-300 leading-relaxed"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-              Keyword group
-            </label>
-            <select
-              value={group}
-              onChange={(e) => { setGroup(e.target.value); setKeyword(""); }}
-              className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-            >
-              <option value="">— select a group —</option>
-              {keywordGroups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
-            </select>
-          </div>
-
-          {subkeywords.length > 0 && (
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-                Target keyword <span className="normal-case font-normal text-slate-300">(optional)</span>
-              </label>
-              <select
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-              >
-                <option value="">— pick a keyword —</option>
-                {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-              Search intent <span className="normal-case font-normal text-slate-300">(optional)</span>
-            </label>
-            <select
-              value={intent}
-              onChange={(e) => setIntent(e.target.value)}
-              className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
-            >
-              {INTENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-2 pt-1">
-            <button
-              onClick={() => void handleGenerate()}
-              disabled={!canGenerate || generating}
-              className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {generating ? "Generating…" : "Generate with AI"}
-            </button>
-            {idea.trim() && (
-              <button
-                onClick={() => void handleAdd(idea.trim())}
-                disabled={adding}
-                className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors"
-              >
-                {adding ? "Adding…" : success ? "Added ✓" : "Add as-is (no AI)"}
-              </button>
-            )}
-            {!canGenerate && idea.trim() && !group && (
-              <p className="text-[11px] text-slate-400 text-center">Select a keyword group to enable AI generation</p>
-            )}
-          </div>
-        </>
+            <option value="">— pick a keyword —</option>
+            {subkeywords.map((sk) => <option key={sk.keyword} value={sk.keyword}>{sk.keyword}</option>)}
+          </select>
+        </div>
       )}
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+          Search intent <span className="normal-case font-normal text-slate-300">(optional)</span>
+        </label>
+        <select
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          className="w-full text-[13px] text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none appearance-none"
+        >
+          {INTENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-1">
+        <button
+          onClick={() => void handleGenerate()}
+          disabled={!canGenerate || generating}
+          className="w-full py-2.5 rounded-lg text-[13px] font-medium text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {generating ? "Generating…" : "Generate with AI"}
+        </button>
+        {idea.trim() && (
+          <button
+            onClick={() => void handleAdd(idea.trim())}
+            disabled={adding}
+            className="w-full py-2 rounded-lg text-[12px] font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors"
+          >
+            {adding ? "Adding…" : success ? "Added ✓" : "Add as-is (no AI)"}
+          </button>
+        )}
+        {!canGenerate && idea.trim() && !group && (
+          <p className="text-[11px] text-slate-400 text-center">Select a keyword group to enable AI generation</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -822,7 +703,9 @@ export default function TitlesPage() {
   const handleRemove = useCallback((id: string) => { setTitles((prev) => prev.filter((t) => t.id !== id)); }, []);
   const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
 
-  const proposals = titles.filter((t) => t.title_status === "titled" || (!t.title_status || t.title_status === "proposals"));
+  const proposals = titles.filter(
+    (t) => (t.title_status === "titled" || !t.title_status || t.title_status === "proposals") && t.content_type_name !== "refresh"
+  );
 
   const standardRemaining = quota ? Math.max(0, quota.standard.limit - quota.standard.used) : null;
   const allSelected = proposals.length > 0 && selected.size === proposals.length;

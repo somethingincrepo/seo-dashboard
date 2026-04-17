@@ -117,7 +117,12 @@ function KanbanCard({
           )}
           {isLongformCard && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">
-              long-form
+              long-form guide
+            </span>
+          )}
+          {!isRefreshCard && !isLongformCard && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
+              standard
             </span>
           )}
           {hasResult && (
@@ -580,7 +585,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                 {(() => {
                   const isRefreshDrawer = !!liveSelectedJob.fields.refresh_url;
                   const isLongformDrawer = !isRefreshDrawer && (liveSelectedJob.fields["Desired length range"] ?? "").includes("3,000");
-                  const typeLabel = isRefreshDrawer ? "Content Refresh" : isLongformDrawer ? "Long-Form Article" : "Standard Article";
+                  const typeLabel = isRefreshDrawer ? "Content Refresh" : isLongformDrawer ? "Long-Form Guide" : "Standard Article";
                   const wordRange = liveSelectedJob.fields["Desired length range"];
                   return (
                     <>

@@ -20,9 +20,11 @@ export async function POST(request: NextRequest) {
     keyword?: string;
     group?: string;
     search_intent?: string;
+    content_type_name?: "standard" | "longform";
   };
 
-  const { current_title, suggestion, keyword, group, search_intent } = body;
+  const { current_title, suggestion, keyword, group, search_intent, content_type_name } = body;
+  const isLongform = content_type_name === "longform";
   if (!suggestion?.trim()) return NextResponse.json({ error: "suggestion required" }, { status: 400 });
 
   const companyName = portalClient.fields.company_name;
@@ -62,6 +64,7 @@ What makes them different: ${positioning || "(not set)"}
 Core services/products: ${coreServices || "(not set)"}
 Restricted language (NEVER use): ${restrictedLanguage || "(none specified)"}
 
+CONTENT TYPE: ${isLongform ? "Long-Form Guide (3,000–5,000 words)" : "Standard Article (1,500–2,500 words)"}
 CURRENT TITLE: ${current_title || "(none)"}
 TARGET KEYWORD: ${keyword || "(not specified)"}
 KEYWORD GROUP / TOPIC PILLAR: ${group || "(not specified)"}
@@ -74,7 +77,12 @@ Rules:
 - Specific and concrete
 - Matches the ${tone || "professional"} tone
 - Does NOT violate restricted language
-- Does NOT use: "Complete Guide", "Everything You Need to Know", "Ultimate Guide", "Why X Matters"
+- Does NOT use: "Everything You Need to Know", "Ultimate Guide", "Why X Matters"
+${isLongform ? `- This is a LONG-FORM GUIDE — the title must signal depth and comprehensiveness
+- Use formats like: "How to [X]: A Step-by-Step Guide", "[Topic]: A Complete Walkthrough", "The [X] Guide for [Audience]", "[X] Explained: [Specific Angle]", "How to [X] (and [Related Thing])"
+- The word "Guide" is encouraged for long-form — but avoid "Ultimate Guide" or "Complete Guide"
+- Avoid formats that sound like short blog posts or quick tips` : `- This is a STANDARD ARTICLE — keep the title focused and direct, not a guide or how-to series
+- Avoid "guide", "walkthrough", "complete", or other signals of deep-dive content`}
 - If search intent is "informational", write a title that educates or answers a question
 - If search intent is "commercial", write a title that helps someone compare or evaluate options
 - If search intent is "transactional", write a title that drives action or a decision
