@@ -343,8 +343,16 @@ function ProposalCard({
         <div className="p-4">
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-                {editGroup || "No group"}
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
+                  {editGroup || "No group"}
+                </span>
+                <span className="text-slate-200 text-[10px]">·</span>
+                {title.content_type_name === "longform" ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 font-semibold uppercase tracking-wide">Long-Form Guide</span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 font-semibold uppercase tracking-wide">Standard Article</span>
+                )}
               </div>
               <textarea
                 value={editTitle}
@@ -357,11 +365,6 @@ function ProposalCard({
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {editKeyword && <span className="text-[12px] font-medium text-slate-500">{editKeyword}</span>}
                 <IntentBadge intent={title.search_intent} />
-                {title.content_type_name === "longform" ? (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">long-form guide</span>
-                ) : (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">standard</span>
-                )}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 shrink-0">
