@@ -32,29 +32,21 @@ function PipelineBar({ status }: { status: string }) {
 
 export default async function ClientsPage() {
   const clients = await getClients();
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://seo-dashboard-1gdt74e5t-reporting-9449s-projects.vercel.app";
-  const intakeUrl = `${baseUrl}/intake`;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Clients</h1>
-          <p className="text-slate-500 text-sm mt-1">{clients.length} clients</p>
+          <p className="text-slate-500 text-sm mt-1">{clients.length} client{clients.length !== 1 ? "s" : ""}</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Intake form link — share with prospects */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white">
-            <span className="text-xs text-slate-400 font-mono">/intake</span>
-            <CopyButton value={intakeUrl} label="Copy intake link" />
-          </div>
-          <Link
-            href="/clients/new"
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors"
-          >
-            + New Client
-          </Link>
-        </div>
+        <Link
+          href="/tokens"
+          className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors"
+        >
+          + Add Client
+        </Link>
       </div>
 
       {clients.length === 0 && (

@@ -168,6 +168,22 @@ export async function getClientReportsFromSupabase(clientId: string): Promise<Su
   return (data ?? []) as SupabaseReport[];
 }
 
+// ─── Invite Tokens ────────────────────────────────────────────────────────────
+
+export type PackageTier = "starter" | "growth" | "authority";
+
+export type InviteToken = {
+  id: string;
+  token: string;
+  package_tier: PackageTier;
+  created_by: string | null;
+  notes: string | null;
+  expires_at: string;
+  used_at: string | null;
+  used_by_client_id: string | null;
+  created_at: string;
+};
+
 export async function getAllReportsFromSupabase(limit = 100): Promise<SupabaseReport[]> {
   const { data } = await getSupabase()
     .from("reports")

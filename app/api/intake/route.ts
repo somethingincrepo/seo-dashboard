@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     in_slack,
     report_day,
     approval_turnaround,
-    package: packageTier,
+    invite_token,
   } = body as Record<string, unknown>;
 
   // Required field validation
@@ -88,6 +88,29 @@ export async function POST(request: NextRequest) {
   if (!competitors || typeof competitors !== "string" || !competitors.trim()) {
     return NextResponse.json({ error: "At least one competitor is required." }, { status: 400 });
   }
+  if (!invite_token || typeof invite_token !== "string" || !invite_token.trim()) {
+    return NextResponse.json({ error: "An invite token is required." }, { status: 400 });
+  }
+
+  // Validate the invite token and resolve the package tier
+  const tokenStr = (invite_token as string).trim().toUpperCase();
+  const supabase = getSupabase();
+  const { data: tokenRow, error: tokenLookupError } = await supabase
+    .from("invite_tokens")
+    .select("id, package_tier, used_at, expires_at")
+    .eq("token", tokenStr)
+    .single();
+
+  if (tokenLookupError || !tokenRow) {
+    return NextResponse.json({ error: "Invalid invite token." }, { status: 400 });
+  }
+  if (tokenRow.used_at) {
+    return NextResponse.json({ error: "This invite token has already been used." }, { status: 400 });
+  }
+  if (new Date(tokenRow.expires_at) < new Date()) {
+    return NextResponse.json({ error: "This invite token has expired. Please contact us for a new one." }, { status: 400 });
+  }
+  const packageTier = tokenRow.package_tier as string;
 
   const normalizedUrl = normalizeUrl(site_url as string);
   const client_id = slugify(company_name as string);
@@ -175,10 +198,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Submission failed: ${msg}` }, { status: 500 });
   }
 
+  // Mark the invite token as used — non-blocking, failure doesn't surface to the client
+  try {
+    await supabase
+      .from("invite_tokens")
+      .update({ used_at: new Date().toISOString(), used_by_client_id: record.id })
+      .eq("token", tokenStr);
+  } catch (e) {
+    console.error("[intake] failed to mark invite token as used:", e);
+  }
+
   // Immediately queue the Month 1 audit — non-blocking, failure doesn't surface to the client
   // The worker's Airtable poller will catch any records that miss this step
   try {
-    const supabase = getSupabase();
     await supabase.from("jobs").insert({
       sop_name: "audit_parent",
       client_id: record.id,

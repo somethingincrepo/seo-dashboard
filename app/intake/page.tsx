@@ -170,13 +170,23 @@ export default function IntakePage() {
   const [draftRestored, setDraftRestored] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
 
-  // On mount — check for a saved draft
+  // ── Invite token ──
+  const [inviteToken, setInviteToken] = useState("");
+  const [tokenStatus, setTokenStatus] = useState<"idle" | "validating" | "valid" | "invalid">("idle");
+  const [tokenReason, setTokenReason] = useState<"not_found" | "expired" | "used" | null>(null);
+
+  // Compute the active draft key — token-scoped once a valid token is entered
+  const activeDraftKey =
+    tokenStatus === "valid"
+      ? `intake_draft_${inviteToken.trim().toUpperCase()}`
+      : DRAFT_KEY;
+
+  // On mount — check for a saved generic draft
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<FormState>;
-        // Only show the banner if they've actually filled something in
         if (parsed.company_name || parsed.contact_email || parsed.site_url) {
           setHasDraft(true);
         }
@@ -186,10 +196,29 @@ export default function IntakePage() {
     }
   }, []);
 
-  // Auto-save draft on every form change
-  const saveDraft = useCallback((state: FormState) => {
+  // When token becomes valid, auto-restore the token-scoped draft if one exists
+  useEffect(() => {
+    if (tokenStatus !== "valid") return;
+    const key = `intake_draft_${inviteToken.trim().toUpperCase()}`;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<FormState>;
+        if (parsed.company_name || parsed.contact_email || parsed.site_url) {
+          setForm((prev) => ({ ...prev, ...parsed }));
+          setDraftRestored(true);
+          setHasDraft(false);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [tokenStatus, inviteToken]);
+
+  // Auto-save draft on every form change (uses active key from closure)
+  const saveDraft = useCallback((state: FormState, draftKey: string) => {
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(state));
     } catch {
       // storage full or unavailable — non-fatal
     }
@@ -198,13 +227,13 @@ export default function IntakePage() {
   const set = (key: keyof FormState, value: string | boolean) =>
     setForm((prev) => {
       const next = { ...prev, [key]: value };
-      saveDraft(next);
+      saveDraft(next, activeDraftKey);
       return next;
     });
 
   const restoreDraft = () => {
     try {
-      const saved = localStorage.getItem(DRAFT_KEY);
+      const saved = localStorage.getItem(activeDraftKey);
       if (saved) {
         setForm({ ...INITIAL_FORM, ...(JSON.parse(saved) as Partial<FormState>) });
         setDraftRestored(true);
@@ -216,24 +245,63 @@ export default function IntakePage() {
   };
 
   const discardDraft = () => {
-    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(activeDraftKey);
     setHasDraft(false);
   };
 
-  const clearDraftOnSuccess = () => {
-    localStorage.removeItem(DRAFT_KEY);
+  const clearDraftOnSuccess = (draftKey: string) => {
+    localStorage.removeItem(draftKey);
   };
+
+  // Token validation
+  const validateToken = useCallback(async (raw: string) => {
+    const t = raw.trim().toUpperCase();
+    if (!t) {
+      setTokenStatus("idle");
+      setTokenReason(null);
+      return;
+    }
+    setTokenStatus("validating");
+    setTokenReason(null);
+    try {
+      const res = await fetch(`/api/tokens/validate?token=${encodeURIComponent(t)}`);
+      const data = await res.json() as { valid: boolean; package_tier?: string; reason?: string };
+      if (data.valid && data.package_tier) {
+        setTokenStatus("valid");
+        setTokenReason(null);
+        setForm((prev) => {
+          const next = { ...prev, package: data.package_tier as PackageTier };
+          return next;
+        });
+      } else {
+        setTokenStatus("invalid");
+        setTokenReason((data.reason as "not_found" | "expired" | "used") ?? "not_found");
+      }
+    } catch {
+      setTokenStatus("invalid");
+      setTokenReason("not_found");
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (tokenStatus !== "valid") {
+      setError("Please enter a valid invite token to continue.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
+
+    // Capture draft key before clearing — state won't change during await
+    const draftKey = activeDraftKey;
 
     try {
       const res = await fetch("/api/intake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, invite_token: inviteToken.trim().toUpperCase() }),
       });
 
       const data = await res.json();
@@ -243,7 +311,7 @@ export default function IntakePage() {
         return;
       }
 
-      clearDraftOnSuccess();
+      clearDraftOnSuccess(draftKey);
       setSuccess(true);
     } catch {
       setError("Network error — please check your connection and try again.");
@@ -647,12 +715,58 @@ export default function IntakePage() {
             </label>
           </SectionCard>
 
+          {/* ── Invite Token ── */}
+          <SectionCard
+            title="Invite Token"
+            description="Enter the token we sent you. This verifies your package and unlocks the form."
+          >
+            <Field label="Invite Token" required>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  className={`${inputClass} font-mono uppercase tracking-widest`}
+                  value={inviteToken}
+                  onChange={(e) => {
+                    setInviteToken(e.target.value);
+                    setTokenStatus("idle");
+                    setTokenReason(null);
+                  }}
+                  onBlur={() => validateToken(inviteToken)}
+                  placeholder="e.g. GRW-A7X3P9"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {tokenStatus === "validating" && (
+                  <p className="text-xs text-slate-400">Checking token…</p>
+                )}
+                {tokenStatus === "valid" && (
+                  <p className="text-xs text-emerald-600 font-medium">
+                    Token verified — {PACKAGE_LABELS[form.package]} package confirmed.
+                  </p>
+                )}
+                {tokenStatus === "invalid" && (
+                  <p className="text-xs text-red-500">
+                    {tokenReason === "used"
+                      ? "This token has already been used."
+                      : tokenReason === "expired"
+                      ? "This token has expired. Please contact us for a new one."
+                      : "Token not recognised. Check for typos or contact us."}
+                  </p>
+                )}
+              </div>
+            </Field>
+          </SectionCard>
+
           {/* ── Package ── */}
           <SectionCard
             title="Package"
-            description="Select the plan you signed up for. If you're unsure, leave Growth selected."
+            description={
+              tokenStatus === "valid"
+                ? "Package locked by your invite token."
+                : "Select the plan you signed up for. If you're unsure, leave Growth selected."
+            }
           >
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 ${tokenStatus === "valid" ? "pointer-events-none opacity-80" : ""}`}>
               {PACKAGE_TIER_ORDER.map((tier) => {
                 const pkg = PACKAGES[tier];
                 const colors = PACKAGE_COLORS[tier];
@@ -661,7 +775,7 @@ export default function IntakePage() {
                   <button
                     key={tier}
                     type="button"
-                    onClick={() => set("package", tier)}
+                    onClick={() => tokenStatus !== "valid" && set("package", tier)}
                     className={`text-left rounded-xl border-2 p-4 transition-all ${
                       selected
                         ? `${colors.border} ${colors.bg}`
@@ -673,6 +787,9 @@ export default function IntakePage() {
                       <span className={`text-sm font-semibold ${selected ? colors.label : "text-slate-600"}`}>
                         {PACKAGE_LABELS[tier]}
                       </span>
+                      {tokenStatus === "valid" && selected && (
+                        <span className="ml-auto text-xs font-medium text-emerald-600">Verified</span>
+                      )}
                     </div>
                     <div className="space-y-1 text-xs text-slate-500">
                       <div>
