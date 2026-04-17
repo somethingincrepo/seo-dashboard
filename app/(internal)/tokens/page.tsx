@@ -115,6 +115,21 @@ export default function AddClientPage() {
         </p>
       </div>
 
+      {/* ── Intake form URL — always visible ── */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-medium text-slate-500 mb-0.5">Onboarding form link</div>
+          <code className="text-sm font-mono text-slate-700 truncate block">{intakeUrl}</code>
+        </div>
+        <button
+          type="button"
+          onClick={() => copyText(intakeUrl, "token")}
+          className="text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 shrink-0 transition-colors"
+        >
+          {copied === "token" ? "Copied!" : "Copy link"}
+        </button>
+      </div>
+
       {/* ── Step 1: Generate ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
