@@ -114,6 +114,13 @@ function IconBook({ className }: { className?: string }) {
     </svg>
   );
 }
+function IconDeliverables({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/><path d="M9 7h6"/><path d="M9 17h4"/>
+    </svg>
+  );
+}
 function IconSettings({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -142,6 +149,7 @@ const NAV_ITEMS = [
   { suffix: "/reports",              label: "Reports",             Icon: IconReports },
   { suffix: "/reddit",               label: "Reddit Mentions",     Icon: IconReddit },
   { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
+  { suffix: "/deliverables",         label: "Deliverables",        Icon: IconDeliverables },
 ] as const;
 
 export function PortalSidebar({
