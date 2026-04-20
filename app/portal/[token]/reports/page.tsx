@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getClientReports } from "@/lib/reports";
 import type { SupabaseReport, TrendEntry, RankingEntry, PageEntry, AiSourceEntry } from "@/lib/reports";
+import { getSupabase } from "@/lib/supabase";
+import { executeGscQuery } from "@/lib/tools/gsc";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { ReportsLive, type GscLiveData, type KeywordSnapshotData } from "@/components/portal/ReportsLive";
 
 export const revalidate = 0;
 
@@ -30,6 +33,14 @@ function fmtPct(n: number | null | undefined) {
 function fmtPos(n: number | null | undefined) {
   if (n == null) return "—";
   return `#${n.toFixed(1)}`;
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split("T")[0];
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -77,21 +88,65 @@ function MetricCell({
   );
 }
 
-function TrendBar({ trend }: { trend: TrendEntry[] }) {
-  const maxClicks = Math.max(...trend.map((t) => t.clicks), 1);
-  return (
-    <div className="flex items-end gap-3 h-10">
-      {trend.map((t) => (
-        <div key={t.month_label} className="flex flex-col items-center gap-1 flex-1">
-          <div
-            className="w-full bg-indigo-200 rounded-t-sm"
-            style={{ height: `${Math.round((t.clicks / maxClicks) * 32)}px`, minHeight: "4px" }}
-          />
-          <div className="text-[10px] text-slate-400 whitespace-nowrap">
-            {t.month_label.split(" ")[0]}
+// ─── SVG Sparkline (replaces TrendBar) ───────────────────────────────────────
+
+function MiniSparkline({ trend }: { trend: TrendEntry[] }) {
+  if (trend.length < 2) {
+    // Fallback to simple bars for very short data
+    const maxClicks = Math.max(...trend.map((t) => t.clicks), 1);
+    return (
+      <div className="flex items-end gap-3 h-10">
+        {trend.map((t) => (
+          <div key={t.month_label} className="flex flex-col items-center gap-1 flex-1">
+            <div
+              className="w-full bg-indigo-200 rounded-t-sm"
+              style={{ height: `${Math.round((t.clicks / maxClicks) * 32)}px`, minHeight: "4px" }}
+            />
+            <div className="text-[10px] text-slate-400 whitespace-nowrap">
+              {t.month_label.split(" ")[0]}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+    );
+  }
+
+  const W = 400;
+  const H = 52;
+  const padX = 2;
+  const padY = 4;
+  const values = trend.map((t) => t.clicks);
+  const max = Math.max(...values, 1);
+  const pts = values.map((v, i) => {
+    const x = padX + (i / (values.length - 1)) * (W - padX * 2);
+    const y = padY + (1 - v / max) * (H - padY * 2);
+    return { x, y };
+  });
+  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L${pts[pts.length - 1].x.toFixed(1)},${H - padY} L${pts[0].x.toFixed(1)},${H - padY} Z`;
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: "52px" }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#a5b4fc" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#spark-grad)" />
+        <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="1.5"
+          strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+      <div className="flex justify-between mt-1">
+        {trend.map((t, i) =>
+          i === 0 || i === Math.floor(trend.length / 2) || i === trend.length - 1 ? (
+            <span key={t.month_label} className="text-[10px] text-slate-400">
+              {t.month_label.split(" ")[0]}
+            </span>
+          ) : null
+        )}
+      </div>
     </div>
   );
 }
@@ -110,6 +165,8 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
   const hasContent = (r.articles_published?.length ?? 0) > 0 || (r.articles_now_ranking?.length ?? 0) > 0;
   const hasTechnical = (r.pages_optimized?.length ?? 0) > 0;
   const hasAiGeo = r.entity_coverage_score != null || (r.ai_mentions?.length ?? 0) > 0;
+  const hasTop3 = r.top_1_3_keywords && r.top_1_3_keywords.length > 0;
+  const hasNewTop20 = r.new_top_20_keywords && r.new_top_20_keywords.length > 0;
 
   const reportDate = r.report_generated_at
     ? new Date(r.report_generated_at).toLocaleDateString("en-US", {
@@ -178,7 +235,7 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
                     {hasTrend && (
                       <div>
                         <div className="text-[10px] text-slate-400 mb-1.5">3-month clicks trend</div>
-                        <TrendBar trend={r.gsc_3month_trend as TrendEntry[]} />
+                        <MiniSparkline trend={r.gsc_3month_trend as TrendEntry[]} />
                       </div>
                     )}
                   </div>
@@ -268,7 +325,7 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
       )}
 
       {/* ── Ranking Movement ── */}
-      {(hasRankingGains || hasRankingLosses || hasTopPages || hasTopLoss) && (
+      {(hasRankingGains || hasRankingLosses || hasTopPages || hasTopLoss || hasTop3 || hasNewTop20) && (
         <>
           <Divider />
           <div className="p-5">
@@ -305,9 +362,22 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
                     </div>
                   </div>
                 )}
+                {hasTop3 && (
+                  <div>
+                    <div className="text-[11px] font-semibold text-slate-400 mb-2">In top 3</div>
+                    <div className="space-y-1.5">
+                      {r.top_1_3_keywords!.map((k, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span className="text-emerald-600 font-bold text-xs w-6">{fmtPos(k.position)}</span>
+                          <span className="text-slate-600 truncate flex-1">{k.keyword}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Top pages */}
+              {/* Top pages + new top 20 */}
               <div className="space-y-4">
                 {hasTopPages && (
                   <div>
@@ -331,6 +401,18 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
                           <span className="text-red-400 font-semibold w-8 text-xs">{p.delta}</span>
                           <span className="text-slate-600 truncate flex-1 text-xs">{p.page}</span>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {hasNewTop20 && (
+                  <div>
+                    <div className="text-[11px] font-semibold text-slate-400 mb-2">New to top 20</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {r.new_top_20_keywords!.map((k, i) => (
+                        <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700">
+                          {k.keyword} <span className="text-indigo-400">{fmtPos(k.position)}</span>
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -513,7 +595,169 @@ export default async function PortalReportsPage({
   if (!client) notFound();
 
   const clientId = client.fields.client_id || client.id;
-  const reports = await getClientReports(clientId);
+
+  // Fetch all data in parallel
+  const [reports, gscData, snapshotData] = await Promise.all([
+    getClientReports(clientId),
+
+    // Live GSC data — gracefully degrade if GSC not configured or fails
+    (async (): Promise<GscLiveData | null> => {
+      const property = client.fields.gsc_property;
+      if (!property) return { connected: false };
+      try {
+        const thisStart = daysAgo(28);
+        const thisEnd = daysAgo(1);
+        const priorStart = daysAgo(56);
+        const priorEnd = daysAgo(29);
+        const trendStart = daysAgo(395);
+
+        const [thisResult, priorResult, trendResult] = await Promise.all([
+          executeGscQuery({ property, start_date: thisStart, end_date: thisEnd, dimensions: ["query"], row_limit: 500 }),
+          executeGscQuery({ property, start_date: priorStart, end_date: priorEnd, dimensions: ["query"], row_limit: 500 }),
+          executeGscQuery({ property, start_date: trendStart, end_date: thisEnd, dimensions: ["date"], row_limit: 500 }),
+        ]);
+
+        const topQueries = [...thisResult.rows]
+          .sort((a, b) => b.clicks - a.clicks)
+          .slice(0, 10)
+          .map((r) => ({ query: r.keys[0] ?? "", clicks: r.clicks, impressions: r.impressions, position: r.position }));
+
+        const byMonth = new Map<string, { clicks: number; impressions: number; pos_sum: number; count: number }>();
+        for (const row of trendResult.rows) {
+          const monthKey = (row.keys[0] ?? "").slice(0, 7);
+          if (!monthKey) continue;
+          const entry = byMonth.get(monthKey) ?? { clicks: 0, impressions: 0, pos_sum: 0, count: 0 };
+          entry.clicks += row.clicks;
+          entry.impressions += row.impressions;
+          entry.pos_sum += row.position;
+          entry.count++;
+          byMonth.set(monthKey, entry);
+        }
+
+        const trend = [...byMonth.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .slice(-12)
+          .map(([key, e]) => ({
+            month_label: new Date(key + "-15").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+            clicks: e.clicks,
+            impressions: e.impressions,
+            avg_position: e.count > 0 ? e.pos_sum / e.count : 0,
+          }));
+
+        // Extended: keyword position trends + page performance (graceful degradation)
+        let keywordTrends: GscLiveData["keyword_trends"];
+        let pageGaining: GscLiveData["page_gaining"];
+        let pageLosing: GscLiveData["page_losing"];
+        try {
+          const [period2Result, period3Result, pageThisResult, pagePriorResult] = await Promise.all([
+            executeGscQuery({ property, start_date: daysAgo(84), end_date: daysAgo(57), dimensions: ["query"], row_limit: 500 }),
+            executeGscQuery({ property, start_date: daysAgo(112), end_date: daysAgo(85), dimensions: ["query"], row_limit: 500 }),
+            executeGscQuery({ property, start_date: thisStart, end_date: thisEnd, dimensions: ["page"], row_limit: 500 }),
+            executeGscQuery({ property, start_date: priorStart, end_date: priorEnd, dimensions: ["page"], row_limit: 500 }),
+          ]);
+
+          // Keyword position trends: top 5 by impressions, tracked over 4 × 28d windows
+          const periodMaps = [period3Result, period2Result, priorResult, thisResult].map((r) => {
+            const m = new Map<string, number>();
+            for (const row of r.rows) m.set(row.keys[0] ?? "", row.position);
+            return m;
+          });
+          const periodLabels = ["3mo ago", "2mo ago", "Last mo", "Now"];
+          const top5 = [...thisResult.rows]
+            .sort((a, b) => b.impressions - a.impressions)
+            .slice(0, 5);
+
+          keywordTrends = top5
+            .map((kw) => {
+              const keyword = kw.keys[0] ?? "";
+              const points = periodMaps
+                .map((m, i) => {
+                  const pos = m.get(keyword);
+                  return pos != null ? { label: periodLabels[i], position: pos } : null;
+                })
+                .filter((p): p is { label: string; position: number } => p !== null);
+              const priorPos = periodMaps[2].get(keyword);
+              const currPos = kw.position;
+              const direction: "up" | "down" | "flat" =
+                priorPos == null ? "flat"
+                : currPos < priorPos - 0.5 ? "up"
+                : currPos > priorPos + 0.5 ? "down"
+                : "flat";
+              return { keyword, points, position: currPos, direction };
+            })
+            .filter((kw) => kw.points.length >= 2);
+
+          // Page performance deltas
+          const pageThisMap = new Map<string, number>();
+          for (const row of pageThisResult.rows) pageThisMap.set(row.keys[0] ?? "", row.clicks);
+          const pagePriorMap = new Map<string, number>();
+          for (const row of pagePriorResult.rows) pagePriorMap.set(row.keys[0] ?? "", row.clicks);
+
+          const allPages = new Set([...pageThisMap.keys(), ...pagePriorMap.keys()]);
+          const deltas: { page: string; clicks_this: number; clicks_prior: number; delta: number }[] = [];
+          for (const page of allPages) {
+            const ct = pageThisMap.get(page) ?? 0;
+            const cp = pagePriorMap.get(page) ?? 0;
+            if (ct + cp < 5) continue; // filter noise
+            deltas.push({ page, clicks_this: ct, clicks_prior: cp, delta: ct - cp });
+          }
+
+          pageGaining = deltas.filter((p) => p.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
+          pageLosing = deltas.filter((p) => p.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
+        } catch {
+          // Extended queries failed — base metrics still render fine
+        }
+
+        return {
+          connected: true,
+          this: {
+            clicks: thisResult.total_clicks,
+            impressions: thisResult.total_impressions,
+            avg_position: thisResult.avg_position,
+            ctr: thisResult.total_impressions > 0 ? thisResult.total_clicks / thisResult.total_impressions : 0,
+          },
+          prior: {
+            clicks: priorResult.total_clicks,
+            impressions: priorResult.total_impressions,
+            avg_position: priorResult.avg_position,
+            ctr: priorResult.total_impressions > 0 ? priorResult.total_clicks / priorResult.total_impressions : 0,
+          },
+          trend,
+          top_queries: topQueries,
+          keyword_trends: keywordTrends,
+          page_gaining: pageGaining,
+          page_losing: pageLosing,
+        };
+      } catch {
+        return { connected: false };
+      }
+    })(),
+
+    // Keyword snapshot from Supabase cache
+    (async (): Promise<KeywordSnapshotData | null> => {
+      try {
+        const { data } = await getSupabase()
+          .from("keyword_snapshots")
+          .select("keywords, refreshed_at")
+          .eq("client_id", clientId)
+          .single();
+
+        if (!data) return { has_data: false, can_refresh: true, days_until_refresh: 0, refreshed_at: null, keywords: [] };
+
+        const ageDays = (Date.now() - new Date(data.refreshed_at).getTime()) / 86400000;
+        const canRefresh = ageDays >= 3;
+        return {
+          has_data: true,
+          can_refresh: canRefresh,
+          days_until_refresh: canRefresh ? 0 : Math.ceil(3 - ageDays),
+          refreshed_at: data.refreshed_at,
+          keywords: data.keywords ?? [],
+        };
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
 
   const status = client.fields.status || client.fields.plan_status;
   const isOnboarding = [
@@ -525,10 +769,25 @@ export default async function PortalReportsPage({
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Reports</h1>
-        <p className="text-base text-slate-500 mt-1">Monthly performance summaries</p>
+        <p className="text-base text-slate-500 mt-1">Performance data and monthly summaries</p>
       </div>
 
-      {reports.length === 0 ? (
+      {/* Live GSC + keyword intelligence */}
+      <ReportsLive token={token} initialGsc={gscData} initialSnapshot={snapshotData} />
+
+      {/* Historical monthly reports */}
+      {reports.length > 0 && (
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">Monthly Reports</div>
+          <div className="space-y-6">
+            {reports.map((report) => (
+              <ReportCard key={report.id} report={report} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {reports.length === 0 && (
         <GlassCard className="p-12 text-center">
           <div className="text-3xl mb-4 text-slate-300">◎</div>
           <div className="font-medium text-slate-700 mb-2">No reports yet</div>
@@ -538,12 +797,6 @@ export default async function PortalReportsPage({
               : "Reports will appear here after your first monthly cycle."}
           </div>
         </GlassCard>
-      ) : (
-        <div className="space-y-6">
-          {reports.map((report) => (
-            <ReportCard key={report.id} report={report} />
-          ))}
-        </div>
       )}
     </div>
   );
