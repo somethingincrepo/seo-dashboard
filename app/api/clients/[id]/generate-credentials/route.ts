@@ -29,7 +29,6 @@ export async function POST(
   await airtablePatch("Clients", id, {
     portal_username: username,
     portal_password_hash: hash,
-    portal_password: password, // plaintext stored for admin reference
   });
 
   return NextResponse.json({ username, password });
