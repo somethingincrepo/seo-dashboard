@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getNextPublishDate } from "@/lib/content-schedule";
-import { getSupabase } from "@/lib/supabase";
 
 const BASE_URL = "https://api.airtable.com/v0";
 

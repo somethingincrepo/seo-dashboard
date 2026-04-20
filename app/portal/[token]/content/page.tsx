@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { ContentKanban } from "@/components/portal/ContentKanban";
+import { PublishCalendar } from "@/components/portal/PublishCalendar";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function ContentPage({
       </div>
 
       {jobs.length === 0 && results.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex items-center justify-center py-16">
           <div className="text-center">
             <div className="text-3xl mb-4 text-slate-300">◆</div>
             <div className="font-medium text-slate-500 mb-2">No content in progress</div>
@@ -57,6 +58,10 @@ export default async function ContentPage({
           token={token}
         />
       )}
+
+      <div className="px-10 mt-10 mb-8">
+        <PublishCalendar token={token} />
+      </div>
     </div>
   );
 }

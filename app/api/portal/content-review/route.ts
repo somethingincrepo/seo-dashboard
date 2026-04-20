@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { contentAirtablePatch } from "@/lib/airtable";
-import { getSupabase } from "@/lib/supabase";
+import { getNextPublishDate } from "@/lib/content-schedule";
 
 const RESULTS_TABLE = "Results";
 
@@ -23,26 +23,25 @@ export async function POST(request: NextRequest) {
 
   try {
     if (body.type === "approve_article" && body.resultId) {
+      // Mark approved
       await contentAirtablePatch(RESULTS_TABLE, body.resultId, {
         portal_approval: "approved",
         portal_approved_at: new Date().toISOString(),
       });
 
-      // Queue the publish SOP on the Fly.io worker
+      // Assign the next available publish date — the worker's daily publisherTick
+      // will queue the actual publish job when that date arrives.
+      let scheduledDate: string | null = null;
       try {
-        const supabase = getSupabase();
-        await supabase.from("jobs").insert({
-          sop_name: "publish_article_wordpress",
-          runner: "fly",
-          client_id: client.id,
-          status: "pending",
-          payload: { result_id: body.resultId },
+        scheduledDate = await getNextPublishDate();
+        await contentAirtablePatch(RESULTS_TABLE, body.resultId, {
+          scheduled_publish_date: scheduledDate,
         });
       } catch (err) {
-        console.error("Failed to queue publish job (non-fatal):", err);
+        console.error("Failed to assign publish date (non-fatal):", err);
       }
 
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, scheduled_date: scheduledDate });
     }
 
     if (body.type === "save_article_body" && body.resultId && body.body !== undefined) {

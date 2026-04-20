@@ -20,6 +20,7 @@ type Title = {
   content_type_name: ContentTypeName | null;
   refresh_url: string | null;
   page_type: string | null;
+  scheduled_for_month: string | null;
 };
 
 type KeywordGroup = {
@@ -236,7 +237,7 @@ function ProposalCard({
   packageTier: PackageTier;
   onUpdate: (id: string, changes: Partial<Title>) => void;
   onRemove: (id: string) => void;
-  onQuotaHit: (msg: string) => void;
+  onQuotaHit: (msg: string, isWarning?: boolean) => void;
 }) {
   const [editTitle, setEditTitle] = useState(title.title);
   const [editKeyword, setEditKeyword] = useState(title.target_keyword);
@@ -283,11 +284,25 @@ function ProposalCard({
         content_type_name: typeName,
       }),
     });
-    if (res.status === 409) {
-      const data = await res.json() as { message?: string };
-      onQuotaHit(data.message ?? "Monthly limit reached.");
+    const data = await res.json() as { message?: string; next_month?: boolean; scheduled_for?: string };
+    if (!res.ok) {
+      onQuotaHit(data.message ?? "Something went wrong.");
       setBusy(false);
       setShowTypeModal(false);
+      return;
+    }
+    if (data.next_month) {
+      // Approved but pushed to next month — show as warning, not error
+      onQuotaHit(data.message ?? "Queued for next month.", true);
+      onUpdate(title.id, {
+        title: editTitle,
+        target_keyword: editKeyword,
+        keyword_group: editGroup,
+        title_status: "next_month",
+        scheduled_for_month: data.scheduled_for ?? null,
+      });
+      setShowTypeModal(false);
+      setBusy(false);
       return;
     }
     onUpdate(title.id, {
@@ -352,6 +367,11 @@ function ProposalCard({
                   <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 font-semibold uppercase tracking-wide">Long-Form Guide</span>
                 ) : (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 font-semibold uppercase tracking-wide">Standard Article</span>
+                )}
+                {title.title_status === "next_month" && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 font-semibold uppercase tracking-wide">
+                    {title.scheduled_for_month ? `Queued · ${title.scheduled_for_month}` : "Next Month"}
+                  </span>
                 )}
               </div>
               <textarea
@@ -676,6 +696,7 @@ export default function TitlesPage() {
   const [quota, setQuota] = useState<QuotaState | null>(null);
   const [packageTier, setPackageTier] = useState<PackageTier>("growth");
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [quotaIsWarning, setQuotaIsWarning] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -707,7 +728,7 @@ export default function TitlesPage() {
   const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
 
   const proposals = titles.filter(
-    (t) => (t.title_status === "titled" || !t.title_status || t.title_status === "proposals") && t.content_type_name !== "refresh"
+    (t) => (t.title_status === "titled" || !t.title_status || t.title_status === "proposals" || t.title_status === "next_month") && t.content_type_name !== "refresh"
   );
 
   const standardRemaining = quota ? Math.max(0, quota.standard.limit - quota.standard.used) : null;
@@ -794,11 +815,11 @@ export default function TitlesPage() {
         {/* Per-type quota banner */}
         {!loading && quota && <QuotaBanner quota={quota} packageTier={packageTier} />}
 
-        {/* Quota error toast */}
+        {/* Quota error / next-month warning toast */}
         {quotaError && (
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-[13px] mb-4 bg-red-50 border border-red-200 text-red-700">
+          <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-[13px] mb-4 ${quotaIsWarning ? "bg-amber-50 border border-amber-200 text-amber-800" : "bg-red-50 border border-red-200 text-red-700"}`}>
             <span>{quotaError}</span>
-            <button onClick={() => setQuotaError(null)} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+            <button onClick={() => { setQuotaError(null); setQuotaIsWarning(false); }} className={`ml-4 ${quotaIsWarning ? "text-amber-400 hover:text-amber-600" : "text-red-400 hover:text-red-600"}`}>✕</button>
           </div>
         )}
 
@@ -857,7 +878,7 @@ export default function TitlesPage() {
                   packageTier={packageTier}
                   onUpdate={handleUpdate}
                   onRemove={handleRemove}
-                  onQuotaHit={(msg) => setQuotaError(msg)}
+                  onQuotaHit={(msg, isWarning) => { setQuotaError(msg); setQuotaIsWarning(!!isWarning); }}
                 />
               ))}
             </div>

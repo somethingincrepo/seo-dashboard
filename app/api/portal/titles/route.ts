@@ -30,46 +30,46 @@ export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
-  const client = await getClientByToken(token);
-  if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-
-  const companyName = client.fields.company_name;
-
-  // Parse keyword groups for dropdowns
-  let keywordGroups: { group: string; subkeywords: { keyword: string }[] }[] = [];
   try {
-    const ai = client.fields.keyword_groups ? JSON.parse(client.fields.keyword_groups) : [];
-    const custom = client.fields.custom_keyword_groups ? JSON.parse(client.fields.custom_keyword_groups) : [];
-    keywordGroups = [...ai, ...custom];
-  } catch { /* ignore */ }
+    const client = await getClientByToken(token);
+    if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-  if (!companyName) return NextResponse.json({ titles: [], keyword_groups: keywordGroups, quota: null, package: "growth" });
+    const companyName = client.fields.company_name;
 
-  const jobs = await contentAirtableFetch<{
-    id: string;
-    fields: {
-      "Blog Title": string;
-      title_status: string;
-      Status: string;
-      target_keyword: string;
-      keyword_group: string;
-      "Search intent": string;
-      content_angle: string;
-      quality_score: number;
-      proposed_at: string;
-      approved_at: string;
-      "Desired length range": string;
-      refresh_url: string;
-      page_type: string;
-    };
-  }>(CONTENT_JOBS_TABLE, {
-    filterByFormula: `AND(
-      FIND("${companyName}", ARRAYJOIN({Client Name (from Client ID)}, ",")),
-      {title_status}!="skipped"
-    )`,
-    sort: [{ field: "proposed_at", direction: "desc" }],
-    maxRecords: 200,
-  });
+    // Parse keyword groups for dropdowns
+    let keywordGroups: { group: string; subkeywords: { keyword: string }[] }[] = [];
+    try {
+      const ai = client.fields.keyword_groups ? JSON.parse(client.fields.keyword_groups) : [];
+      const custom = client.fields.custom_keyword_groups ? JSON.parse(client.fields.custom_keyword_groups) : [];
+      keywordGroups = [...ai, ...custom];
+    } catch { /* ignore */ }
+
+    if (!companyName) return NextResponse.json({ titles: [], keyword_groups: keywordGroups, quota: null, package: "growth" });
+
+    const escaped = companyName.replace(/"/g, '\\"');
+    const jobs = await contentAirtableFetch<{
+      id: string;
+      fields: {
+        "Blog Title": string;
+        title_status: string;
+        Status: string;
+        target_keyword: string;
+        keyword_group: string;
+        "Search intent": string;
+        content_angle: string;
+        quality_score: number;
+        proposed_at: string;
+        approved_at: string;
+        "Desired length range": string;
+        refresh_url: string;
+        page_type: string;
+        scheduled_for_month: string;
+      };
+    }>(CONTENT_JOBS_TABLE, {
+      filterByFormula: `AND(FIND("${escaped}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}!="skipped")`,
+      sort: [{ field: "proposed_at", direction: "desc" }],
+      maxRecords: 200,
+    });
 
   const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
   const monthStart = startOfMonthISO();
@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
     content_type_name: classifyType(j.fields) as ContentTypeName,
     refresh_url: j.fields.refresh_url ?? null,
     page_type: j.fields.page_type ?? null,
+    scheduled_for_month: j.fields.scheduled_for_month ?? null,
   }));
 
   // Per-type quota
@@ -112,7 +113,12 @@ export async function GET(request: NextRequest) {
     monthStart
   );
 
-  return NextResponse.json({ titles, keyword_groups: keywordGroups, quota, package: pkg });
+    return NextResponse.json({ titles, keyword_groups: keywordGroups, quota, package: pkg });
+  } catch (err) {
+    console.error("[GET /api/portal/titles] error:", err);
+    const message = err instanceof Error ? err.message : "Failed to load titles";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -244,13 +250,29 @@ export async function PATCH(request: NextRequest) {
     const typeQuota = quota[typeName];
 
     if (typeQuota.used >= typeQuota.limit) {
+      // Quota full — schedule for next month instead of hard-rejecting
+      const now = new Date();
+      const nextMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+      const nextMonth = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, "0")}`;
+      const nextMonthLabel = nextMonthDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+
+      const nextMonthFields: Record<string, unknown> = {
+        title_status: "next_month",
+        scheduled_for_month: nextMonth,
+        approved_at: new Date().toISOString(),
+      };
+      if (title?.trim()) nextMonthFields["Blog Title"] = title.trim();
+      if (target_keyword !== undefined) nextMonthFields.target_keyword = target_keyword;
+      if (keyword_group !== undefined) nextMonthFields.keyword_group = keyword_group;
+
+      await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, nextMonthFields);
+
       return NextResponse.json({
-        error: "quota_reached",
-        quota_type: typeName,
-        message: `You've used all ${typeQuota.limit} ${CONTENT_TYPE_CONFIG[typeName].label} slots for this month.`,
-        quota_reached: true,
-        quota,
-      }, { status: 409 });
+        ok: true,
+        next_month: true,
+        scheduled_for: nextMonth,
+        message: `Your ${CONTENT_TYPE_CONFIG[typeName].label} slots for this month are full — this article has been queued for ${nextMonthLabel}.`,
+      });
     }
   }
 
@@ -328,7 +350,8 @@ export async function PATCH(request: NextRequest) {
     } else {
       // Standard / Long-Form → fire n8n webhook with dynamic content type + length
       const cfg = CONTENT_TYPE_CONFIG[typeName];
-      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
+      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL;
+      if (!webhookUrl) throw new Error("N8N_CONTENT_WEBHOOK_URL is not set");
       const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
       const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
       const searchIntent = jobRecord?.fields["Search intent"] || "informational";
