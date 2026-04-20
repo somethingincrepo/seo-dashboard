@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { airtableFetch, contentAirtableFetch } from "@/lib/airtable";
 import { PACKAGES, PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 import type { Client } from "@/lib/clients";
@@ -228,6 +229,19 @@ export async function MonthlyProgressSidebar({ client }: { client: Client }) {
       <SidebarSectionLabel>Outreach</SidebarSectionLabel>
       <div className="space-y-2">
         <SidebarProgressRow label="Reddit comments" actual={actuals.reddit_comments} target={targets.reddit_comments} />
+      </div>
+
+      {/* Deliverables link */}
+      <div className="mt-3 pt-3 border-t border-slate-100">
+        <Link
+          href={`/portal/${client.fields.portal_token}/deliverables`}
+          className="flex items-center justify-between w-full text-[11px] text-slate-400 hover:text-slate-700 transition-colors group"
+        >
+          <span>What&rsquo;s included in your plan</span>
+          <svg className="w-3 h-3 shrink-0 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </Link>
       </div>
     </div>
   );

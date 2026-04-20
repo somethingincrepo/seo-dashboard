@@ -170,7 +170,7 @@ export default async function DeliverablesPage({
   );
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8">
       {/* Header */}
       <div>
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">

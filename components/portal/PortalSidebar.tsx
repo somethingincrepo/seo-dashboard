@@ -149,7 +149,6 @@ const NAV_ITEMS = [
   { suffix: "/reports",              label: "Reports",             Icon: IconReports },
   { suffix: "/reddit",               label: "Reddit Mentions",     Icon: IconReddit },
   { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
-  { suffix: "/deliverables",         label: "Deliverables",        Icon: IconDeliverables },
 ] as const;
 
 export function PortalSidebar({
