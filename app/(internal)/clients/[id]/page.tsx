@@ -14,6 +14,7 @@ import { DeleteClientButton } from "@/components/ui/DeleteClientButton";
 import { CmsCredentialsForm } from "@/components/ui/CmsCredentialsForm";
 import { EngainLinkButton } from "@/components/ui/EngainLinkButton";
 import { ContentStylesEditor } from "@/components/ui/ContentStylesEditor";
+import { IntegrationsForm } from "@/components/ui/IntegrationsForm";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 
 export const dynamic = "force-dynamic";
@@ -284,6 +285,25 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             currentProjectId={f.engain_project_id || undefined}
           />
         </div>
+      </GlassCard>
+
+      {/* Integrations */}
+      <GlassCard className="p-5">
+        <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">
+          Integrations
+          <span className="ml-2 text-slate-400 normal-case font-normal">
+            — GSC, GA4, and Google Drive connection fields
+          </span>
+        </div>
+        <IntegrationsForm
+          clientId={id}
+          initialValues={{
+            gsc_property: f.gsc_property || "",
+            ga4_property: f.ga4_property || "",
+            sheet_id: f.sheet_id || "",
+            drive_folder_id: f.drive_folder_id || "",
+          }}
+        />
       </GlassCard>
 
       {/* Content Styles */}

@@ -7,6 +7,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 
 export type GscLiveData = {
   connected: boolean;
+  error_reason?: string; // set when connected:false and property is configured but query failed
   this?: { clicks: number; impressions: number; avg_position: number; ctr: number };
   prior?: { clicks: number; impressions: number; avg_position: number; ctr: number };
   trend?: { month_label: string; clicks: number; impressions: number; avg_position: number }[];
@@ -243,8 +244,16 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm">◎</div>
             <div>
-              <div className="text-sm font-medium text-slate-700">Google Search Console not connected</div>
-              <div className="text-xs text-slate-400 mt-0.5">Live performance data will appear here once GSC is linked in settings.</div>
+              <div className="text-sm font-medium text-slate-700">
+                {gsc.error_reason && gsc.error_reason !== "no_property"
+                  ? "Google Search Console error"
+                  : "Google Search Console not connected"}
+              </div>
+              <div className="text-xs text-slate-400 mt-0.5">
+                {gsc.error_reason && gsc.error_reason !== "no_property"
+                  ? gsc.error_reason
+                  : "Live performance data will appear here once GSC is linked in settings."}
+              </div>
             </div>
           </div>
         </GlassCard>

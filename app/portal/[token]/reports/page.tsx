@@ -602,7 +602,7 @@ export default async function PortalReportsPage({
     // Live GSC data — gracefully degrade if GSC not configured or fails
     (async (): Promise<GscLiveData | null> => {
       const property = client.fields.gsc_property;
-      if (!property) return { connected: false };
+      if (!property) return { connected: false, error_reason: "no_property" };
       try {
         const thisStart = daysAgo(28);
         const thisEnd = daysAgo(1);
@@ -772,8 +772,10 @@ export default async function PortalReportsPage({
           page_losing: pageLosing,
           keyword_rankings: keywordRankings.length > 0 ? keywordRankings : undefined,
         };
-      } catch {
-        return { connected: false };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[reports/gsc] Query failed for property", client.fields.gsc_property, msg);
+        return { connected: false, error_reason: msg };
       }
     })(),
 
