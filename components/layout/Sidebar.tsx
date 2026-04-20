@@ -13,10 +13,8 @@ const NAV_GROUPS = [
   {
     label: "Operations",
     items: [
-      { href: "/approvals", label: "Approvals", icon: "✦" },
-      { href: "/jobs", label: "Jobs", icon: "⚙" },
+      { href: "/activity", label: "Activity", icon: "✦" },
       { href: "/design-review", label: "Design Review", icon: "◎" },
-      { href: "/reverts", label: "Reverts", icon: "↩" },
       { href: "/reddit", label: "Reddit", icon: "▲" },
       { href: "/indexing", label: "Indexing", icon: "⊙" },
     ],
