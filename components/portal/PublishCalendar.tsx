@@ -247,10 +247,10 @@ export function PublishCalendar({ token }: PublishCalendarProps) {
                     );
                   })}
 
-                  {/* Slot taken by another client — show blocked indicator */}
+                  {/* Slot already booked — show blocked indicator */}
                   {isOccupiedByOther && !isPast && (
                     <div className="text-[10px] text-slate-300 px-1">
-                      · taken
+                      · booked
                     </div>
                   )}
                 </div>
@@ -270,7 +270,7 @@ export function PublishCalendar({ token }: PublishCalendarProps) {
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
               <span className="inline-block w-3 h-3 rounded-sm bg-slate-50 border border-slate-200" />
-              Taken (other client)
+              Already booked
             </div>
             <div className="ml-auto text-[11px] text-slate-400">
               Click an article to reschedule · click a new date to confirm

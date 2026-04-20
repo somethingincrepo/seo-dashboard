@@ -479,7 +479,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
     : null;
 
   return (
-    <div className="relative flex-1">
+    <div className="relative" style={{ maxHeight: "60vh", overflowY: "auto" }}>
       {/* Kanban board — horizontal scroll on narrow viewports */}
       <div className="px-10 overflow-x-auto pb-6">
         <div className="flex gap-4 min-w-[900px]">
@@ -496,7 +496,7 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
                 gradientStyle={col.gradientStyle}
               />
 
-              <div className="flex-1 px-3 pb-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
+              <div className="flex-1 px-3 pb-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "calc(60vh - 120px)" }}>
                 {col.jobs.length === 0 ? (
                   <div className="text-[11px] text-slate-300 text-center py-8 flex-1 flex items-center justify-center">
                     —
