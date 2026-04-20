@@ -245,14 +245,14 @@ function buildContentEvents(jobs: ContentJob[], results: ContentResult[]): Conte
     .slice(0, 30);
 }
 
-function ContentActivityFeed({
+export function ContentActivityFeed({
   jobs,
   results,
   onOpen,
 }: {
   jobs: ContentJob[];
   results: ContentResult[];
-  onOpen: (job: ContentJob) => void;
+  onOpen?: (job: ContentJob) => void;
 }) {
   const events = buildContentEvents(jobs, results);
 
@@ -290,7 +290,7 @@ function ContentActivityFeed({
               return (
                 <div
                   key={e.id}
-                  onClick={() => e.job && onOpen(e.job)}
+                  onClick={() => e.job && onOpen?.(e.job)}
                   className={`grid grid-cols-[140px_1fr_180px_140px] gap-4 px-6 py-3 items-center ${e.job ? "hover:bg-slate-50 cursor-pointer group" : ""}`}
                 >
                   <span className="text-[12px] text-slate-400">{formatEventDate(e.date)}</span>
@@ -524,9 +524,6 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
           ))}
         </div>
       </div>
-
-      {/* ── Content Activity Feed ───────────────────────────────────────────── */}
-      <ContentActivityFeed jobs={liveJobs} results={results} onOpen={openJobDetail} />
 
       {/* ── Drawer ─────────────────────────────────────────────────────────── */}
       {liveSelectedJob && (

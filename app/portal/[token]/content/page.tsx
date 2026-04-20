@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
-import { ContentKanban } from "@/components/portal/ContentKanban";
+import { ContentKanban, ContentActivityFeed } from "@/components/portal/ContentKanban";
 import { PublishCalendar } from "@/components/portal/PublishCalendar";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +61,10 @@ export default async function ContentPage({
 
       <div className="px-10 mt-10 mb-8">
         <PublishCalendar token={token} />
+      </div>
+
+      <div className="px-10 mt-6 mb-10">
+        <ContentActivityFeed jobs={jobs} results={results} />
       </div>
     </div>
   );
