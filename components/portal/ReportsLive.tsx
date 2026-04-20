@@ -252,18 +252,27 @@ export function ReportsLive({ token, initialGsc, initialSnapshot }: ReportsLiveP
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      const data = await res.json();
+
+      // Parse JSON separately so we can surface the HTTP status on parse failure
+      let data: Record<string, unknown>;
+      try {
+        data = await res.json();
+      } catch {
+        setRefreshError(`Server error (HTTP ${res.status}) — please try again or contact support.`);
+        return;
+      }
+
       if (!res.ok) {
         if (data.error === "too_fresh") {
-          setRefreshError(`Data is fresh — next refresh in ${data.days_until_refresh} day(s).`);
+          setRefreshError(`Data is fresh — next refresh in ${data.days_until_refresh as number} day(s).`);
         } else {
-          setRefreshError(data.error || "Refresh failed");
+          setRefreshError((data.error as string) || "Refresh failed");
         }
       } else {
         setSnapshot(data as KeywordSnapshotData);
       }
     } catch {
-      setRefreshError("Network error — please try again.");
+      setRefreshError("Network error — check your connection and try again.");
     } finally {
       setRefreshing(false);
     }

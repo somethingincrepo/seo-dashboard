@@ -96,22 +96,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No keywords configured for this client" }, { status: 422 });
     }
 
-    // Fetch DataForSEO data for each keyword (sequential to avoid rate limits)
-    const results: KeywordRow[] = [];
-    for (const keyword of keywords) {
-      try {
-        const info = await executeDataforSeoKeywordInfo({ keyword });
-        results.push({
-          keyword: info.keyword,
-          volume: info.volume,
-          difficulty: info.difficulty,
-          intent: info.intent,
-        });
-      } catch (err) {
-        console.warn(`[keyword-snapshot] Failed for "${keyword}":`, err);
-        results.push({ keyword, volume: 0, difficulty: 0, intent: "" });
+    // Fetch DataForSEO data for all keywords in parallel
+    const settled = await Promise.allSettled(
+      keywords.map((keyword) => executeDataforSeoKeywordInfo({ keyword }))
+    );
+    const results: KeywordRow[] = settled.map((result, i) => {
+      if (result.status === "fulfilled") {
+        const info = result.value;
+        return { keyword: info.keyword, volume: info.volume, difficulty: info.difficulty, intent: info.intent };
       }
-    }
+      console.warn(`[keyword-snapshot] Failed for "${keywords[i]}":`, result.reason);
+      return { keyword: keywords[i], volume: 0, difficulty: 0, intent: "" };
+    });
 
     const now = new Date().toISOString();
 

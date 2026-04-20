@@ -1,3 +1,8 @@
 {
-  "crons": []
+  "crons": [],
+  "functions": {
+    "app/api/portal/reports/keyword-snapshot/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }
