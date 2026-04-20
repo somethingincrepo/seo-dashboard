@@ -109,8 +109,40 @@ export function TokenUsageTable({
     );
   }
 
+  const SORT_PRESETS: { label: string; key: SortKey; dir: SortDir }[] = [
+    { label: "Highest cost",    key: "costUsd",       dir: "desc" },
+    { label: "Lowest cost",     key: "costUsd",       dir: "asc"  },
+    { label: "Most output",     key: "outputTokens",  dir: "desc" },
+    { label: "Most input",      key: "inputTokens",   dir: "desc" },
+    { label: "Most jobs",       key: "jobCount",      dir: "desc" },
+    { label: "Client A–Z",      key: "clientName",    dir: "asc"  },
+  ];
+
   return (
     <div className="space-y-4">
+      {/* Sort presets */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm text-slate-500 font-medium shrink-0">Sort</span>
+        <div className="flex gap-1.5 flex-wrap">
+          {SORT_PRESETS.map((p) => {
+            const active = sortKey === p.key && sortDir === p.dir;
+            return (
+              <button
+                key={p.label}
+                onClick={() => { setSortKey(p.key); setSortDir(p.dir); }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
+                  active
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Month filter */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-slate-500 font-medium">Month</span>
