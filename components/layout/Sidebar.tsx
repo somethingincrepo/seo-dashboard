@@ -22,6 +22,12 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: "Analytics",
+    items: [
+      { href: "/token-usage", label: "Token Usage", icon: "◈" },
+    ],
+  },
+  {
     label: "Settings",
     items: [
       { href: "/users", label: "Users", icon: "◉" },
