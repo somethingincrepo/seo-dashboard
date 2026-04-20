@@ -4,6 +4,7 @@ import { getClient } from "@/lib/clients";
 import { getClientJobs } from "@/lib/jobs";
 import { getClientChanges } from "@/lib/changes";
 import { getClientReports } from "@/lib/reports";
+import { getContentStyles } from "@/lib/content-styles";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -12,6 +13,7 @@ import { GenerateCredentialsButton } from "@/components/ui/GenerateCredentialsBu
 import { DeleteClientButton } from "@/components/ui/DeleteClientButton";
 import { CmsCredentialsForm } from "@/components/ui/CmsCredentialsForm";
 import { EngainLinkButton } from "@/components/ui/EngainLinkButton";
+import { ContentStylesEditor } from "@/components/ui/ContentStylesEditor";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 
 export const dynamic = "force-dynamic";
@@ -95,10 +97,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const portalUrl = f.portal_token ? `${baseUrl}/portal/${f.portal_token}` : null;
 
   // Fetch data using client_id slug
-  const [changes, reports, jobs] = await Promise.all([
+  const [changes, reports, jobs, contentStylesData] = await Promise.all([
     getClientChanges(clientId),
     getClientReports(clientId),
     getClientJobs(clientId),
+    getContentStyles(f.company_name),
   ]);
 
   // Split changes by approval state
@@ -281,6 +284,21 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             currentProjectId={f.engain_project_id || undefined}
           />
         </div>
+      </GlassCard>
+
+      {/* Content Styles */}
+      <GlassCard className="p-5">
+        <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">
+          Content Styles
+          <span className="ml-2 text-slate-400 normal-case font-normal">
+            — up to 3 styles that shape Claude&apos;s title writing for this client
+          </span>
+        </div>
+        <ContentStylesEditor
+          clientId={id}
+          recordId={contentStylesData?.recordId ?? null}
+          initialStyleIds={contentStylesData?.styleIds ?? []}
+        />
       </GlassCard>
 
       {/* Stats row */}

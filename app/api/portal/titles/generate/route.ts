@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getClientByToken } from "@/lib/clients";
 import { contentAirtableFetch } from "@/lib/airtable";
+import { buildStylesPromptBlock, parseStyles } from "@/lib/content-styles";
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +33,12 @@ export async function POST(request: NextRequest) {
   const tone = portalClient.fields.content_tone || "";
   const audience = portalClient.fields.content_audience || "";
 
-  // Fetch content profile for brand voice, positioning, services, restricted language
+  // Fetch content profile for brand voice, positioning, services, restricted language, and content styles
   let brandVoice = "";
   let positioning = "";
   let coreServices = "";
   let restrictedLanguage = "";
+  let stylesBlock = "";
 
   try {
     const records = await contentAirtableFetch<{
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
       positioning = f["Positioning/differentiators"] ?? "";
       coreServices = f["Core products/services"] ?? "";
       restrictedLanguage = f["Restricted claims/language"] ?? "";
+      stylesBlock = buildStylesPromptBlock(parseStyles(f["Content styles"]));
     }
   } catch { /* non-fatal — continue without profile */ }
 
@@ -63,7 +66,7 @@ Brand voice: ${brandVoice || "(not set)"}
 What makes them different: ${positioning || "(not set)"}
 Core services/products: ${coreServices || "(not set)"}
 Restricted language (NEVER use): ${restrictedLanguage || "(none specified)"}
-
+${stylesBlock ? `\n${stylesBlock}\n` : ""}
 CONTENT TYPE: ${isLongform ? "Long-Form Guide (3,000–5,000 words)" : "Standard Article (1,500–2,500 words)"}
 CURRENT TITLE: ${current_title || "(none)"}
 TARGET KEYWORD: ${keyword || "(not specified)"}
