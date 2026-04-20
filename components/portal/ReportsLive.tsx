@@ -11,6 +11,16 @@ export type GscLiveData = {
   prior?: { clicks: number; impressions: number; avg_position: number; ctr: number };
   trend?: { month_label: string; clicks: number; impressions: number; avg_position: number }[];
   top_queries?: { query: string; clicks: number; impressions: number; position: number }[];
+  keyword_rankings?: {
+    keyword: string;
+    group: string;
+    volume: number;
+    difficulty: number;
+    intent: string;
+    position: number | null;
+    clicks: number;
+    impressions: number;
+  }[];
   keyword_trends?: {
     keyword: string;
     points: { label: string; position: number }[];
@@ -19,19 +29,6 @@ export type GscLiveData = {
   }[];
   page_gaining?: { page: string; clicks_this: number; clicks_prior: number; delta: number }[];
   page_losing?: { page: string; clicks_this: number; clicks_prior: number; delta: number }[];
-};
-
-export type KeywordSnapshotData = {
-  has_data: boolean;
-  can_refresh: boolean;
-  days_until_refresh: number;
-  refreshed_at: string | null;
-  keywords: {
-    keyword: string;
-    volume: number;
-    difficulty: number;
-    intent: string;
-  }[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -49,13 +46,6 @@ function fmtPct(n: number | null | undefined) {
 
 function fmtPos(n: number) {
   return "#" + n.toFixed(1);
-}
-
-function timeAgo(iso: string): string {
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  return `${days} days ago`;
 }
 
 function DeltaBadge({ current, prior, reverse = false, format = "num" }: {
@@ -234,49 +224,10 @@ function shortPage(url: string): string {
 interface ReportsLiveProps {
   token: string;
   initialGsc: GscLiveData | null;
-  initialSnapshot: KeywordSnapshotData | null;
 }
 
-export function ReportsLive({ token, initialGsc, initialSnapshot }: ReportsLiveProps) {
-  const [snapshot, setSnapshot] = useState<KeywordSnapshotData | null>(initialSnapshot);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
+export function ReportsLive({ initialGsc }: ReportsLiveProps) {
   const [queriesExpanded, setQueriesExpanded] = useState(false);
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    setRefreshError(null);
-    try {
-      const res = await fetch("/api/portal/reports/keyword-snapshot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-
-      // Parse JSON separately so we can surface the HTTP status on parse failure
-      let data: Record<string, unknown>;
-      try {
-        data = await res.json();
-      } catch {
-        setRefreshError(`Server error (HTTP ${res.status}) — please try again or contact support.`);
-        return;
-      }
-
-      if (!res.ok) {
-        if (data.error === "too_fresh") {
-          setRefreshError(`Data is fresh — next refresh in ${data.days_until_refresh as number} day(s).`);
-        } else {
-          setRefreshError((data.error as string) || "Refresh failed");
-        }
-      } else {
-        setSnapshot(data as KeywordSnapshotData);
-      }
-    } catch {
-      setRefreshError("Network error — check your connection and try again.");
-    } finally {
-      setRefreshing(false);
-    }
-  }
 
   const gsc = initialGsc;
   const trend = gsc?.trend ?? [];
@@ -519,97 +470,72 @@ export function ReportsLive({ token, initialGsc, initialSnapshot }: ReportsLiveP
         </GlassCard>
       ) : null}
 
-      {/* ── Keyword Snapshot (DataForSEO) ─────────────────────────────────── */}
-      <GlassCard>
-        <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-          <div>
+      {/* ── Keyword Rankings ──────────────────────────────────────────────── */}
+      {gsc?.connected && (
+        <GlassCard>
+          <div className="px-5 pt-5 pb-3">
             <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Keyword Intelligence</div>
-            <div className="text-lg font-bold text-slate-900">Target Keywords</div>
+            <div className="text-lg font-bold text-slate-900">Target Keyword Rankings</div>
           </div>
-          <div className="flex items-center gap-2.5">
-            {snapshot?.refreshed_at && (
-              <span className="text-[11px] text-slate-400">
-                Updated {timeAgo(snapshot.refreshed_at)}
-              </span>
-            )}
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || (snapshot?.can_refresh === false)}
-              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all border ${
-                refreshing
-                  ? "bg-slate-50 border-slate-200 text-slate-400 cursor-wait"
-                  : snapshot?.can_refresh === false
-                  ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
-                  : "bg-violet-600 border-violet-700 text-white hover:bg-violet-700 shadow-sm"
-              }`}
-            >
-              {refreshing
-                ? "Refreshing…"
-                : snapshot?.can_refresh === false
-                ? `Next refresh in ${snapshot.days_until_refresh}d`
-                : snapshot?.has_data
-                ? "Refresh data"
-                : "Load keyword data"}
-            </button>
-          </div>
-        </div>
 
-        {refreshError && (
-          <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-600">
-            {refreshError}
-          </div>
-        )}
-
-        {!snapshot?.has_data ? (
-          <div className="px-5 pb-5">
-            <p className="text-sm text-slate-500">
-              Click &ldquo;Load keyword data&rdquo; to fetch search volume and difficulty for your target keywords.
-              Data is refreshed every {3} days to keep API usage efficient.
-            </p>
-          </div>
-        ) : (
-          <div className="px-5 pb-5">
-            <div className="rounded-lg border border-slate-100 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Keyword</th>
-                    <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Volume / mo</th>
-                    <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Difficulty</th>
-                    <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Intent</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {snapshot.keywords.map((kw, i) => (
-                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-3 py-2.5 text-slate-700 font-medium">{kw.keyword}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-800">
-                        {kw.volume > 0 ? fmtNum(kw.volume) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {kw.difficulty > 0 ? (
-                          <DiffBadge score={kw.difficulty} />
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {kw.intent ? (
-                          <span className="text-[10px] capitalize text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                            {kw.intent}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {!gsc.keyword_rankings || gsc.keyword_rankings.length === 0 ? (
+            <div className="px-5 pb-5">
+              <p className="text-sm text-slate-500">
+                No keyword groups configured yet. Add keyword groups in your content pipeline to see live position tracking here.
+              </p>
             </div>
-          </div>
-        )}
-      </GlassCard>
+          ) : (
+            <div className="px-5 pb-5">
+              <div className="rounded-lg border border-slate-100 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Keyword</th>
+                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Position</th>
+                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Clicks</th>
+                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Volume</th>
+                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">KD</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {gsc.keyword_rankings.map((kw, i) => (
+                      <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-3 py-2.5">
+                          <div className="text-slate-700 font-medium">{kw.keyword}</div>
+                          {kw.group && (
+                            <div className="text-[10px] text-slate-400 mt-0.5">{kw.group}</div>
+                          )}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right tabular-nums font-semibold ${kw.position != null ? posColor(kw.position) : "text-slate-300"}`}>
+                          {kw.position != null ? fmtPos(kw.position) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                          {kw.clicks > 0 ? fmtNum(kw.clicks) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                          {kw.volume > 0 ? fmtNum(kw.volume) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {kw.difficulty > 0 ? (
+                            <DiffBadge score={kw.difficulty} />
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {gsc.keyword_rankings.some((kw) => kw.position == null) && (
+                <p className="mt-2 text-[11px] text-slate-400">
+                  Keywords showing — had no impressions in the last 28 days.
+                </p>
+              )}
+            </div>
+          )}
+        </GlassCard>
+      )}
 
     </div>
   );

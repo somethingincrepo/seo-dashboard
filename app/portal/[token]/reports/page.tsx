@@ -2,10 +2,9 @@ import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getClientReports } from "@/lib/reports";
 import type { SupabaseReport, TrendEntry, RankingEntry, PageEntry, AiSourceEntry } from "@/lib/reports";
-import { getSupabase } from "@/lib/supabase";
 import { executeGscQuery } from "@/lib/tools/gsc";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { ReportsLive, type GscLiveData, type KeywordSnapshotData } from "@/components/portal/ReportsLive";
+import { ReportsLive, type GscLiveData } from "@/components/portal/ReportsLive";
 
 export const revalidate = 0;
 
@@ -597,7 +596,7 @@ export default async function PortalReportsPage({
   const clientId = client.fields.client_id || client.id;
 
   // Fetch all data in parallel
-  const [reports, gscData, snapshotData] = await Promise.all([
+  const [reports, gscData] = await Promise.all([
     getClientReports(clientId),
 
     // Live GSC data — gracefully degrade if GSC not configured or fails
@@ -708,6 +707,50 @@ export default async function PortalReportsPage({
           // Extended queries failed — base metrics still render fine
         }
 
+        // Keyword rankings: cross-reference keyword_groups against GSC query position data
+        const gscQueryMap = new Map<string, { position: number; clicks: number; impressions: number }>();
+        for (const row of thisResult.rows) {
+          gscQueryMap.set((row.keys[0] ?? "").toLowerCase(), {
+            position: row.position,
+            clicks: row.clicks,
+            impressions: row.impressions,
+          });
+        }
+
+        type Subkw = { keyword: string; volume?: number; difficulty?: number; intent?: string };
+        type KwGroup = { group?: string; subkeywords?: Subkw[] };
+        const allKeywords: { keyword: string; group: string; volume: number; difficulty: number; intent: string }[] = [];
+        const seen = new Set<string>();
+        for (const raw of [client.fields.keyword_groups, client.fields.custom_keyword_groups]) {
+          try {
+            if (!raw) continue;
+            const groups = JSON.parse(raw) as KwGroup[];
+            for (const g of groups) {
+              for (const sk of (g.subkeywords ?? [])) {
+                const norm = sk.keyword.toLowerCase();
+                if (seen.has(norm)) continue;
+                seen.add(norm);
+                allKeywords.push({
+                  keyword: sk.keyword,
+                  group: g.group ?? "",
+                  volume: sk.volume ?? 0,
+                  difficulty: sk.difficulty ?? 0,
+                  intent: sk.intent ?? "",
+                });
+              }
+            }
+          } catch { /* ignore malformed JSON */ }
+        }
+
+        const keywordRankings = allKeywords
+          .map((kw) => {
+            const d = gscQueryMap.get(kw.keyword.toLowerCase());
+            return { ...kw, position: d?.position ?? null, clicks: d?.clicks ?? 0, impressions: d?.impressions ?? 0 };
+          })
+          .sort((a, b) =>
+            a.position === null ? 1 : b.position === null ? -1 : a.position - b.position
+          );
+
         return {
           connected: true,
           this: {
@@ -727,36 +770,13 @@ export default async function PortalReportsPage({
           keyword_trends: keywordTrends,
           page_gaining: pageGaining,
           page_losing: pageLosing,
+          keyword_rankings: keywordRankings.length > 0 ? keywordRankings : undefined,
         };
       } catch {
         return { connected: false };
       }
     })(),
 
-    // Keyword snapshot from Supabase cache
-    (async (): Promise<KeywordSnapshotData | null> => {
-      try {
-        const { data } = await getSupabase()
-          .from("keyword_snapshots")
-          .select("keywords, refreshed_at")
-          .eq("client_id", clientId)
-          .single();
-
-        if (!data) return { has_data: false, can_refresh: true, days_until_refresh: 0, refreshed_at: null, keywords: [] };
-
-        const ageDays = (Date.now() - new Date(data.refreshed_at).getTime()) / 86400000;
-        const canRefresh = ageDays >= 3;
-        return {
-          has_data: true,
-          can_refresh: canRefresh,
-          days_until_refresh: canRefresh ? 0 : Math.ceil(3 - ageDays),
-          refreshed_at: data.refreshed_at,
-          keywords: data.keywords ?? [],
-        };
-      } catch {
-        return null;
-      }
-    })(),
   ]);
 
   const status = client.fields.status || client.fields.plan_status;
@@ -773,7 +793,7 @@ export default async function PortalReportsPage({
       </div>
 
       {/* Live GSC + keyword intelligence */}
-      <ReportsLive token={token} initialGsc={gscData} initialSnapshot={snapshotData} />
+      <ReportsLive token={token} initialGsc={gscData} />
 
       {/* Historical monthly reports */}
       {reports.length > 0 && (
