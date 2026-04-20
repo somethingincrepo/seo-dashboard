@@ -232,13 +232,13 @@ export async function MonthlyProgressSidebar({ client }: { client: Client }) {
       </div>
 
       {/* Deliverables link */}
-      <div className="mt-3 pt-3 border-t border-slate-100">
+      <div className="mt-3">
         <Link
           href={`/portal/${client.fields.portal_token}/deliverables`}
-          className="flex items-center justify-between w-full text-[11px] text-slate-400 hover:text-slate-700 transition-colors group"
+          className="flex items-center justify-between w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300 transition-all text-[11px] font-medium text-slate-500 hover:text-slate-700 group"
         >
           <span>What&rsquo;s included in your plan</span>
-          <svg className="w-3 h-3 shrink-0 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-3 h-3 shrink-0 text-slate-400 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6"/>
           </svg>
         </Link>
