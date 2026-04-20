@@ -18,5 +18,6 @@ export async function GET(request: NextRequest) {
     wp_app_password: f.wp_app_password || "",
     seo_plugin: f.seo_plugin || "",
     page_builder: f.page_builder || "",
+    gsc_property: f.gsc_property || "",
   });
 }

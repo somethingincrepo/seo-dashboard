@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const SEO_PLUGINS = ["Yoast", "RankMath", "AIOSEO", "SEOPress", "Other / None"];
 const PAGE_BUILDERS = ["Gutenberg (Block Editor)", "Elementor", "Divi", "Beaver Builder", "Bricks", "Oxygen", "Other"];
 
-type Section = "credentials" | "security";
+type Section = "credentials" | "integrations" | "security";
 
 type ClientData = {
   cms: string;
@@ -16,6 +16,7 @@ type ClientData = {
   wp_app_password: string;
   seo_plugin: string;
   page_builder: string;
+  gsc_property: string;
 };
 
 type TestResult = { ok: boolean; wp_user?: string; roles?: string[]; error?: string };
@@ -227,8 +228,9 @@ function CmsHelpPanel({ cms }: { cms: string }) {
 // ── Settings nav items ───────────────────────────────────────────────────────
 
 const SECTIONS: { id: Section; label: string; description: string }[] = [
-  { id: "credentials", label: "Credentials", description: "CMS API access" },
-  { id: "security",    label: "Security",     description: "Change password" },
+  { id: "credentials",  label: "Credentials",  description: "CMS API access" },
+  { id: "integrations", label: "Integrations", description: "GSC, GA4 & more" },
+  { id: "security",     label: "Security",     description: "Change password" },
 ];
 
 // ── Main page ────────────────────────────────────────────────────────────────
@@ -255,6 +257,14 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
 
+  // GSC integration state
+  const [gscProperty, setGscProperty] = useState("");
+  const [gscSaved, setGscSaved] = useState("");   // the currently saved value
+  const [gscEditing, setGscEditing] = useState(false);
+  const [savingGsc, setSavingGsc] = useState(false);
+  type GscResult = { verified?: boolean; test_error?: string } | null;
+  const [gscResult, setGscResult] = useState<GscResult>(null);
+
   useEffect(() => {
     fetch(`/api/portal/settings/client-data?token=${token}`)
       .then((r) => r.json())
@@ -264,6 +274,8 @@ export default function SettingsPage() {
         setWpAppPassword(data.wp_app_password || "");
         setSeoPlugin(data.seo_plugin || "");
         setPageBuilder(data.page_builder || "");
+        setGscSaved(data.gsc_property || "");
+        setGscProperty(data.gsc_property || "");
       })
       .catch(() => show("Failed to load settings", "error"))
       .finally(() => setLoadingClient(false));
@@ -304,6 +316,30 @@ export default function SettingsPage() {
       setWpTestResult({ ok: false, error: "Request failed" });
     } finally {
       setTestingWp(false);
+    }
+  }
+
+  async function saveGsc(disconnect = false) {
+    setSavingGsc(true);
+    setGscResult(null);
+    try {
+      const propertyToSave = disconnect ? "" : gscProperty.trim();
+      const res = await fetch("/api/portal/settings/gsc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gsc_property: propertyToSave, test_connection: !disconnect && !!propertyToSave }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; verified?: boolean; test_error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error || "Save failed");
+      setGscSaved(propertyToSave);
+      setGscProperty(propertyToSave);
+      setGscEditing(false);
+      if (!disconnect) setGscResult({ verified: data.verified, test_error: data.test_error });
+      show(disconnect ? "Google Search Console disconnected" : "Google Search Console saved", "success");
+    } catch (err) {
+      show(err instanceof Error ? err.message : "Save failed", "error");
+    } finally {
+      setSavingGsc(false);
     }
   }
 
@@ -487,6 +523,159 @@ export default function SettingsPage() {
                     <CmsHelpPanel cms={cms} />
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Integrations ── */}
+          {activeSection === "integrations" && (
+            <div>
+              <div className="px-6 py-5 border-b border-slate-100">
+                <h2 className="text-base font-semibold text-slate-900">Integrations</h2>
+                <p className="text-[13px] text-slate-500 mt-0.5">Connect data sources for your Reports page.</p>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* ── Google Search Console ── */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="px-5 py-4 bg-slate-50 flex items-center justify-between border-b border-slate-200">
+                    <div className="flex items-center gap-2.5">
+                      {/* G logo */}
+                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                      </svg>
+                      <span className="text-[13px] font-semibold text-slate-800">Google Search Console</span>
+                    </div>
+                    {gscSaved ? (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
+                        Connected
+                      </span>
+                    ) : (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 font-medium">
+                        Not connected
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="p-5 space-y-4">
+                    {/* Instructions */}
+                    {(!gscSaved || gscEditing) && (
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-[13px] space-y-2.5">
+                        <p className="font-semibold text-indigo-900">How to connect</p>
+                        <ol className="space-y-1.5 list-none">
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">1</span>
+                            <span className="text-indigo-800">
+                              Go to{" "}
+                              <a href="https://search.google.com/search-console" target="_blank" rel="noreferrer"
+                                className="underline underline-offset-2 font-medium">
+                                Google Search Console
+                              </a>{" "}
+                              and open your property
+                            </span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">2</span>
+                            <span className="text-indigo-800">
+                              Go to <strong>Settings → Users and permissions</strong>
+                            </span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">3</span>
+                            <span className="text-indigo-800">
+                              Add <strong className="font-semibold">reporting@somethingincorporated.io</strong> as a <strong>Full User</strong>
+                            </span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">4</span>
+                            <span className="text-indigo-800">
+                              Enter your property URL below and click <strong>Save &amp; verify</strong>
+                            </span>
+                          </li>
+                        </ol>
+                      </div>
+                    )}
+
+                    {/* Current property or edit field */}
+                    {gscSaved && !gscEditing ? (
+                      <div className="space-y-3">
+                        <div>
+                          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Property</div>
+                          <div className="text-[13px] font-medium text-slate-800 font-mono bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                            {gscSaved}
+                          </div>
+                        </div>
+                        {gscResult?.verified === true && (
+                          <div className="text-[13px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                            Connection verified — data is flowing to your Reports page.
+                          </div>
+                        )}
+                        {gscResult?.verified === false && (
+                          <div className="text-[13px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            <strong>Saved, but couldn&apos;t verify access.</strong> Make sure you&apos;ve added{" "}
+                            <span className="font-medium">reporting@somethingincorporated.io</span> as a Full User in GSC.
+                            {gscResult.test_error && (
+                              <span className="block text-[11px] text-amber-600 mt-1 font-mono">{gscResult.test_error}</span>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => { setGscEditing(true); setGscResult(null); }}
+                            className="px-3 py-1.5 text-[13px] font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+                          >
+                            Change property
+                          </button>
+                          <button
+                            onClick={() => saveGsc(true)}
+                            disabled={savingGsc}
+                            className="px-3 py-1.5 text-[13px] font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition"
+                          >
+                            {savingGsc ? "Disconnecting…" : "Disconnect"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+                            Property URL
+                          </label>
+                          <input
+                            type="text"
+                            value={gscProperty}
+                            onChange={(e) => { setGscProperty(e.target.value); setGscResult(null); }}
+                            placeholder="https://example.com/ or sc-domain:example.com"
+                            className="w-full px-3 py-2 text-sm font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition"
+                          />
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            Copy this exactly from the property selector in Google Search Console — including the trailing slash if it&apos;s a URL-prefix property.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => saveGsc(false)}
+                            disabled={savingGsc || !gscProperty.trim()}
+                            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          >
+                            {savingGsc ? "Saving…" : "Save & verify"}
+                          </button>
+                          {gscSaved && (
+                            <button
+                              onClick={() => { setGscEditing(false); setGscProperty(gscSaved); setGscResult(null); }}
+                              className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 transition"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

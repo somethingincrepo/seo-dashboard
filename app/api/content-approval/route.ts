@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getNextPublishDate } from "@/lib/content-schedule";
 import { getSupabase } from "@/lib/supabase";
 
 const BASE_URL = "https://api.airtable.com/v0";
@@ -82,27 +83,18 @@ async function handleResultApproval(recordId: string, action: string) {
     throw new Error(`Failed to update result: ${err}`);
   }
 
-  // When approved for publishing, queue the publish SOP on the Fly.io worker
+  // When approved for publishing, assign a scheduled publish date.
+  // The worker's daily publisherTick queues the actual publish job when that date arrives.
   if (action === "approved") {
     try {
-      // Fetch the result to get the linked job ID
-      const resultRes = await fetch(
-        `${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(RESULTS_TABLE)}/${recordId}`,
-        { headers: getContentHeaders() }
-      );
-      const resultRecord = resultRes.ok ? await resultRes.json() as { fields: { "Job ID"?: string[] } } : null;
-      const jobId = resultRecord?.fields?.["Job ID"]?.[0];
-
-      const supabase = getSupabase();
-      await supabase.from("jobs").insert({
-        sop_name: "publish_article_wordpress",
-        runner: "fly",
-        client_id: null,
-        status: "pending",
-        payload: { result_id: recordId, job_id: jobId ?? null },
+      const scheduledDate = await getNextPublishDate();
+      await fetch(`${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(RESULTS_TABLE)}/${recordId}`, {
+        method: "PATCH",
+        headers: getContentHeaders(),
+        body: JSON.stringify({ fields: { scheduled_publish_date: scheduledDate } }),
       });
     } catch (err) {
-      console.error("Failed to queue publish job (non-fatal):", err);
+      console.error("Failed to assign publish date (non-fatal):", err);
     }
   }
 }
