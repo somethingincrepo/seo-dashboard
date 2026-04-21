@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   // Fetch all active clients with a report_day set
   const clients = await airtableFetch<AirtableRecord<ClientFields>>("Clients", {
-    filterByFormula: `AND({status}="active", {report_day}>0)`,
+    filterByFormula: `AND({plan_status}="active", {report_day}>0)`,
     maxRecords: 200,
   });
 

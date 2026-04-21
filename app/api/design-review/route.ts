@@ -24,18 +24,34 @@ export async function POST(request: NextRequest) {
     }
 
     if (decision === "manual") {
-      await airtablePatch("Changes", changeId, {
-        execution_status: "manual_required",
-        client_notes: "Design review complete — marked for manual implementation.",
-      });
+      try {
+        await airtablePatch("Changes", changeId, {
+          execution_status: "manual_required",
+          client_notes: "Design review complete — marked for manual implementation.",
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("404") || msg.includes("NOT_FOUND")) {
+          return NextResponse.json({ error: "Change record not found" }, { status: 404 });
+        }
+        throw err;
+      }
       return NextResponse.json({ ok: true, outcome: "manual_required" });
     }
 
     // decision === "safe" — create implement job
-    await airtablePatch("Changes", changeId, {
-      execution_status: "pending",
-      client_notes: "Design review passed — queued for implementation.",
-    });
+    try {
+      await airtablePatch("Changes", changeId, {
+        execution_status: "pending",
+        client_notes: "Design review passed — queued for implementation.",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404") || msg.includes("NOT_FOUND")) {
+        return NextResponse.json({ error: "Change record not found" }, { status: 404 });
+      }
+      throw err;
+    }
 
     // Insert Supabase job (picked up by Fly.io worker)
     if (clientId) {

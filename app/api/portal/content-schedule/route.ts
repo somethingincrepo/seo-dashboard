@@ -3,7 +3,6 @@ import { getClientByToken } from "@/lib/clients";
 import {
   getScheduledArticlesForClient,
   getOccupiedPublishDates,
-  toDateStr,
 } from "@/lib/content-schedule";
 import { contentAirtablePatch } from "@/lib/airtable";
 
@@ -125,4 +124,3 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export { toDateStr };

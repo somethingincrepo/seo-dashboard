@@ -100,7 +100,13 @@ async function handleResultApproval(recordId: string, action: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { recordId, action, type } = await request.json();
+    let parsed: { recordId?: string; action?: string; type?: string };
+    try {
+      parsed = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const { recordId, action, type } = parsed;
     if (!recordId || !action) {
       return NextResponse.json({ error: "Missing recordId or action" }, { status: 400 });
     }
@@ -119,9 +125,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : "Internal error";
+    const isNotFound = msg.includes("404") || msg.toLowerCase().includes("not_found") || msg.toLowerCase().includes("not found");
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Internal error" },
-      { status: 500 }
+      { error: msg },
+      { status: isNotFound ? 404 : 500 }
     );
   }
 }

@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableFetch } from "@/lib/airtable";
 import { batchSubmitUrls, updateIndexingStatusForUrls } from "@/lib/tools/google-indexing";
+import { getSession } from "@/lib/auth";
 import type { Change } from "@/lib/changes";
 
 export const dynamic = "force-dynamic";
 
-function isAuthorized(request: NextRequest): boolean {
+async function isAuthorized(request: NextRequest): Promise<boolean> {
+  // Accept bearer token (server-to-server calls)
   const auth = request.headers.get("authorization");
-  const expected = process.env.ADMIN_PASSWORD;
-  return auth === `Bearer ${expected}`;
+  if (auth && auth === `Bearer ${process.env.ADMIN_PASSWORD}`) return true;
+  // Accept admin session cookie (browser requests from admin UI)
+  const session = await getSession();
+  return !!session;
 }
 
 /**
@@ -16,7 +20,7 @@ function isAuthorized(request: NextRequest): boolean {
  * Returns implemented changes for a client with their indexing status.
  */
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
+  if (!await isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
  * Body: { client_id: string, urls: string[], type?: "URL_UPDATED" | "URL_DELETED" }
  */
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
+  if (!await isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -68,9 +68,7 @@ export default function IndexingAdminPage() {
     setLoading(true);
     setSelected(new Set());
     try {
-      const res = await fetch(`/api/google-indexing?client_id=${encodeURIComponent(id)}`, {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_TOKEN || ""}` },
-      });
+      const res = await fetch(`/api/google-indexing?client_id=${encodeURIComponent(id)}`);
       const data = await res.json();
       setChanges(data.changes ?? []);
     } finally {
@@ -101,13 +99,9 @@ export default function IndexingAdminPage() {
     if (!urls.length || !clientId) return;
     setSubmitting(true);
     try {
-      const adminPassword = document.cookie.match(/seo_session=([^;]+)/)?.[1] ?? "";
       const res = await fetch("/api/google-indexing", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminPassword}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ client_id: clientId, urls }),
       });
       const data = await res.json();
