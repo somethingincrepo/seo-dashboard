@@ -6,7 +6,7 @@ import { executeGscQuery, executeGscTotals } from "@/lib/tools/gsc";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ReportsLive, type GscLiveData } from "@/components/portal/ReportsLive";
 
-export const revalidate = 0;
+export const revalidate = 86400; // refresh GSC data once per day
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -40,6 +40,62 @@ function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().split("T")[0];
+}
+
+// ─── Trend builder — aggregates daily GSC date rows by range ──────────────────
+
+type TrendRow = { keys: string[]; clicks: number; impressions: number; position: number };
+
+function buildTrend(rows: TrendRow[], rangeDays: number) {
+  const sorted = [...rows].sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+
+  if (rangeDays <= 28) {
+    // Daily — one data point per day
+    return sorted.map((row) => {
+      const d = new Date(row.keys[0] ?? "");
+      return {
+        month_label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        clicks: row.clicks,
+        impressions: row.impressions,
+        avg_position: row.position,
+      };
+    });
+  }
+
+  if (rangeDays <= 90) {
+    // Weekly — group into 7-day buckets
+    const buckets = new Map<number, { clicks: number; impressions: number; impr_pos_sum: number; firstDate: string }>();
+    if (sorted.length > 0) {
+      const startTs = new Date(sorted[0].keys[0] ?? "").getTime();
+      for (const row of sorted) {
+        const dayIdx = Math.floor((new Date(row.keys[0] ?? "").getTime() - startTs) / 86400000);
+        const bucket = Math.floor(dayIdx / 7);
+        const e = buckets.get(bucket) ?? { clicks: 0, impressions: 0, impr_pos_sum: 0, firstDate: row.keys[0] ?? "" };
+        e.clicks += row.clicks; e.impressions += row.impressions; e.impr_pos_sum += row.position * row.impressions;
+        buckets.set(bucket, e);
+      }
+    }
+    return [...buckets.entries()].sort(([a], [b]) => a - b).map(([, e]) => ({
+      month_label: new Date(e.firstDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      clicks: e.clicks, impressions: e.impressions,
+      avg_position: e.impressions > 0 ? e.impr_pos_sum / e.impressions : 0,
+    }));
+  }
+
+  // Monthly buckets (6mo)
+  const byMonth = new Map<string, { clicks: number; impressions: number; impr_pos_sum: number }>();
+  for (const row of sorted) {
+    const monthKey = (row.keys[0] ?? "").slice(0, 7);
+    if (!monthKey) continue;
+    const e = byMonth.get(monthKey) ?? { clicks: 0, impressions: 0, impr_pos_sum: 0 };
+    e.clicks += row.clicks; e.impressions += row.impressions; e.impr_pos_sum += row.position * row.impressions;
+    byMonth.set(monthKey, e);
+  }
+  return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, e]) => ({
+    month_label: new Date(key + "-15").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+    clicks: e.clicks, impressions: e.impressions,
+    avg_position: e.impressions > 0 ? e.impr_pos_sum / e.impressions : 0,
+  }));
 }
 
 // ─── Brand term derivation ─────────────────────────────────────────────────────
@@ -655,16 +711,17 @@ export default async function PortalReportsPage({
         const targetKeywordMap = new Map(allKeywords.map((kw) => [kw.keyword.toLowerCase(), kw.group]));
         const brandTerms = deriveBrandTerms(client.fields.company_name ?? "", client.fields.site_url ?? "");
 
-        const thisStart = daysAgo(28);
+        const rangeDays = 28; // initial SSR always uses 28d; range changes happen client-side
+        const thisStart = daysAgo(rangeDays);
         const thisEnd = daysAgo(1);
-        const priorStart = daysAgo(56);
-        const priorEnd = daysAgo(29);
-        const trendStart = daysAgo(395);
+        const priorStart = daysAgo(rangeDays * 2);
+        const priorEnd = daysAgo(rangeDays + 1);
 
         const [thisResult, priorResult, trendResult, thisTotals, priorTotals] = await Promise.all([
           executeGscQuery({ property, start_date: thisStart, end_date: thisEnd, dimensions: ["query"], row_limit: 500 }),
           executeGscQuery({ property, start_date: priorStart, end_date: priorEnd, dimensions: ["query"], row_limit: 500 }),
-          executeGscQuery({ property, start_date: trendStart, end_date: thisEnd, dimensions: ["date"], row_limit: 500 }),
+          // Trend uses same window as the selected range (daily data → aggregated by buildTrend)
+          executeGscQuery({ property, start_date: thisStart, end_date: thisEnd, dimensions: ["date"], row_limit: 500 }),
           // Exact totals — no-dimension queries return true site aggregates, not truncated row sums
           executeGscTotals({ property, start_date: thisStart, end_date: thisEnd }),
           executeGscTotals({ property, start_date: priorStart, end_date: priorEnd }),
@@ -679,26 +736,7 @@ export default async function PortalReportsPage({
             return { query: q, clicks: r.clicks, impressions: r.impressions, position: r.position, is_target: group !== undefined, group: group ?? null };
           });
 
-        const byMonth = new Map<string, { clicks: number; impressions: number; impr_pos_sum: number }>();
-        for (const row of trendResult.rows) {
-          const monthKey = (row.keys[0] ?? "").slice(0, 7);
-          if (!monthKey) continue;
-          const entry = byMonth.get(monthKey) ?? { clicks: 0, impressions: 0, impr_pos_sum: 0 };
-          entry.clicks += row.clicks;
-          entry.impressions += row.impressions;
-          entry.impr_pos_sum += row.position * row.impressions;
-          byMonth.set(monthKey, entry);
-        }
-
-        const trend = [...byMonth.entries()]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .slice(-12)
-          .map(([key, e]) => ({
-            month_label: new Date(key + "-15").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
-            clicks: e.clicks,
-            impressions: e.impressions,
-            avg_position: e.impressions > 0 ? e.impr_pos_sum / e.impressions : 0,
-          }));
+        const trend = buildTrend(trendResult.rows, rangeDays);
 
         // Extended: keyword position trends + page performance (graceful degradation)
         let keywordTrends: GscLiveData["keyword_trends"];
@@ -774,6 +812,7 @@ export default async function PortalReportsPage({
 
         return {
           connected: true,
+          range_days: rangeDays,
           this: thisTotals,
           prior: priorTotals,
           trend,

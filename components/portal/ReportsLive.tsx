@@ -442,11 +442,13 @@ export function ReportsLive({ token, initialGsc }: ReportsLiveProps) {
             </div>
           )}
 
-          {/* Trend chart — always 12-month regardless of range selection */}
+          {/* Trend chart — matches selected date range */}
           {trend.length >= 3 && (
             <div className="px-5 py-4 border-b border-slate-100">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
-                12-Month Clicks Trend
+                {dateRange === 28 ? "Daily Clicks — Last 28 Days"
+                  : dateRange === 90 ? "Weekly Clicks — Last 90 Days"
+                  : "Monthly Clicks — Last 6 Months"}
               </div>
               <AreaChart
                 values={trend.map((t) => t.clicks)}
