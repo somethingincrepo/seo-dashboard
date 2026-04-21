@@ -99,6 +99,12 @@ export function ActivityView({
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-refresh every 30s so approvals and job status update without a manual reload
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), 30_000);
+    return () => clearInterval(id);
+  }, [router]);
+
   // Filtered sets
   const filteredApprovals = useMemo(
     () =>

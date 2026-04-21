@@ -7,6 +7,7 @@ import { getContentJobsForClient, getContentResultsForClient } from "@/lib/conte
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getChangeTitle, normalizeType } from "@/lib/portal-labels";
+import { ActivityRefresh } from "./ActivityRefresh";
 
 export const revalidate = 0;
 
@@ -222,6 +223,7 @@ export default async function ActivityPage({
 
   return (
     <div className="space-y-10">
+      <ActivityRefresh />
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Changelog</h1>
         <p className="text-base text-slate-500 mt-1">

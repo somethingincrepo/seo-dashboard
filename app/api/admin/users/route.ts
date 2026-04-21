@@ -94,6 +94,11 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
   }
 
+  const adminCount = users.filter((u) => u.role === "admin").length;
+  if (target?.role === "admin" && adminCount <= 1) {
+    return NextResponse.json({ error: "Cannot delete the last admin account" }, { status: 400 });
+  }
+
   await deleteAdminUser(id);
   return NextResponse.json({ ok: true });
 }

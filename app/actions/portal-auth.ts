@@ -38,6 +38,7 @@ async function checkRateLimit(): Promise<boolean> {
   const next = { count: attempts + 1, start: windowStart };
   cookieStore.set(RATE_LIMIT_COOKIE, Buffer.from(JSON.stringify(next)).toString("base64url"), {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: WINDOW_MS / 1000,
     path: "/portal/login",

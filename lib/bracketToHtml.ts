@@ -11,10 +11,14 @@
  * Change-tracking tags (used by content-refresh agent):
  *   [ADDED]new content[/ADDED]          — entirely new section/paragraph (green)
  *   [CHANGED from="old text"]new[/CHANGED] — in-place edit (shows del + ins)
- *   [REMOVED]content[/REMOVED]          — removed content (strikethrough, shown for audit trail)
+ *   [REMOVED]...[/REMOVED]              — removed content (strikethrough)
  *
  * The multi-line [LI]...[/LI] form is collapsed into a single line first,
  * then the line-by-line pass converts everything to HTML.
+ *
+ * XSS safety: all user-supplied content captured from bracket tags is passed
+ * through escapeHtml before being placed into HTML context. A final allowlist
+ * sanitization pass strips any HTML tags not produced by this parser.
  */
 export function bracketToHtml(text: string): string {
   if (!text) return "";
@@ -27,7 +31,6 @@ export function bracketToHtml(text: string): string {
   );
 
   // ── Pre-pass 2: collapse multi-line [ADDED]...[/ADDED] into block ──────────
-  // Wrap inner content, preserve internal newlines for further processing
   processed = processed.replace(
     /\[ADDED\]([\s\S]*?)\[\/ADDED\]/g,
     (_match, inner: string) => {
@@ -58,21 +61,23 @@ export function bracketToHtml(text: string): string {
     const line = raw.trimEnd();
     if (!line) { out.push(""); continue; }
 
-    // Inline replacements
+    // Inline replacements — escape captured content to prevent XSS.
+    // Block tags processed below may contain the resulting <strong>/<li> HTML,
+    // so inline must run first; the final sanitize() pass handles any residual.
     const inlined = line
-      .replace(/\[B\]/g, "<strong>")
-      .replace(/\[\/B\]/g, "</strong>")
-      .replace(/\[STRONG\]/g, "<strong>")
-      .replace(/\[\/STRONG\]/g, "</strong>")
-      .replace(/\[LI\]\s*(.*?)\[\/LI\]/g, "<li>$1</li>")
-      .replace(/\[LI\]\s*(.*)/g, "<li>$1</li>");
+      .replace(/\[B\](.*?)\[\/B\]/g,         (_m, c: string) => `<strong>${escapeHtml(c)}</strong>`)
+      .replace(/\[STRONG\](.*?)\[\/STRONG\]/g, (_m, c: string) => `<strong>${escapeHtml(c)}</strong>`)
+      .replace(/\[LI\]\s*(.*?)\[\/LI\]/g,    (_m, c: string) => `<li>${escapeHtml(c)}</li>`)
+      .replace(/\[LI\]\s*(.*)/g,              (_m, c: string) => `<li>${escapeHtml(c)}</li>`);
 
-    // Block-level tag conversions
+    // Block-level tag conversions.
+    // Content may include inline HTML from the step above; sanitize() at the
+    // end of the function removes any tags not on the safe allowlist.
     const mapped = inlined
-      .replace(/^\[H1\]\s*(.+?)\s*(\[\/H1\])?$/, "<h1>$1</h1>")
-      .replace(/^\[H2\]\s*(.+?)\s*(\[\/H2\])?$/, "<h2>$1</h2>")
-      .replace(/^\[H3\]\s*(.+?)\s*(\[\/H3\])?$/, "<h3>$1</h3>")
-      .replace(/^\[P\]\s*(.+?)\s*(\[\/P\])?$/, "<p>$1</p>")
+      .replace(/^\[H1\]\s*(.+?)\s*(\[\/H1\])?$/, (_m, c: string) => `<h1>${c}</h1>`)
+      .replace(/^\[H2\]\s*(.+?)\s*(\[\/H2\])?$/, (_m, c: string) => `<h2>${c}</h2>`)
+      .replace(/^\[H3\]\s*(.+?)\s*(\[\/H3\])?$/, (_m, c: string) => `<h3>${c}</h3>`)
+      .replace(/^\[P\]\s*(.+?)\s*(\[\/P\])?$/,   (_m, c: string) => `<p>${c}</p>`)
       .replace(/^\[UL\]$/, "<ul>")
       .replace(/^\[\/UL\]$/, "</ul>")
       .replace(/^\[OL\]$/, "<ol>")
@@ -84,8 +89,10 @@ export function bracketToHtml(text: string): string {
     if (mapped.trim()) out.push(mapped);
   }
 
-  return out.join("\n");
+  return sanitize(out.join("\n"));
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function escapeHtml(str: string): string {
   return str
@@ -93,4 +100,22 @@ function escapeHtml(str: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/**
+ * Strip any HTML tag not produced by this parser.
+ * Allows: h1-h3, p, ul, ol, li, strong, del, ins, br
+ * Allows: div/span only when they carry a ct-* class (change-tracking output)
+ * Everything else is escaped so it renders as visible text, not executed HTML.
+ */
+const SAFE_TAGS = new Set(["h1","h2","h3","p","ul","ol","li","strong","del","ins","br"]);
+
+function sanitize(html: string): string {
+  return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tag: string) => {
+    const lower = tag.toLowerCase();
+    if (SAFE_TAGS.has(lower)) return match;
+    // Allow change-tracking divs and spans produced by the pre-passes
+    if ((lower === "div" || lower === "span") && /class="ct-/.test(match)) return match;
+    return escapeHtml(match);
+  });
 }
