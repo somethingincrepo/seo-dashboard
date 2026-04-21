@@ -19,8 +19,13 @@ function startOfMonthISO(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { recordId, decision, notes, token } = body;
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const { recordId, decision, notes, token } = body as { recordId: string; decision: string; notes?: string; token: string };
 
     if (!recordId || !decision || !token) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -45,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    await updateApproval(recordId, decision, notes);
+    await updateApproval(recordId, decision as "approved" | "skipped" | "question", notes);
 
     if (decision === "approved") {
       // Three-gate check before dispatching implement job
@@ -68,7 +73,6 @@ export async function POST(request: NextRequest) {
           const monthStart = startOfMonthISO();
           const approvedSoFar = await airtableFetch<{ id: string }>("Changes", {
             filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),FIND("${client.id}",{client_id})),{type}="${changeType}",{approval}="approved",IS_AFTER({approved_at},"${monthStart}"))`,
-            fields: ["id" as never],
           });
           if (approvedSoFar.length >= monthlyLimit) {
             return NextResponse.json({
