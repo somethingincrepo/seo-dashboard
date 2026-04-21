@@ -8,8 +8,9 @@ import { submitUrlToIndexingAPI } from "@/lib/tools/google-indexing";
 
 // Change types that consume a monthly quota slot
 const TYPE_QUOTAS: Record<string, keyof PackageDeliverables> = {
-  "Internal Link":  "internal_links",
-  "Internal Links": "internal_links",
+  "Internal Link":      "internal_links",
+  "Internal Links":     "internal_links",
+  "Page Optimization":  "pages_optimized",
 };
 
 function startOfMonthISO(): string {
@@ -50,10 +51,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    await updateApproval(recordId, decision as "approved" | "skipped" | "question", notes);
-
     if (decision === "approved") {
-      // Three-gate check before dispatching implement job
+      // Fetch change record before writing anything — quota check must happen
+      // before updateApproval to avoid corrupted state on concurrent requests.
       type ChangeRecord = { id: string; fields: { auto_executable?: boolean; requires_design_review?: boolean; type?: string; page_url?: string } };
       const changeRecords = await airtableFetch<ChangeRecord>("Changes", {
         filterByFormula: `RECORD_ID()="${recordId}"`,
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       });
       const changeFields = changeRecords[0]?.fields ?? {};
 
-      // ── Monthly quota check ──────────────────────────────────────────────────
+      // ── Monthly quota check (before writing approval) ────────────────────────
       const changeType = changeFields.type ?? "";
       const deliverableKey = TYPE_QUOTAS[changeType];
       if (deliverableKey) {
@@ -86,7 +86,13 @@ export async function POST(request: NextRequest) {
         }
       }
       // ────────────────────────────────────────────────────────────────────────
-      const autoExecutable = changeFields.auto_executable !== false; // default true if not set
+
+      // Quota passed — now write the approval to Airtable
+      await updateApproval(recordId, "approved", notes);
+
+      // Airtable checkbox returns null when unchecked, never false.
+      // Only treat as auto-executable when explicitly set to true.
+      const autoExecutable = changeFields.auto_executable === true;
       const requiresDesignReview = changeFields.requires_design_review === true;
 
       // Gate 1: API capability
@@ -141,6 +147,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, queued: true, outcome: "queued" });
     }
 
+    // skipped / question — no quota check needed, just write the decision
+    await updateApproval(recordId, decision as "skipped" | "question", notes);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Approval update failed:", err);
