@@ -21,27 +21,17 @@ export const gscQueryDefinition: Anthropic.Messages.Tool = {
         description:
           "GSC property URL exactly as it appears in Search Console, e.g. 'https://example.com/' or 'sc-domain:example.com'",
       },
-      start_date: {
-        type: "string",
-        description: "Start date in YYYY-MM-DD format",
-      },
-      end_date: {
-        type: "string",
-        description: "End date in YYYY-MM-DD format",
-      },
+      start_date: { type: "string", description: "Start date in YYYY-MM-DD format" },
+      end_date: { type: "string", description: "End date in YYYY-MM-DD format" },
       dimensions: {
         type: "array",
         items: { type: "string", enum: ["query", "page", "country", "device", "date"] },
         description: "Dimensions to group by (default: ['query'])",
       },
-      row_limit: {
-        type: "number",
-        description: "Max rows to return (default: 100, max: 25000)",
-      },
+      row_limit: { type: "number", description: "Max rows to return (default: 100, max: 25000)" },
       dimension_filter: {
         type: "object",
-        description:
-          "Optional filter object: { dimension: 'query', operator: 'contains', expression: 'brand' }",
+        description: "Optional filter object: { dimension: 'query', operator: 'contains', expression: 'brand' }",
         additionalProperties: true,
       },
     },
@@ -56,6 +46,7 @@ type GscQueryInput = {
   dimensions?: string[];
   row_limit?: number;
   dimension_filter?: Record<string, unknown>;
+  _fallback?: boolean; // internal: prevents infinite retry loop
 };
 
 type GscRow = {
@@ -73,26 +64,92 @@ type GscQueryResult = {
   avg_position: number;
 };
 
-// executeGscTotals — no-dimension query to get exact aggregate totals from GSC.
-// GSC truncates dimensioned queries at row_limit, so summing rows understates the real total.
-// A no-dimension query returns a single row with the true site-wide aggregates.
-export async function executeGscTotals(input: Pick<GscQueryInput, "property" | "start_date" | "end_date">): Promise<{ clicks: number; impressions: number; avg_position: number; ctr: number }> {
-  const result = await executeGscQuery({ ...input, dimensions: [], row_limit: 1 });
-  const clicks = result.total_clicks;
-  const impressions = result.total_impressions;
-  return {
-    clicks,
-    impressions,
-    avg_position: result.avg_position,
-    ctr: impressions > 0 ? clicks / impressions : 0,
-  };
+// ---------------------------------------------------------------------------
+// Property resolution — finds the best accessible alternative when 403
+// ---------------------------------------------------------------------------
+
+// Extract the bare domain from either property format:
+//   sc-domain:example.com  →  "example.com"
+//   https://example.com/   →  "example.com"
+function propertyDomain(property: string): string {
+  if (property.startsWith("sc-domain:")) {
+    return property.replace("sc-domain:", "").replace(/\/$/, "");
+  }
+  try {
+    return new URL(property).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
+
+// Check the sites list and return the best accessible property for the same domain.
+// Returns null if nothing better is found.
+async function findAccessibleAlternative(property: string, token: string): Promise<string | null> {
+  try {
+    const res = await fetch("https://searchconsole.googleapis.com/webmasters/v3/sites", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const sites: { siteUrl: string; permissionLevel: string }[] = data.siteEntry ?? [];
+
+    // Prefer higher-permission properties (owner > fullUser > restrictedUser)
+    const permissionRank: Record<string, number> = {
+      siteOwner: 4, siteFullUser: 3, siteRestrictedUser: 2, siteUnverifiedUser: 0,
+    };
+
+    const targetDomain = propertyDomain(property);
+    if (!targetDomain) return null;
+
+    const candidates = sites
+      .filter((s) => {
+        const d = propertyDomain(s.siteUrl);
+        return (d === targetDomain || d === `www.${targetDomain}` || `www.${d}` === targetDomain)
+          && permissionRank[s.permissionLevel] > 0; // exclude unverified
+      })
+      .sort((a, b) => (permissionRank[b.permissionLevel] ?? 0) - (permissionRank[a.permissionLevel] ?? 0));
+
+    // Don't return the same property we already tried
+    const best = candidates.find((s) => s.siteUrl !== property);
+    return best ? best.siteUrl : null;
+  } catch {
+    return null;
+  }
+}
+
+// Public helper: resolves the best accessible property for a given stored value.
+// Use this at save time (integration endpoints) to auto-correct before writing to Airtable.
+export async function resolveGscProperty(
+  property: string
+): Promise<{ property: string; changed: boolean }> {
+  const token = await getGoogleAccessToken(GSC_SCOPE);
+  const alt = await findAccessibleAlternative(property, token);
+  if (alt && alt !== property) {
+    return { property: alt, changed: true };
+  }
+  return { property, changed: false };
+}
+
+// ---------------------------------------------------------------------------
+// executeGscTotals — no-dimension query for accurate aggregate counts
+// ---------------------------------------------------------------------------
+
+export async function executeGscTotals(
+  input: Pick<GscQueryInput, "property" | "start_date" | "end_date">
+): Promise<{ clicks: number; impressions: number; avg_position: number; ctr: number }> {
+  const result = await executeGscQuery({ ...input, dimensions: [], row_limit: 1 });
+  const { total_clicks: clicks, total_impressions: impressions, avg_position } = result;
+  return { clicks, impressions, avg_position, ctr: impressions > 0 ? clicks / impressions : 0 };
+}
+
+// ---------------------------------------------------------------------------
+// executeGscQuery — main query function with auto-resolve on 403
+// ---------------------------------------------------------------------------
 
 export async function executeGscQuery(input: GscQueryInput): Promise<GscQueryResult> {
   const { property, start_date, end_date, dimensions = ["query"], row_limit = 100 } = input;
 
   const token = await getGoogleAccessToken(GSC_SCOPE);
-  const encodedProperty = encodeURIComponent(property);
 
   const body: Record<string, unknown> = {
     startDate: start_date,
@@ -100,28 +157,32 @@ export async function executeGscQuery(input: GscQueryInput): Promise<GscQueryRes
     rowLimit: Math.min(row_limit, 25000),
     dataState: "all",
   };
-  // Omit dimensions entirely for aggregate (no-dimension) queries — GSC returns exact totals
+  // Omit dimensions for no-dimension aggregate queries (exact totals)
   if (dimensions.length > 0) body.dimensions = dimensions;
-
   if (input.dimension_filter) {
-    body.dimensionFilterGroups = [
-      { filters: [input.dimension_filter] },
-    ];
+    body.dimensionFilterGroups = [{ filters: [input.dimension_filter] }];
   }
 
   const res = await fetch(
-    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodedProperty}/searchAnalytics/query`,
+    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }
   );
 
   if (!res.ok) {
+    // On 403, try to find an accessible alternative property for the same domain.
+    // This handles the common case where sc-domain: is stored but only the URL-prefix
+    // property (or vice versa) is actually accessible by the Google account.
+    if (res.status === 403 && !input._fallback) {
+      const alt = await findAccessibleAlternative(property, token);
+      if (alt) {
+        console.log(`[gsc] Auto-resolving property: ${property} → ${alt}`);
+        return executeGscQuery({ ...input, property: alt, _fallback: true });
+      }
+    }
     throw new Error(`GSC query error ${res.status}: ${await res.text()}`);
   }
 
