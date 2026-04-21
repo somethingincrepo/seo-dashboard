@@ -54,9 +54,11 @@ export default async function HomePage() {
     if (["pending", "claimed", "running"].includes(j.status)) s.active++;
   }
 
-  // Active clients only (skip offboarded/paused)
+  // Active clients only (skip offboarded/paused, and skip incomplete records with no company_name)
   const activeClients = clients.filter(
-    (c) => !["offboarded", "paused", "churned"].includes(c.fields.status ?? "")
+    (c) =>
+      !!c.fields.company_name &&
+      !["offboarded", "paused", "churned"].includes(c.fields.status ?? "")
   );
 
   // Sort: pending approvals first → active jobs → alphabetical
@@ -67,7 +69,7 @@ export default async function HomePage() {
     const aActive = (jobsBySlug.get(a.fields.client_id) ?? { active: 0 }).active;
     const bActive = (jobsBySlug.get(b.fields.client_id) ?? { active: 0 }).active;
     if (aActive !== bActive) return bActive - aActive;
-    return a.fields.company_name.localeCompare(b.fields.company_name);
+    return (a.fields.company_name ?? "").localeCompare(b.fields.company_name ?? "");
   });
 
   const totalPending = pendingChanges.length;
