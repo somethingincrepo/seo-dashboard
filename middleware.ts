@@ -38,7 +38,7 @@ async function verifySessionToken(token: string, secret: string): Promise<boolea
   return computedSig === sig;
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow portal, login, api, and static assets through
