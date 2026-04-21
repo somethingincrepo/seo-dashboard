@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type GscLiveData = {
   connected: boolean;
-  error_reason?: string; // set when connected:false and property is configured but query failed
+  error_reason?: string;
+  range_days?: number;
   this?: { clicks: number; impressions: number; avg_position: number; ctr: number };
   prior?: { clicks: number; impressions: number; avg_position: number; ctr: number };
   trend?: { month_label: string; clicks: number; impressions: number; avg_position: number }[];
-  top_queries?: { query: string; clicks: number; impressions: number; position: number }[];
+  top_queries?: {
+    query: string;
+    clicks: number;
+    impressions: number;
+    position: number;
+    is_target?: boolean;
+    group?: string | null;
+  }[];
   keyword_rankings?: {
     keyword: string;
     group: string;
@@ -30,7 +38,10 @@ export type GscLiveData = {
   }[];
   page_gaining?: { page: string; clicks_this: number; clicks_prior: number; delta: number }[];
   page_losing?: { page: string; clicks_this: number; clicks_prior: number; delta: number }[];
+  brand_terms?: string[];
 };
+
+type DateRange = 28 | 90 | 180;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +58,11 @@ function fmtPct(n: number | null | undefined) {
 
 function fmtPos(n: number) {
   return "#" + n.toFixed(1);
+}
+
+function isBrandQuery(query: string, brandTerms: string[]): boolean {
+  const q = query.toLowerCase();
+  return brandTerms.some((term) => q.includes(term));
 }
 
 function DeltaBadge({ current, prior, reverse = false, format = "num" }: {
@@ -66,8 +82,7 @@ function DeltaBadge({ current, prior, reverse = false, format = "num" }: {
   } else if (format === "pos") {
     display = (delta >= 0 ? "+" : "") + delta.toFixed(1);
   } else {
-    display = (delta >= 0 ? "+" : "") + fmtNum(Math.abs(delta));
-    if (delta < 0) display = "−" + fmtNum(Math.abs(delta));
+    display = (delta >= 0 ? "+" : "−") + fmtNum(Math.abs(delta));
   }
   return (
     <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${color}`}>
@@ -76,31 +91,58 @@ function DeltaBadge({ current, prior, reverse = false, format = "num" }: {
   );
 }
 
-// ─── SVG Area Chart ───────────────────────────────────────────────────────────
+// ─── Interactive SVG Area Chart ───────────────────────────────────────────────
 
-function AreaChart({ values, labels }: { values: number[]; labels: string[] }) {
-  if (values.length < 2) return null;
+function AreaChart({ values, labels, impressions }: {
+  values: number[];
+  labels: string[];
+  impressions?: number[];
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
   const W = 500;
   const H = 72;
   const padX = 4;
   const padY = 6;
   const max = Math.max(...values, 1);
-  const pts = values.map((v, i) => {
-    const x = padX + (i / (values.length - 1)) * (W - padX * 2);
-    const y = padY + (1 - v / max) * (H - padY * 2);
-    return { x, y };
-  });
+  const pts = values.map((v, i) => ({
+    x: padX + (i / (values.length - 1)) * (W - padX * 2),
+    y: padY + (1 - v / max) * (H - padY * 2),
+  }));
   const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
   const areaPath = linePath + ` L${pts[pts.length - 1].x},${H - padY} L${pts[0].x},${H - padY} Z`;
 
-  // Show label every 3 months
-  const labelIndices = labels
-    .map((_, i) => i)
-    .filter((i) => i % 3 === 0 || i === labels.length - 1);
+  const labelIndices = labels.map((_, i) => i).filter((i) => i % 3 === 0 || i === labels.length - 1);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width;
+    const dataX = relX * W;
+    // Find closest data point
+    let closest = 0;
+    let minDist = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const dist = Math.abs(pts[i].x - dataX);
+      if (dist < minDist) { minDist = dist; closest = i; }
+    }
+    setHovered(closest);
+  }, [pts]);
+
+  const hovPt = hovered !== null ? pts[hovered] : null;
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: "72px" }} preserveAspectRatio="none">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full cursor-crosshair"
+        style={{ height: "72px" }}
+        preserveAspectRatio="none"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHovered(null)}
+      >
         <defs>
           <linearGradient id="gsc-area-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#6366f1" stopOpacity="0.18" />
@@ -110,13 +152,43 @@ function AreaChart({ values, labels }: { values: number[]; labels: string[] }) {
         <path d={areaPath} fill="url(#gsc-area-grad)" />
         <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="1.5"
           strokeLinejoin="round" strokeLinecap="round" />
-        {/* Dots on each point */}
+        {/* Dots */}
         {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="2" fill="#6366f1" opacity="0.6" />
+          <circle key={i} cx={p.x} cy={p.y} r={hovered === i ? 3.5 : 2}
+            fill={hovered === i ? "#4f46e5" : "#6366f1"}
+            opacity={hovered === i ? 1 : 0.6} />
         ))}
+        {/* Hover vertical line */}
+        {hovPt && (
+          <line
+            x1={hovPt.x} y1={padY - 2} x2={hovPt.x} y2={H - padY + 2}
+            stroke="#6366f1" strokeWidth="1" strokeDasharray="3,2" opacity="0.5"
+          />
+        )}
       </svg>
+
+      {/* Tooltip */}
+      {hovered !== null && hovPt && (
+        <div
+          className="absolute pointer-events-none z-10 bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2 text-xs"
+          style={{
+            left: `${(hovPt.x / W) * 100}%`,
+            top: "0px",
+            transform: hovPt.x / W > 0.75 ? "translateX(-100%)" : hovPt.x / W < 0.25 ? "translateX(0)" : "translateX(-50%)",
+          }}
+        >
+          <div className="font-semibold text-slate-800 mb-1">{labels[hovered]}</div>
+          <div className="text-slate-600">
+            <span className="font-medium text-indigo-700">{values[hovered].toLocaleString()}</span> clicks
+          </div>
+          {impressions && (
+            <div className="text-slate-500">{impressions[hovered].toLocaleString()} impr.</div>
+          )}
+        </div>
+      )}
+
       {/* Month labels */}
-      <div className="flex" style={{ marginTop: "2px" }}>
+      <div className="relative h-5 mt-1">
         {labels.map((lbl, i) => {
           const show = labelIndices.includes(i);
           const left = `${(i / (labels.length - 1)) * 100}%`;
@@ -161,7 +233,7 @@ function posColor(pos: number): string {
   return "text-slate-400";
 }
 
-// ─── Position Sparkline (inverted: lower pos = better = higher on chart) ──────
+// ─── Position Sparkline ───────────────────────────────────────────────────────
 
 function PositionSparkline({ points }: { points: { label: string; position: number }[] }) {
   if (points.length < 2) return null;
@@ -170,34 +242,18 @@ function PositionSparkline({ points }: { points: { label: string; position: numb
   const padX = 4;
   const padY = 4;
   const maxPos = Math.max(...points.map((p) => p.position), 1);
-  // Smaller position number = better = drawn higher: y = (pos/max) * height
   const pts = points.map((p, i) => ({
     x: padX + (i / (points.length - 1)) * (W - padX * 2),
     y: padY + (p.position / maxPos) * (H - padY * 2),
   }));
-  const linePath = pts
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
-    .join(" ");
+  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const first = points[0].position;
   const last = points[points.length - 1].position;
-  const stroke =
-    last < first - 0.5 ? "#10b981" : last > first + 0.5 ? "#ef4444" : "#6366f1";
+  const stroke = last < first - 0.5 ? "#10b981" : last > first + 0.5 ? "#ef4444" : "#6366f1";
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full"
-      style={{ height: "32px" }}
-      preserveAspectRatio="none"
-    >
-      <path
-        d={linePath}
-        fill="none"
-        stroke={stroke}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        opacity="0.85"
-      />
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: "32px" }} preserveAspectRatio="none">
+      <path d={linePath} fill="none" stroke={stroke} strokeWidth="1.5"
+        strokeLinejoin="round" strokeLinecap="round" opacity="0.85" />
       {pts.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r="2" fill={stroke} opacity="0.7" />
       ))}
@@ -220,6 +276,14 @@ function shortPage(url: string): string {
   }
 }
 
+// ─── Range label helper ───────────────────────────────────────────────────────
+
+function rangeLabel(days: DateRange): string {
+  if (days === 28) return "Last 28 Days";
+  if (days === 90) return "Last 90 Days";
+  return "Last 6 Months";
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 interface ReportsLiveProps {
@@ -227,13 +291,48 @@ interface ReportsLiveProps {
   initialGsc: GscLiveData | null;
 }
 
-export function ReportsLive({ initialGsc }: ReportsLiveProps) {
+export function ReportsLive({ token, initialGsc }: ReportsLiveProps) {
+  const [gsc, setGsc] = useState<GscLiveData | null>(initialGsc);
+  const [dateRange, setDateRange] = useState<DateRange>(28);
+  const [loading, setLoading] = useState(false);
   const [queriesExpanded, setQueriesExpanded] = useState(false);
+  const [brandFilter, setBrandFilter] = useState<"all" | "brand" | "non-brand">("all");
 
-  const gsc = initialGsc;
+  const brandTerms = gsc?.brand_terms ?? [];
+  const allQueries = gsc?.top_queries ?? [];
+
+  // Brand counts for filter tabs
+  const brandCount = allQueries.filter((q) => isBrandQuery(q.query, brandTerms)).length;
+  const nonBrandCount = allQueries.length - brandCount;
+
+  const filteredQueries = allQueries.filter((q) => {
+    if (brandFilter === "all") return true;
+    const isBrand = isBrandQuery(q.query, brandTerms);
+    return brandFilter === "brand" ? isBrand : !isBrand;
+  });
+  const visibleQueries = queriesExpanded ? filteredQueries : filteredQueries.slice(0, 5);
+
   const trend = gsc?.trend ?? [];
-  const queries = gsc?.top_queries ?? [];
-  const visibleQueries = queriesExpanded ? queries : queries.slice(0, 5);
+
+  async function fetchRange(range: DateRange) {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/portal/reports/gsc-live?token=${encodeURIComponent(token)}&range=${range}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGsc(data);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleRangeChange(range: DateRange) {
+    setDateRange(range);
+    setQueriesExpanded(false);
+    setBrandFilter("all");
+    fetchRange(range);
+  }
 
   return (
     <div className="space-y-5">
@@ -259,15 +358,36 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
         </GlassCard>
       ) : gsc?.connected ? (
         <GlassCard>
-          {/* Header */}
+          {/* Header + date range toggle */}
           <div className="px-5 pt-5 pb-3 flex items-center justify-between">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Live Performance</div>
-              <div className="text-lg font-bold text-slate-900">Last 28 Days</div>
+              <div className="text-lg font-bold text-slate-900">
+                {loading ? "Loading…" : rangeLabel(dateRange)}
+              </div>
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 font-semibold">
-              Live
-            </span>
+            <div className="flex items-center gap-2">
+              {/* Date range tabs */}
+              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold">
+                {([28, 90, 180] as DateRange[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => handleRangeChange(r)}
+                    disabled={loading}
+                    className={`px-3 py-1.5 transition-colors ${
+                      dateRange === r
+                        ? "bg-indigo-600 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-50"
+                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    {r === 28 ? "28d" : r === 90 ? "90d" : "6mo"}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 font-semibold">
+                Live
+              </span>
+            </div>
           </div>
 
           {/* Metrics row */}
@@ -280,7 +400,7 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                 {gsc.prior && (
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <DeltaBadge current={gsc.this.clicks} prior={gsc.prior.clicks} format="pct" />
-                    <span className="text-[10px] text-slate-400">vs prior 28d</span>
+                    <span className="text-[10px] text-slate-400">vs prior</span>
                   </div>
                 )}
               </div>
@@ -291,7 +411,7 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                 {gsc.prior && (
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <DeltaBadge current={gsc.this.impressions} prior={gsc.prior.impressions} format="pct" />
-                    <span className="text-[10px] text-slate-400">vs prior 28d</span>
+                    <span className="text-[10px] text-slate-400">vs prior</span>
                   </div>
                 )}
               </div>
@@ -304,7 +424,7 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                 {gsc.prior && (
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <DeltaBadge current={gsc.this.avg_position} prior={gsc.prior.avg_position} reverse format="pos" />
-                    <span className="text-[10px] text-slate-400">vs prior 28d</span>
+                    <span className="text-[10px] text-slate-400">vs prior</span>
                   </div>
                 )}
               </div>
@@ -315,34 +435,55 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                 {gsc.prior && (
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <DeltaBadge current={gsc.this.ctr} prior={gsc.prior.ctr} format="pct" />
-                    <span className="text-[10px] text-slate-400">vs prior 28d</span>
+                    <span className="text-[10px] text-slate-400">vs prior</span>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Trend chart */}
+          {/* Trend chart — always 12-month regardless of range selection */}
           {trend.length >= 3 && (
             <div className="px-5 py-4 border-b border-slate-100">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
                 12-Month Clicks Trend
               </div>
-              <div className="relative pb-5">
-                <AreaChart
-                  values={trend.map((t) => t.clicks)}
-                  labels={trend.map((t) => t.month_label)}
-                />
-              </div>
+              <AreaChart
+                values={trend.map((t) => t.clicks)}
+                labels={trend.map((t) => t.month_label)}
+                impressions={trend.map((t) => t.impressions)}
+              />
             </div>
           )}
 
-          {/* Keyword position trends */}
+          {/* Keyword position trajectory */}
           {gsc.keyword_trends && gsc.keyword_trends.length > 0 && (
             <div className="px-5 py-4 border-b border-slate-100">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
-                Keyword Position Trends
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                Keyword Position Trajectory
               </div>
+              <div className="text-[11px] text-slate-400 mt-0.5 mb-3">
+                Position over time — lower is better
+              </div>
+              {/* Period legend */}
+              {gsc.keyword_trends[0]?.points && (
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  {gsc.keyword_trends[0].points.map((p, i) => {
+                    const isLast = i === gsc.keyword_trends![0].points.length - 1;
+                    const dotColor = isLast ? "#6366f1" : "#94a3b8";
+                    return (
+                      <div key={i} className="flex items-center gap-1">
+                        <svg width="8" height="8" viewBox="0 0 8 8">
+                          <circle cx="4" cy="4" r="3" fill={dotColor} />
+                        </svg>
+                        <span className={`text-[10px] font-semibold ${isLast ? "text-indigo-600" : "text-slate-400"}`}>
+                          {p.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div className="space-y-2.5">
                 {gsc.keyword_trends.map((kw, i) => (
                   <div key={i} className="flex items-center gap-3">
@@ -355,28 +496,15 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                     </span>
                     <span
                       className={`text-xs font-bold w-4 text-right ${
-                        kw.direction === "up"
-                          ? "text-emerald-500"
-                          : kw.direction === "down"
-                          ? "text-red-400"
-                          : "text-slate-300"
+                        kw.direction === "up" ? "text-emerald-500"
+                        : kw.direction === "down" ? "text-red-400"
+                        : "text-slate-300"
                       }`}
                     >
                       {kw.direction === "up" ? "↑" : kw.direction === "down" ? "↓" : "—"}
                     </span>
                   </div>
                 ))}
-              </div>
-              {/* Period axis labels — mirror the row layout */}
-              <div className="flex items-center gap-3 mt-1">
-                <span className="flex-1 min-w-0" />
-                <div className="w-24 flex-shrink-0 flex justify-between">
-                  {gsc.keyword_trends[0]?.points.map((p, i) => (
-                    <span key={i} className="text-[9px] text-slate-300">{p.label}</span>
-                  ))}
-                </div>
-                <span className="w-12" />
-                <span className="w-4" />
               </div>
             </div>
           )}
@@ -385,10 +513,9 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
           {((gsc.page_gaining?.length ?? 0) > 0 || (gsc.page_losing?.length ?? 0) > 0) && (
             <div className="px-5 py-4 border-b border-slate-100">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
-                Page Performance — Last 28 Days vs Prior
+                Page Performance — vs Prior Period
               </div>
               <div className="grid grid-cols-2 gap-4">
-                {/* Gaining */}
                 <div>
                   <div className="text-[10px] font-semibold text-emerald-600 mb-2">Top gaining pages</div>
                   {(gsc.page_gaining?.length ?? 0) === 0 ? (
@@ -400,10 +527,7 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                           <span className="text-emerald-500 font-semibold text-xs w-8 text-right flex-shrink-0">
                             +{fmtNum(p.delta)}
                           </span>
-                          <span
-                            className="text-xs text-slate-600 truncate"
-                            title={p.page}
-                          >
+                          <span className="text-xs text-slate-600 truncate" title={p.page}>
                             {shortPage(p.page)}
                           </span>
                         </div>
@@ -411,7 +535,6 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                     </div>
                   )}
                 </div>
-                {/* Losing */}
                 <div>
                   <div className="text-[10px] font-semibold text-red-500 mb-2">Pages losing traffic</div>
                   {(gsc.page_losing?.length ?? 0) === 0 ? (
@@ -423,10 +546,7 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
                           <span className="text-red-400 font-semibold text-xs w-8 text-right flex-shrink-0">
                             {fmtNum(p.delta)}
                           </span>
-                          <span
-                            className="text-xs text-slate-600 truncate"
-                            title={p.page}
-                          >
+                          <span className="text-xs text-slate-600 truncate" title={p.page}>
                             {shortPage(p.page)}
                           </span>
                         </div>
@@ -438,41 +558,80 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
             </div>
           )}
 
-          {/* Top queries */}
-          {queries.length > 0 && (
+          {/* Top queries with brand filter */}
+          {allQueries.length > 0 && (
             <div className="px-5 py-4">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
-                Top Queries
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                  Top Queries
+                </div>
+                {/* Brand / Non-brand filter — only show if we have brand terms */}
+                {brandTerms.length > 0 && (
+                  <div className="flex rounded-md border border-slate-200 overflow-hidden text-[10px] font-semibold">
+                    {(["all", "brand", "non-brand"] as const).map((f) => {
+                      const count = f === "all" ? allQueries.length : f === "brand" ? brandCount : nonBrandCount;
+                      return (
+                        <button
+                          key={f}
+                          onClick={() => { setBrandFilter(f); setQueriesExpanded(false); }}
+                          className={`px-2.5 py-1 transition-colors capitalize ${
+                            brandFilter === f
+                              ? "bg-indigo-600 text-white"
+                              : "bg-white text-slate-500 hover:bg-slate-50"
+                          }`}
+                        >
+                          {f} <span className="opacity-70">({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <div className="rounded-lg border border-slate-100 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Query</th>
-                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Clicks</th>
-                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Impr.</th>
-                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Position</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {visibleQueries.map((q, i) => (
-                      <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-3 py-2 text-slate-700 truncate max-w-[280px]">{q.query}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">{fmtNum(q.clicks)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtNum(q.impressions)}</td>
-                        <td className={`px-3 py-2 text-right tabular-nums ${posColor(q.position)}`}>{fmtPos(q.position)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {queries.length > 5 && (
-                <button
-                  onClick={() => setQueriesExpanded(!queriesExpanded)}
-                  className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
-                >
-                  {queriesExpanded ? "Show less" : `Show all ${queries.length} queries`}
-                </button>
+
+              {filteredQueries.length === 0 ? (
+                <p className="text-xs text-slate-400">No {brandFilter} queries in this period.</p>
+              ) : (
+                <>
+                  <div className="rounded-lg border border-slate-100 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Query</th>
+                          <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Clicks</th>
+                          <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Impr.</th>
+                          <th className="text-right px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Position</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {visibleQueries.map((q, i) => (
+                          <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-3 py-2 max-w-[280px]">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-slate-700 truncate">{q.query}</span>
+                                {q.is_target && q.group && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 font-semibold whitespace-nowrap flex-shrink-0">
+                                    {q.group}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">{fmtNum(q.clicks)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtNum(q.impressions)}</td>
+                            <td className={`px-3 py-2 text-right tabular-nums ${posColor(q.position)}`}>{fmtPos(q.position)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {filteredQueries.length > 5 && (
+                    <button
+                      onClick={() => setQueriesExpanded(!queriesExpanded)}
+                      className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                    >
+                      {queriesExpanded ? "Show less" : `Show all ${filteredQueries.length} queries`}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -538,7 +697,7 @@ export function ReportsLive({ initialGsc }: ReportsLiveProps) {
               </div>
               {gsc.keyword_rankings.some((kw) => kw.position == null) && (
                 <p className="mt-2 text-[11px] text-slate-400">
-                  Keywords showing — had no impressions in the last 28 days.
+                  Keywords showing — had no impressions in the last {dateRange === 28 ? "28 days" : dateRange === 90 ? "90 days" : "6 months"}.
                 </p>
               )}
             </div>

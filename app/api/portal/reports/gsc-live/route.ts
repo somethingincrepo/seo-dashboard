@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
-import { executeGscQuery } from "@/lib/tools/gsc";
+import { executeGscQuery, executeGscTotals } from "@/lib/tools/gsc";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +8,86 @@ function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().split("T")[0];
+}
+
+// Derive brand terms from company name and site URL for brand/non-brand filtering
+function deriveBrandTerms(companyName: string, siteUrl: string): string[] {
+  const terms = new Set<string>();
+
+  if (companyName) {
+    const name = companyName.trim().toLowerCase();
+    terms.add(name); // full name: "tidal treasures"
+    // Individual words (skip very short words like "and", "the", "of")
+    for (const word of name.split(/[\s\-_]+/)) {
+      if (word.length > 2) terms.add(word);
+    }
+  }
+
+  if (siteUrl) {
+    try {
+      const host = new URL(siteUrl).hostname.replace(/^www\./, "");
+      // Strip TLD: "tidaltreasures.com" → "tidaltreasures"
+      const noTld = host.replace(/\.[^.]+$/, "");
+      if (noTld) {
+        terms.add(noTld.toLowerCase());
+        // Handle hyphenated domains: "tidal-treasures" → also add "tidal treasures"
+        if (noTld.includes("-")) {
+          terms.add(noTld.replace(/-/g, " ").toLowerCase());
+          for (const part of noTld.split("-")) {
+            if (part.length > 2) terms.add(part.toLowerCase());
+          }
+        }
+      }
+    } catch {
+      // ignore malformed URL
+    }
+  }
+
+  return [...terms].filter(Boolean);
+}
+
+// Build period windows for keyword sparklines based on selected range
+function buildPeriodWindows(rangeDays: number): { start: string; end: string; label: string }[] {
+  if (rangeDays === 28) {
+    // 4 consecutive 28-day windows (original behavior)
+    return [
+      { start: daysAgo(112), end: daysAgo(85), label: "3mo ago" },
+      { start: daysAgo(84),  end: daysAgo(57), label: "2mo ago" },
+      { start: daysAgo(56),  end: daysAgo(29), label: "Last mo" },
+      { start: daysAgo(28),  end: daysAgo(1),  label: "Now" },
+    ];
+  }
+  // For other ranges: 3 consecutive windows of rangeDays each
+  const labels: Record<number, [string, string, string]> = {
+    90:  ["-6mo",  "-3mo",  "Now"],
+    180: ["-1yr",  "-6mo",  "Now"],
+  };
+  const [l1, l2, l3] = labels[rangeDays] ?? ["-2x", "-1x", "Now"];
+  return [
+    { start: daysAgo(rangeDays * 3), end: daysAgo(rangeDays * 2 + 1), label: l1 },
+    { start: daysAgo(rangeDays * 2), end: daysAgo(rangeDays + 1),      label: l2 },
+    { start: daysAgo(rangeDays),     end: daysAgo(1),                   label: l3 },
+  ];
+}
+
+// Parse keyword groups from JSON string fields, returning flat keyword list with metadata
+type KwGroup = { group?: string; subkeywords?: { keyword: string; volume?: number; difficulty?: number; intent?: string }[] };
+function parseKeywordGroups(raw: string | undefined): { keyword: string; group: string; volume: number; difficulty: number; intent: string }[] {
+  if (!raw) return [];
+  try {
+    const groups = JSON.parse(raw) as KwGroup[];
+    return groups.flatMap((g) =>
+      (g.subkeywords ?? []).map((sk) => ({
+        keyword: sk.keyword,
+        group: g.group ?? "",
+        volume: sk.volume ?? 0,
+        difficulty: sk.difficulty ?? 0,
+        intent: sk.intent ?? "",
+      }))
+    );
+  } catch {
+    return [];
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -20,81 +100,73 @@ export async function GET(request: NextRequest) {
   const property = client.fields.gsc_property;
   if (!property) return NextResponse.json({ connected: false });
 
-  try {
-    const thisStart = daysAgo(28);
-    const thisEnd = daysAgo(1);
-    const priorStart = daysAgo(56);
-    const priorEnd = daysAgo(29);
-    const trendStart = daysAgo(395); // ~13 months
+  // Date range: 28 | 90 | 180 days (default 28)
+  const rangeParam = request.nextUrl.searchParams.get("range");
+  const rangeDays = [90, 180].includes(Number(rangeParam)) ? Number(rangeParam) : 28;
 
-    // Run all three core queries in parallel
-    const [thisResult, priorResult, trendResult] = await Promise.all([
-      // This period: query dimension for top queries + aggregate
-      executeGscQuery({
-        property,
-        start_date: thisStart,
-        end_date: thisEnd,
-        dimensions: ["query"],
-        row_limit: 500,
-      }),
-      // Prior period: aggregate only
-      executeGscQuery({
-        property,
-        start_date: priorStart,
-        end_date: priorEnd,
-        dimensions: ["query"],
-        row_limit: 500,
-      }),
-      // Monthly trend: date dimension
-      executeGscQuery({
-        property,
-        start_date: trendStart,
-        end_date: thisEnd,
-        dimensions: ["date"],
-        row_limit: 500,
-      }),
+  const thisStart = daysAgo(rangeDays);
+  const thisEnd = daysAgo(1);
+  const priorStart = daysAgo(rangeDays * 2);
+  const priorEnd = daysAgo(rangeDays + 1);
+  const trendStart = daysAgo(395); // ~13 months — trend always shows 12-month history
+
+  // Derive brand terms
+  const brandTerms = deriveBrandTerms(
+    client.fields.company_name ?? "",
+    client.fields.site_url ?? ""
+  );
+
+  // Flatten keyword groups for cross-reference
+  const allKeywords = [
+    ...parseKeywordGroups(client.fields.keyword_groups),
+    ...parseKeywordGroups(client.fields.custom_keyword_groups),
+  ];
+  // Deduplicate by lowercase keyword
+  const seen = new Set<string>();
+  const dedupedKeywords = allKeywords.filter((kw) => {
+    const k = kw.keyword.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  try {
+    // Run core queries in parallel — including no-dimension totals for accurate metric numbers
+    const [thisResult, priorResult, trendResult, thisTotals, priorTotals] = await Promise.all([
+      executeGscQuery({ property, start_date: thisStart, end_date: thisEnd, dimensions: ["query"], row_limit: 500 }),
+      executeGscQuery({ property, start_date: priorStart, end_date: priorEnd, dimensions: ["query"], row_limit: 500 }),
+      executeGscQuery({ property, start_date: trendStart, end_date: thisEnd, dimensions: ["date"], row_limit: 500 }),
+      executeGscTotals({ property, start_date: thisStart, end_date: thisEnd }),
+      executeGscTotals({ property, start_date: priorStart, end_date: priorEnd }),
     ]);
 
-    // Aggregate this / prior
-    const thisPeriod = {
-      clicks: thisResult.total_clicks,
-      impressions: thisResult.total_impressions,
-      avg_position: thisResult.avg_position,
-      ctr: thisResult.total_impressions > 0
-        ? thisResult.total_clicks / thisResult.total_impressions
-        : 0,
-    };
-    const priorPeriod = {
-      clicks: priorResult.total_clicks,
-      impressions: priorResult.total_impressions,
-      avg_position: priorResult.avg_position,
-      ctr: priorResult.total_impressions > 0
-        ? priorResult.total_clicks / priorResult.total_impressions
-        : 0,
-    };
-
-    // Top 10 queries by clicks
+    // Top 10 queries by clicks — annotated with target keyword group if matched
+    const targetKeywordMap = new Map(dedupedKeywords.map((kw) => [kw.keyword.toLowerCase(), kw.group]));
     const topQueries = [...thisResult.rows]
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 10)
-      .map((r) => ({
-        query: r.keys[0] ?? "",
-        clicks: r.clicks,
-        impressions: r.impressions,
-        position: r.position,
-      }));
+      .map((r) => {
+        const q = r.keys[0] ?? "";
+        const group = targetKeywordMap.get(q.toLowerCase());
+        return {
+          query: q,
+          clicks: r.clicks,
+          impressions: r.impressions,
+          position: r.position,
+          is_target: group !== undefined,
+          group: group ?? null,
+        };
+      });
 
-    // Collapse date rows → monthly buckets
-    const byMonth = new Map<string, { clicks: number; impressions: number; pos_sum: number; count: number }>();
+    // Collapse date rows → monthly buckets for 12-month trend chart
+    const byMonth = new Map<string, { clicks: number; impressions: number; impr_pos_sum: number }>();
     for (const row of trendResult.rows) {
-      const dateStr = row.keys[0] ?? "";
-      if (!dateStr) continue;
-      const monthKey = dateStr.slice(0, 7); // "YYYY-MM"
-      const entry = byMonth.get(monthKey) ?? { clicks: 0, impressions: 0, pos_sum: 0, count: 0 };
+      const monthKey = (row.keys[0] ?? "").slice(0, 7);
+      if (!monthKey) continue;
+      const entry = byMonth.get(monthKey) ?? { clicks: 0, impressions: 0, impr_pos_sum: 0 };
       entry.clicks += row.clicks;
       entry.impressions += row.impressions;
-      entry.pos_sum += row.position;
-      entry.count++;
+      entry.impr_pos_sum += row.position * row.impressions;
       byMonth.set(monthKey, entry);
     }
 
@@ -102,16 +174,13 @@ export async function GET(request: NextRequest) {
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-12)
       .map(([key, e]) => ({
-        month_label: new Date(key + "-15").toLocaleDateString("en-US", {
-          month: "short",
-          year: "2-digit",
-        }),
+        month_label: new Date(key + "-15").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
         clicks: e.clicks,
         impressions: e.impressions,
-        avg_position: e.count > 0 ? e.pos_sum / e.count : 0,
+        avg_position: e.impressions > 0 ? e.impr_pos_sum / e.impressions : 0,
       }));
 
-    // Extended: keyword position trends + page performance (graceful degradation)
+    // Extended: scaled keyword position trends + page performance (graceful degradation)
     let keywordTrends: undefined | {
       keyword: string;
       points: { label: string; position: number }[];
@@ -119,23 +188,29 @@ export async function GET(request: NextRequest) {
       direction: "up" | "down" | "flat";
     }[];
     let pageGaining: undefined | { page: string; clicks_this: number; clicks_prior: number; delta: number }[];
-    let pageLosing: undefined | { page: string; clicks_this: number; clicks_prior: number; delta: number }[];
+    let pageLosing:  undefined | { page: string; clicks_this: number; clicks_prior: number; delta: number }[];
 
     try {
-      const [period2Result, period3Result, pageThisResult, pagePriorResult] = await Promise.all([
-        executeGscQuery({ property, start_date: daysAgo(84), end_date: daysAgo(57), dimensions: ["query"], row_limit: 500 }),
-        executeGscQuery({ property, start_date: daysAgo(112), end_date: daysAgo(85), dimensions: ["query"], row_limit: 500 }),
+      const periodWindows = buildPeriodWindows(rangeDays);
+      // Run all period queries + page queries in parallel
+      const periodResults = await Promise.all(
+        periodWindows.map((w) =>
+          executeGscQuery({ property, start_date: w.start, end_date: w.end, dimensions: ["query"], row_limit: 500 })
+        )
+      );
+      const [pageThisResult, pagePriorResult] = await Promise.all([
         executeGscQuery({ property, start_date: thisStart, end_date: thisEnd, dimensions: ["page"], row_limit: 500 }),
         executeGscQuery({ property, start_date: priorStart, end_date: priorEnd, dimensions: ["page"], row_limit: 500 }),
       ]);
 
-      // Keyword position trends: top 5 by impressions across 4 × 28d windows
-      const periodMaps = [period3Result, period2Result, priorResult, thisResult].map((r) => {
+      // Build position maps per period
+      const periodMaps = periodResults.map((r) => {
         const m = new Map<string, number>();
         for (const row of r.rows) m.set(row.keys[0] ?? "", row.position);
         return m;
       });
-      const periodLabels = ["3mo ago", "2mo ago", "Last mo", "Now"];
+
+      // Top 5 keywords by impressions in the current window
       const top5 = [...thisResult.rows].sort((a, b) => b.impressions - a.impressions).slice(0, 5);
 
       keywordTrends = top5
@@ -144,10 +219,10 @@ export async function GET(request: NextRequest) {
           const points = periodMaps
             .map((m, i) => {
               const pos = m.get(keyword);
-              return pos != null ? { label: periodLabels[i], position: pos } : null;
+              return pos != null ? { label: periodWindows[i].label, position: pos } : null;
             })
             .filter((p): p is { label: string; position: number } => p !== null);
-          const priorPos = periodMaps[2].get(keyword);
+          const priorPos = periodMaps[periodMaps.length - 2]?.get(keyword);
           const currPos = kw.position;
           const direction: "up" | "down" | "flat" =
             priorPos == null ? "flat"
@@ -174,20 +249,41 @@ export async function GET(request: NextRequest) {
       }
 
       pageGaining = deltas.filter((p) => p.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
-      pageLosing = deltas.filter((p) => p.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
+      pageLosing  = deltas.filter((p) => p.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
     } catch {
       // Extended queries failed — base metrics still render
     }
 
+    // Keyword rankings: cross-reference target keywords with current GSC positions
+    const gscQueryMap = new Map<string, { position: number; clicks: number; impressions: number }>();
+    for (const row of thisResult.rows) {
+      gscQueryMap.set((row.keys[0] ?? "").toLowerCase(), {
+        position: row.position,
+        clicks: row.clicks,
+        impressions: row.impressions,
+      });
+    }
+    const keywordRankings = dedupedKeywords.length > 0
+      ? dedupedKeywords
+          .map((kw) => {
+            const d = gscQueryMap.get(kw.keyword.toLowerCase());
+            return { ...kw, position: d?.position ?? null, clicks: d?.clicks ?? 0, impressions: d?.impressions ?? 0 };
+          })
+          .sort((a, b) => a.position === null ? 1 : b.position === null ? -1 : a.position - b.position)
+      : undefined;
+
     return NextResponse.json({
       connected: true,
-      this: thisPeriod,
-      prior: priorPeriod,
+      range_days: rangeDays,
+      this: thisTotals,
+      prior: priorTotals,
       trend,
       top_queries: topQueries,
       keyword_trends: keywordTrends,
       page_gaining: pageGaining,
       page_losing: pageLosing,
+      keyword_rankings: keywordRankings,
+      brand_terms: brandTerms,
     });
   } catch (err) {
     console.error("[gsc-live]", err);

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getClientReports } from "@/lib/reports";
 import type { SupabaseReport, TrendEntry, RankingEntry, PageEntry, AiSourceEntry } from "@/lib/reports";
-import { executeGscQuery } from "@/lib/tools/gsc";
+import { executeGscQuery, executeGscTotals } from "@/lib/tools/gsc";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ReportsLive, type GscLiveData } from "@/components/portal/ReportsLive";
 
@@ -40,6 +40,35 @@ function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().split("T")[0];
+}
+
+// ─── Brand term derivation ─────────────────────────────────────────────────────
+
+function deriveBrandTerms(companyName: string, siteUrl: string): string[] {
+  const terms = new Set<string>();
+  if (companyName) {
+    const name = companyName.trim().toLowerCase();
+    terms.add(name);
+    for (const word of name.split(/[\s\-_]+/)) {
+      if (word.length > 2) terms.add(word);
+    }
+  }
+  if (siteUrl) {
+    try {
+      const host = new URL(siteUrl).hostname.replace(/^www\./, "");
+      const noTld = host.replace(/\.[^.]+$/, "");
+      if (noTld) {
+        terms.add(noTld.toLowerCase());
+        if (noTld.includes("-")) {
+          terms.add(noTld.replace(/-/g, " ").toLowerCase());
+          for (const part of noTld.split("-")) {
+            if (part.length > 2) terms.add(part.toLowerCase());
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  return [...terms].filter(Boolean);
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -604,32 +633,60 @@ export default async function PortalReportsPage({
       const property = client.fields.gsc_property;
       if (!property) return { connected: false, error_reason: "no_property" };
       try {
+        // Parse keyword groups upfront so they're available for cross-reference
+        type Subkw = { keyword: string; volume?: number; difficulty?: number; intent?: string };
+        type KwGroup = { group?: string; subkeywords?: Subkw[] };
+        const allKeywords: { keyword: string; group: string; volume: number; difficulty: number; intent: string }[] = [];
+        const kwSeen = new Set<string>();
+        for (const raw of [client.fields.keyword_groups, client.fields.custom_keyword_groups]) {
+          try {
+            if (!raw) continue;
+            const groups = JSON.parse(raw) as KwGroup[];
+            for (const g of groups) {
+              for (const sk of (g.subkeywords ?? [])) {
+                const norm = sk.keyword.toLowerCase();
+                if (kwSeen.has(norm)) continue;
+                kwSeen.add(norm);
+                allKeywords.push({ keyword: sk.keyword, group: g.group ?? "", volume: sk.volume ?? 0, difficulty: sk.difficulty ?? 0, intent: sk.intent ?? "" });
+              }
+            }
+          } catch { /* ignore malformed JSON */ }
+        }
+        const targetKeywordMap = new Map(allKeywords.map((kw) => [kw.keyword.toLowerCase(), kw.group]));
+        const brandTerms = deriveBrandTerms(client.fields.company_name ?? "", client.fields.site_url ?? "");
+
         const thisStart = daysAgo(28);
         const thisEnd = daysAgo(1);
         const priorStart = daysAgo(56);
         const priorEnd = daysAgo(29);
         const trendStart = daysAgo(395);
 
-        const [thisResult, priorResult, trendResult] = await Promise.all([
+        const [thisResult, priorResult, trendResult, thisTotals, priorTotals] = await Promise.all([
           executeGscQuery({ property, start_date: thisStart, end_date: thisEnd, dimensions: ["query"], row_limit: 500 }),
           executeGscQuery({ property, start_date: priorStart, end_date: priorEnd, dimensions: ["query"], row_limit: 500 }),
           executeGscQuery({ property, start_date: trendStart, end_date: thisEnd, dimensions: ["date"], row_limit: 500 }),
+          // Exact totals — no-dimension queries return true site aggregates, not truncated row sums
+          executeGscTotals({ property, start_date: thisStart, end_date: thisEnd }),
+          executeGscTotals({ property, start_date: priorStart, end_date: priorEnd }),
         ]);
 
         const topQueries = [...thisResult.rows]
           .sort((a, b) => b.clicks - a.clicks)
           .slice(0, 10)
-          .map((r) => ({ query: r.keys[0] ?? "", clicks: r.clicks, impressions: r.impressions, position: r.position }));
+          .map((r) => {
+            const q = r.keys[0] ?? "";
+            const group = targetKeywordMap.get(q.toLowerCase());
+            return { query: q, clicks: r.clicks, impressions: r.impressions, position: r.position, is_target: group !== undefined, group: group ?? null };
+          });
 
-        const byMonth = new Map<string, { clicks: number; impressions: number; pos_sum: number; count: number }>();
+        const byMonth = new Map<string, { clicks: number; impressions: number; impr_pos_sum: number }>();
         for (const row of trendResult.rows) {
           const monthKey = (row.keys[0] ?? "").slice(0, 7);
           if (!monthKey) continue;
-          const entry = byMonth.get(monthKey) ?? { clicks: 0, impressions: 0, pos_sum: 0, count: 0 };
+          const entry = byMonth.get(monthKey) ?? { clicks: 0, impressions: 0, impr_pos_sum: 0 };
           entry.clicks += row.clicks;
           entry.impressions += row.impressions;
-          entry.pos_sum += row.position;
-          entry.count++;
+          entry.impr_pos_sum += row.position * row.impressions;
           byMonth.set(monthKey, entry);
         }
 
@@ -640,7 +697,7 @@ export default async function PortalReportsPage({
             month_label: new Date(key + "-15").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
             clicks: e.clicks,
             impressions: e.impressions,
-            avg_position: e.count > 0 ? e.pos_sum / e.count : 0,
+            avg_position: e.impressions > 0 ? e.impr_pos_sum / e.impressions : 0,
           }));
 
         // Extended: keyword position trends + page performance (graceful degradation)
@@ -655,16 +712,13 @@ export default async function PortalReportsPage({
             executeGscQuery({ property, start_date: priorStart, end_date: priorEnd, dimensions: ["page"], row_limit: 500 }),
           ]);
 
-          // Keyword position trends: top 5 by impressions, tracked over 4 × 28d windows
           const periodMaps = [period3Result, period2Result, priorResult, thisResult].map((r) => {
             const m = new Map<string, number>();
             for (const row of r.rows) m.set(row.keys[0] ?? "", row.position);
             return m;
           });
           const periodLabels = ["3mo ago", "2mo ago", "Last mo", "Now"];
-          const top5 = [...thisResult.rows]
-            .sort((a, b) => b.impressions - a.impressions)
-            .slice(0, 5);
+          const top5 = [...thisResult.rows].sort((a, b) => b.impressions - a.impressions).slice(0, 5);
 
           keywordTrends = top5
             .map((kw) => {
@@ -686,7 +740,6 @@ export default async function PortalReportsPage({
             })
             .filter((kw) => kw.points.length >= 2);
 
-          // Page performance deltas
           const pageThisMap = new Map<string, number>();
           for (const row of pageThisResult.rows) pageThisMap.set(row.keys[0] ?? "", row.clicks);
           const pagePriorMap = new Map<string, number>();
@@ -697,7 +750,7 @@ export default async function PortalReportsPage({
           for (const page of allPages) {
             const ct = pageThisMap.get(page) ?? 0;
             const cp = pagePriorMap.get(page) ?? 0;
-            if (ct + cp < 5) continue; // filter noise
+            if (ct + cp < 5) continue;
             deltas.push({ page, clicks_this: ct, clicks_prior: cp, delta: ct - cp });
           }
 
@@ -707,70 +760,29 @@ export default async function PortalReportsPage({
           // Extended queries failed — base metrics still render fine
         }
 
-        // Keyword rankings: cross-reference keyword_groups against GSC query position data
+        // Keyword rankings: target keywords cross-referenced with current GSC positions
         const gscQueryMap = new Map<string, { position: number; clicks: number; impressions: number }>();
         for (const row of thisResult.rows) {
-          gscQueryMap.set((row.keys[0] ?? "").toLowerCase(), {
-            position: row.position,
-            clicks: row.clicks,
-            impressions: row.impressions,
-          });
+          gscQueryMap.set((row.keys[0] ?? "").toLowerCase(), { position: row.position, clicks: row.clicks, impressions: row.impressions });
         }
-
-        type Subkw = { keyword: string; volume?: number; difficulty?: number; intent?: string };
-        type KwGroup = { group?: string; subkeywords?: Subkw[] };
-        const allKeywords: { keyword: string; group: string; volume: number; difficulty: number; intent: string }[] = [];
-        const seen = new Set<string>();
-        for (const raw of [client.fields.keyword_groups, client.fields.custom_keyword_groups]) {
-          try {
-            if (!raw) continue;
-            const groups = JSON.parse(raw) as KwGroup[];
-            for (const g of groups) {
-              for (const sk of (g.subkeywords ?? [])) {
-                const norm = sk.keyword.toLowerCase();
-                if (seen.has(norm)) continue;
-                seen.add(norm);
-                allKeywords.push({
-                  keyword: sk.keyword,
-                  group: g.group ?? "",
-                  volume: sk.volume ?? 0,
-                  difficulty: sk.difficulty ?? 0,
-                  intent: sk.intent ?? "",
-                });
-              }
-            }
-          } catch { /* ignore malformed JSON */ }
-        }
-
         const keywordRankings = allKeywords
           .map((kw) => {
             const d = gscQueryMap.get(kw.keyword.toLowerCase());
             return { ...kw, position: d?.position ?? null, clicks: d?.clicks ?? 0, impressions: d?.impressions ?? 0 };
           })
-          .sort((a, b) =>
-            a.position === null ? 1 : b.position === null ? -1 : a.position - b.position
-          );
+          .sort((a, b) => a.position === null ? 1 : b.position === null ? -1 : a.position - b.position);
 
         return {
           connected: true,
-          this: {
-            clicks: thisResult.total_clicks,
-            impressions: thisResult.total_impressions,
-            avg_position: thisResult.avg_position,
-            ctr: thisResult.total_impressions > 0 ? thisResult.total_clicks / thisResult.total_impressions : 0,
-          },
-          prior: {
-            clicks: priorResult.total_clicks,
-            impressions: priorResult.total_impressions,
-            avg_position: priorResult.avg_position,
-            ctr: priorResult.total_impressions > 0 ? priorResult.total_clicks / priorResult.total_impressions : 0,
-          },
+          this: thisTotals,
+          prior: priorTotals,
           trend,
           top_queries: topQueries,
           keyword_trends: keywordTrends,
           page_gaining: pageGaining,
           page_losing: pageLosing,
           keyword_rankings: keywordRankings.length > 0 ? keywordRankings : undefined,
+          brand_terms: brandTerms,
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

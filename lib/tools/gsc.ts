@@ -73,6 +73,21 @@ type GscQueryResult = {
   avg_position: number;
 };
 
+// executeGscTotals — no-dimension query to get exact aggregate totals from GSC.
+// GSC truncates dimensioned queries at row_limit, so summing rows understates the real total.
+// A no-dimension query returns a single row with the true site-wide aggregates.
+export async function executeGscTotals(input: Pick<GscQueryInput, "property" | "start_date" | "end_date">): Promise<{ clicks: number; impressions: number; avg_position: number; ctr: number }> {
+  const result = await executeGscQuery({ ...input, dimensions: [], row_limit: 1 });
+  const clicks = result.total_clicks;
+  const impressions = result.total_impressions;
+  return {
+    clicks,
+    impressions,
+    avg_position: result.avg_position,
+    ctr: impressions > 0 ? clicks / impressions : 0,
+  };
+}
+
 export async function executeGscQuery(input: GscQueryInput): Promise<GscQueryResult> {
   const { property, start_date, end_date, dimensions = ["query"], row_limit = 100 } = input;
 
@@ -82,10 +97,11 @@ export async function executeGscQuery(input: GscQueryInput): Promise<GscQueryRes
   const body: Record<string, unknown> = {
     startDate: start_date,
     endDate: end_date,
-    dimensions,
     rowLimit: Math.min(row_limit, 25000),
     dataState: "all",
   };
+  // Omit dimensions entirely for aggregate (no-dimension) queries — GSC returns exact totals
+  if (dimensions.length > 0) body.dimensions = dimensions;
 
   if (input.dimension_filter) {
     body.dimensionFilterGroups = [
@@ -120,9 +136,10 @@ export async function executeGscQuery(input: GscQueryInput): Promise<GscQueryRes
 
   const total_clicks = rows.reduce((s, r) => s + r.clicks, 0);
   const total_impressions = rows.reduce((s, r) => s + r.impressions, 0);
+  // GSC uses impressions-weighted average position (not a simple mean)
   const avg_position =
-    rows.length > 0
-      ? rows.reduce((s, r) => s + r.position, 0) / rows.length
+    total_impressions > 0
+      ? rows.reduce((s, r) => s + r.position * r.impressions, 0) / total_impressions
       : 0;
 
   return { rows, total_clicks, total_impressions, avg_position };
