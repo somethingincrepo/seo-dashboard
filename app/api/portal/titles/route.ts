@@ -350,8 +350,8 @@ export async function PATCH(request: NextRequest) {
     } else {
       // Standard / Long-Form → fire n8n webhook with dynamic content type + length
       const cfg = CONTENT_TYPE_CONFIG[typeName];
-      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL;
-      if (!webhookUrl) throw new Error("N8N_CONTENT_WEBHOOK_URL is not set");
+      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL ?? "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
+
       const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
       const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
       const searchIntent = jobRecord?.fields["Search intent"] || "informational";
