@@ -56,6 +56,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!/^https?:\/\/\S+/.test(site_url as string)) {
+    return NextResponse.json(
+      { error: "site_url must be a valid URL starting with http:// or https://" },
+      { status: 400 }
+    );
+  }
+
   const client_id = slugify(company_name as string);
 
   // Idempotency check — reject if a client with the same site_url already exists
