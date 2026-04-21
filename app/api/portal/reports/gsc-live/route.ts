@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { executeGscQuery, executeGscTotals } from "@/lib/tools/gsc";
+import { upsertGscSnapshot, isoWeekMonday, type GscSnapshotQuery } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -304,6 +305,50 @@ export async function GET(request: NextRequest) {
           })
           .sort((a, b) => a.position === null ? 1 : b.position === null ? -1 : a.position - b.position)
       : undefined;
+
+    // Fire-and-forget: snapshot the current ISO week's GSC data for historical comparison
+    // Only write on the default 28d fetch (avoids redundant writes on range switches)
+    if (rangeDays === 28) {
+      const weekStart = isoWeekMonday();
+      // Mon of this week → yesterday (partial week is fine — we upsert so it updates each visit)
+      const weekEnd = daysAgo(1);
+      const weekMonStart = weekStart <= daysAgo(0) ? weekStart : daysAgo(7);
+      const snapshotQueries: GscSnapshotQuery[] = topQueries.map((q) => ({
+        query: q.query,
+        clicks: q.clicks,
+        impressions: q.impressions,
+        position: q.position,
+      }));
+      // Run parallel: snapshot for this week + last full week
+      const lastWeekStart = isoWeekMonday(new Date(new Date(weekStart).getTime() - 7 * 86400000));
+      const lastWeekEnd = new Date(new Date(weekStart).getTime() - 86400000).toISOString().split("T")[0];
+      Promise.all([
+        // Current (partial) week
+        executeGscTotals({ property, start_date: weekMonStart, end_date: weekEnd })
+          .then((t) =>
+            upsertGscSnapshot(client.id, weekStart, {
+              clicks: t.clicks,
+              impressions: t.impressions,
+              avg_position: t.avg_position,
+              ctr: t.ctr,
+              top_queries: snapshotQueries,
+            })
+          )
+          .catch(() => {}),
+        // Previous complete week (overwrites only if not already snapshotted this week)
+        executeGscTotals({ property, start_date: lastWeekStart, end_date: lastWeekEnd })
+          .then((t) =>
+            upsertGscSnapshot(client.id, lastWeekStart, {
+              clicks: t.clicks,
+              impressions: t.impressions,
+              avg_position: t.avg_position,
+              ctr: t.ctr,
+              top_queries: [],
+            })
+          )
+          .catch(() => {}),
+      ]).catch(() => {});
+    }
 
     return NextResponse.json({
       connected: true,

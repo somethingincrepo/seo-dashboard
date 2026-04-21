@@ -192,3 +192,68 @@ export async function getAllReportsFromSupabase(limit = 100): Promise<SupabaseRe
     .limit(limit);
   return (data ?? []) as SupabaseReport[];
 }
+
+// ─── GSC Snapshots ────────────────────────────────────────────────────────────
+
+export type GscSnapshotQuery = { query: string; clicks: number; impressions: number; position: number };
+
+export type GscSnapshot = {
+  id: number;
+  client_id: string;
+  week_start: string;
+  clicks: number;
+  impressions: number;
+  avg_position: number | null;
+  ctr: number | null;
+  top_queries: GscSnapshotQuery[];
+  created_at: string;
+  updated_at: string;
+};
+
+// Returns the ISO Monday (YYYY-MM-DD) for any given date
+export function isoWeekMonday(date = new Date()): string {
+  const d = new Date(date);
+  const day = d.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().split("T")[0];
+}
+
+// Upsert one week's GSC data for a client. Fire-and-forget safe — errors are caught internally.
+export async function upsertGscSnapshot(
+  clientId: string,
+  weekStart: string,
+  data: { clicks: number; impressions: number; avg_position: number; ctr: number; top_queries: GscSnapshotQuery[] }
+): Promise<void> {
+  try {
+    const { error } = await getSupabase()
+      .from("gsc_snapshots")
+      .upsert(
+        {
+          client_id: clientId,
+          week_start: weekStart,
+          clicks: data.clicks,
+          impressions: data.impressions,
+          avg_position: data.avg_position,
+          ctr: data.ctr,
+          top_queries: data.top_queries,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "client_id,week_start" }
+      );
+    if (error) console.warn("[gsc_snapshots] upsert error:", error.message);
+  } catch (e) {
+    console.warn("[gsc_snapshots] upsert threw:", e);
+  }
+}
+
+// Retrieve the last N weekly snapshots for a client, newest first
+export async function getGscSnapshots(clientId: string, weeks = 12): Promise<GscSnapshot[]> {
+  const { data } = await getSupabase()
+    .from("gsc_snapshots")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("week_start", { ascending: false })
+    .limit(weeks);
+  return (data ?? []) as GscSnapshot[];
+}
