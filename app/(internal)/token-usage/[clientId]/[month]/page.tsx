@@ -84,12 +84,14 @@ export default async function TokenUsageDetailPage({
     "id" | "sop_name" | "status" | "input_tokens" | "output_tokens" | "cost_usd" | "created_at" | "finished_at"
   >[];
 
-  // Resolve client name
+  // Resolve client name — jobs may store client_id as either the Airtable record
+  // ID (c.id) or the slug (c.fields.client_id), so check both.
   const clients = await getClients();
+  const decoded = decodeURIComponent(clientId);
   const client = clients.find(
-    (c) => c.fields.client_id === decodeURIComponent(clientId)
+    (c) => c.id === decoded || c.fields.client_id === decoded
   );
-  const clientName = client?.fields.company_name ?? decodeURIComponent(clientId);
+  const clientName = client?.fields.company_name ?? decoded;
 
   // Group by sop_name
   const grouped = new Map<string, SopRow>();

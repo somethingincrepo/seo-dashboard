@@ -59,10 +59,13 @@ async function getTokenUsageData(): Promise<MonthlyClientRow[]> {
 
   // Fetch all clients for name lookup
   const clients = await getClients();
-  // Jobs store client_id as the slug (c.fields.client_id), not the Airtable record ID (c.id)
-  const clientNames = new Map<string, string>(
-    clients.map((c) => [c.fields.client_id, c.fields.company_name])
-  );
+  // Jobs store client_id as the Airtable record ID (c.id). Map both the record ID
+  // and the slug so lookups succeed regardless of which format was written.
+  const clientNames = new Map<string, string>();
+  for (const c of clients) {
+    clientNames.set(c.id, c.fields.company_name);
+    if (c.fields.client_id) clientNames.set(c.fields.client_id, c.fields.company_name);
+  }
 
   // Aggregate by clientId + YYYY-MM
   const grouped = new Map<string, MonthlyClientRow>();
