@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { contentAirtableFetch } from "@/lib/airtable";
 import { airtablePatch } from "@/lib/airtable";
 
@@ -68,6 +69,9 @@ async function enrichKeyword(keyword: string, auth: string): Promise<{ volume: n
 export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
+
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });

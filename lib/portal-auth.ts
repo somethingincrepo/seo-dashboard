@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { promisify } from "util";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { isAdminAuthenticated } from "./auth";
 
 const scryptAsync = promisify(scrypt);
 
@@ -79,9 +80,9 @@ export async function createPortalSession(
   cookieStore.set(COOKIE_NAME, signed, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     maxAge: SESSION_MAX_AGE,
-    path: "/portal",
+    path: "/",
   });
 }
 
@@ -103,4 +104,16 @@ export async function getPortalSession(): Promise<PortalSession | null> {
   } catch {
     return null;
   }
+}
+
+// Returns null when auth is valid, or {status, error} when it should be rejected.
+// Admin sessions bypass the portal session requirement so admins can view any portal.
+export async function requirePortalAuth(
+  token: string
+): Promise<{ status: 401 | 403; error: string } | null> {
+  if (await isAdminAuthenticated()) return null;
+  const session = await getPortalSession();
+  if (!session) return { status: 401, error: "Unauthorized" };
+  if (session.portal_token !== token) return { status: 403, error: "Forbidden" };
+  return null;
 }

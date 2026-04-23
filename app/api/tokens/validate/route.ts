@@ -20,12 +20,12 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-export async function GET(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+async function runValidation(ip: string, tokenStr: string | null | undefined): Promise<NextResponse> {
   if (!checkRateLimit(ip)) {
     return NextResponse.json({ valid: false, reason: "rate_limited" }, { status: 429 });
   }
-  const token = request.nextUrl.searchParams.get("token")?.trim().toUpperCase();
+
+  const token = tokenStr?.trim().toUpperCase();
 
   if (!token) {
     return NextResponse.json({ valid: false, reason: "missing" }, { status: 400 });
@@ -52,4 +52,20 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ valid: true, package_tier: row.package_tier });
+}
+
+export async function GET(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  return runValidation(ip, request.nextUrl.searchParams.get("token"));
+}
+
+export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  let body: { token?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    // missing body treated as missing token
+  }
+  return runValidation(ip, body.token);
 }

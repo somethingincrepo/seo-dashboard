@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { airtablePatch } from "@/lib/airtable";
 import type { KeywordGroup, Subkeyword } from "@/components/portal/KeywordGroups";
 
@@ -105,6 +106,9 @@ export async function POST(req: NextRequest) {
     if (!token || !action) {
       return NextResponse.json({ error: "Missing token or action" }, { status: 400 });
     }
+
+    const authErr = await requirePortalAuth(token);
+    if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
     const client = await getClientByToken(token);
     if (!client) {

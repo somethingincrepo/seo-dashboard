@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { executeDataforSeoKeywordInfo } from "@/lib/tools/dataforseo";
 import { getSupabase } from "@/lib/supabase";
 
@@ -51,6 +52,9 @@ export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
+
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
@@ -69,6 +73,9 @@ export async function POST(request: NextRequest) {
 
     const token = body.token;
     if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
+
+    const authErr = await requirePortalAuth(token);
+    if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
     const client = await getClientByToken(token);
     if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { contentAirtablePatch } from "@/lib/airtable";
 import { getNextPublishDate } from "@/lib/content-schedule";
 
@@ -11,6 +12,9 @@ const RESULTS_TABLE = "Results";
 export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
+
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });

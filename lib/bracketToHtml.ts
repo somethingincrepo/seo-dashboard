@@ -107,13 +107,19 @@ function escapeHtml(str: string): string {
  * Allows: h1-h3, p, ul, ol, li, strong, del, ins, br
  * Allows: div/span only when they carry a ct-* class (change-tracking output)
  * Everything else is escaped so it renders as visible text, not executed HTML.
+ *
+ * Attributes are stripped from all allowlisted tags — only the bare tag name is
+ * preserved. This prevents event-handler injection (e.g. <strong onclick=...>).
  */
 const SAFE_TAGS = new Set(["h1","h2","h3","p","ul","ol","li","strong","del","ins","br"]);
 
 function sanitize(html: string): string {
   return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tag: string) => {
     const lower = tag.toLowerCase();
-    if (SAFE_TAGS.has(lower)) return match;
+    if (SAFE_TAGS.has(lower)) {
+      // Return bare tag — strip all attributes to block event-handler injection.
+      return match.startsWith("</") ? `</${lower}>` : `<${lower}>`;
+    }
     // Allow change-tracking divs and spans produced by the pre-passes
     if ((lower === "div" || lower === "span") && /class="ct-/.test(match)) return match;
     return escapeHtml(match);

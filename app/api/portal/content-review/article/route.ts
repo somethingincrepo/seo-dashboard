@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { getContentJobById, getResultForJobByTitle } from "@/lib/content";
 
 // GET /api/portal/content-review/article?token=xxx&jobId=yyy

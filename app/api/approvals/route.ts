@@ -5,6 +5,7 @@ import { airtableCreate, airtableFetch, airtablePatch } from "@/lib/airtable";
 import { getSupabase } from "@/lib/supabase";
 import { PACKAGES, type PackageTier, type PackageDeliverables } from "@/lib/packages";
 import { submitUrlToIndexingAPI } from "@/lib/tools/google-indexing";
+import { requirePortalAuth } from "@/lib/portal-auth";
 
 // Change types that consume a monthly quota slot
 const TYPE_QUOTAS: Record<string, keyof PackageDeliverables> = {
@@ -37,10 +38,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
     }
 
+    // Require active portal session or admin session
+    const authErr = await requirePortalAuth(token);
+    if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
+
     // Verify token is valid
     const client = await getClientByToken(token);
     if (!client) {
       return NextResponse.json({ error: "Invalid token" }, { status: 403 });
+    }
+
+    // Fetch change record upfront — needed for ownership check and gate logic
+    type ChangeRecord = { id: string; fields: { client_id?: string; auto_executable?: boolean; requires_design_review?: boolean; type?: string; page_url?: string } };
+    const changeRecords = await airtableFetch<ChangeRecord>("Changes", {
+      filterByFormula: `RECORD_ID()="${recordId}"`,
+      fields: ["client_id", "auto_executable", "requires_design_review", "type", "page_url"],
+      maxRecords: 1,
+    });
+    if (!changeRecords[0]) {
+      return NextResponse.json({ error: "Change not found" }, { status: 404 });
+    }
+    const changeFields = changeRecords[0].fields;
+
+    // Ownership check — client_id in Changes is a plain text field storing a record ID or slug
+    const clientSlug = (client.fields as Record<string, unknown>).client_id as string | undefined;
+    const changeOwner = changeFields.client_id;
+    if (changeOwner && changeOwner !== clientSlug && changeOwner !== client.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (decision === "undo") {
@@ -52,17 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (decision === "approved") {
-      // Fetch change record before writing anything — quota check must happen
-      // before updateApproval to avoid corrupted state on concurrent requests.
-      type ChangeRecord = { id: string; fields: { auto_executable?: boolean; requires_design_review?: boolean; type?: string; page_url?: string } };
-      const changeRecords = await airtableFetch<ChangeRecord>("Changes", {
-        filterByFormula: `RECORD_ID()="${recordId}"`,
-        fields: ["auto_executable", "requires_design_review", "type", "page_url"],
-        maxRecords: 1,
-      });
-      const changeFields = changeRecords[0]?.fields ?? {};
-
-      // ── Monthly quota check (before writing approval) ────────────────────────
+      // ── Monthly quota check (before writing anything) ──────────────────────
       const changeType = changeFields.type ?? "";
       const deliverableKey = TYPE_QUOTAS[changeType];
       if (deliverableKey) {
@@ -85,25 +99,35 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-      // ────────────────────────────────────────────────────────────────────────
+      // ───────────────────────────────────────────────────────────────────────
 
-      // Quota passed — now write the approval to Airtable
-      await updateApproval(recordId, "approved", notes);
-
-      // Airtable checkbox returns null when unchecked, never false.
-      // Only treat as auto-executable when explicitly set to true.
+      // Determine gate outcome before any writes so approval + execution_status
+      // are written atomically — no partial state if the patch fails.
       const autoExecutable = changeFields.auto_executable === true;
       const requiresDesignReview = changeFields.requires_design_review === true;
 
-      // Gate 1: API capability
+      let executionStatus: string;
       if (!autoExecutable) {
-        await airtablePatch("Changes", recordId, { execution_status: "manual_required" });
+        executionStatus = "manual_required";
+      } else if (requiresDesignReview) {
+        executionStatus = "design_review_required";
+      } else {
+        executionStatus = "pending";
+      }
+
+      const approvalFields: Record<string, unknown> = {
+        approval: "approved",
+        approved_at: new Date().toISOString(),
+        execution_status: executionStatus,
+      };
+      if (notes) approvalFields.client_notes = notes;
+      await airtablePatch("Changes", recordId, approvalFields);
+
+      if (executionStatus === "manual_required") {
         return NextResponse.json({ ok: true, queued: false, outcome: "manual_required" });
       }
 
-      // Gate 2: Design safety
-      if (requiresDesignReview) {
-        await airtablePatch("Changes", recordId, { execution_status: "design_review_required" });
+      if (executionStatus === "design_review_required") {
         return NextResponse.json({ ok: true, queued: false, outcome: "design_review_required" });
       }
 
@@ -116,8 +140,6 @@ export async function POST(request: NextRequest) {
         params: JSON.stringify({ change_id: recordId }),
       });
 
-      // Write to Supabase — picked up by the Fly.io worker's implement SOP.
-      // runner='fly' is required: implement is a long-running job that needs the worker, not Vercel.
       try {
         const supabase = getSupabase();
         await supabase.from("jobs").insert({
@@ -131,8 +153,6 @@ export async function POST(request: NextRequest) {
         console.error("Supabase job insert failed (non-fatal):", err);
       }
 
-      // Fire-and-forget: submit the page URL to Google Indexing API so Google
-      // crawls it as soon as the implementation goes live.
       const pageUrl = changeFields.page_url as string | undefined;
       if (pageUrl) {
         submitUrlToIndexingAPI(pageUrl).then((result) => {

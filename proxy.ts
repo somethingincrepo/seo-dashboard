@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const SESSION_COOKIE = "seo_session";
+const SESSION_COOKIE = "admin_session";
 
 // Protected routes that require admin auth
 const PROTECTED = ["/", "/clients", "/jobs", "/approvals", "/users", "/token-usage", "/design-review", "/activity", "/reverts"];

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { getSupabase } from "./supabase";
 
-const SESSION_COOKIE = "seo_session";
+const SESSION_COOKIE = "admin_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ async function setSessionCookie(username: string, secret: string): Promise<void>
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     maxAge: SESSION_MAX_AGE,
     path: "/",
   });
@@ -172,20 +172,43 @@ export async function createSession(username: string, password: string): Promise
   return true;
 }
 
+// Extracts the issue time (seconds since epoch) from a token without re-verifying.
+// Token format: encUsername.exp.sig — issued_at = exp - SESSION_MAX_AGE
+function parseIssuedAt(token: string): number | null {
+  const lastDot = token.lastIndexOf(".");
+  if (lastDot === -1) return null;
+  const payload = token.slice(0, lastDot);
+  const dotIdx = payload.indexOf(".");
+  if (dotIdx === -1) return null;
+  const exp = parseInt(payload.slice(dotIdx + 1), 10);
+  return isNaN(exp) ? null : exp - SESSION_MAX_AGE;
+}
+
 export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
+  const cookie = cookieStore.get(SESSION_COOKIE);
+  if (cookie?.value) {
+    const secret = process.env.ADMIN_PASSWORD;
+    if (secret) {
+      const username = await verifyToken(cookie.value, secret);
+      if (username) {
+        // Record logout time so all tokens issued before now are invalidated
+        try {
+          await getSupabase()
+            .from("admin_users")
+            .update({ logged_out_at: new Date().toISOString() })
+            .eq("username", username);
+        } catch {
+          // non-fatal if column doesn't exist yet
+        }
+      }
+    }
+  }
   cookieStore.delete(SESSION_COOKIE);
 }
 
-/** Fast check — just verifies the HMAC signature. No Supabase call. */
 export async function isAdminAuthenticated(): Promise<boolean> {
-  const secret = process.env.ADMIN_PASSWORD;
-  if (!secret) return false;
-  const cookieStore = await cookies();
-  const cookie = cookieStore.get(SESSION_COOKIE);
-  if (!cookie?.value) return false;
-  const username = await verifyToken(cookie.value, secret);
-  return username !== null;
+  return (await getSession()) !== null;
 }
 
 export async function getSession(): Promise<AdminSession | null> {
@@ -203,6 +226,15 @@ export async function getSession(): Promise<AdminSession | null> {
     .select("*")
     .eq("username", username)
     .maybeSingle();
+
+  // Reject tokens issued before the last logout (requires logged_out_at column in admin_users)
+  const loggedOutAt = data?.logged_out_at as string | null | undefined;
+  if (loggedOutAt) {
+    const issuedAt = parseIssuedAt(cookie.value);
+    if (issuedAt !== null && issuedAt <= new Date(loggedOutAt).getTime() / 1000) {
+      return null;
+    }
+  }
 
   const role: AdminRole = (data?.role as AdminRole) ?? "admin";
   const assigned_client_ids: string[] = (data?.assigned_client_ids as string[]) ?? [];

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { airtableFetch } from "@/lib/airtable";
 import {
   batchInspectUrls,
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
 
   const { token, urls: urlsFilter, force = false } = body;
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
+
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate } from "@/lib/airtable";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { getPerTypeQuota, CONTENT_TYPE_CONFIG, type ContentTypeName } from "@/lib/content";
@@ -29,6 +30,9 @@ async function getContentClientId(companyName: string): Promise<string | null> {
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
+
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
   try {
     const client = await getClientByToken(token);
@@ -128,6 +132,9 @@ export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
+
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
@@ -199,6 +206,11 @@ export async function PATCH(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
+  try {
+
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
+
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
@@ -229,6 +241,14 @@ export async function PATCH(request: NextRequest) {
   const monthStart = startOfMonthISO();
   const companyName = client.fields.company_name;
 
+  // Ownership check — verify this record belongs to the authenticated client
+  const escapedName = companyName.replace(/"/g, '\\"');
+  const ownerCheck = await contentAirtableFetch<{ id: string }>(CONTENT_JOBS_TABLE, {
+    filterByFormula: `AND(RECORD_ID()="${record_id}",FIND("${escapedName}",ARRAYJOIN({Client Name (from Client ID)},",")))`,
+    maxRecords: 1,
+  });
+  if (!ownerCheck[0]) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   // Per-type quota check on approve
   if (action === "approve") {
     const typeName: ContentTypeName = content_type_name ?? "standard";
@@ -256,16 +276,17 @@ export async function PATCH(request: NextRequest) {
       const nextMonth = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, "0")}`;
       const nextMonthLabel = nextMonthDate.toLocaleString("en-US", { month: "long", year: "numeric" });
 
-      const nextMonthFields: Record<string, unknown> = {
-        title_status: "next_month",
-        scheduled_for_month: nextMonth,
-        approved_at: new Date().toISOString(),
-      };
+      // Neither "next_month" (title_status select) nor "scheduled_for_month" exist in the
+      // Airtable schema yet. Only save inline edits if supplied — skip status/scheduling
+      // fields until the schema is extended.
+      const nextMonthFields: Record<string, unknown> = {};
       if (title?.trim()) nextMonthFields["Blog Title"] = title.trim();
       if (target_keyword !== undefined) nextMonthFields.target_keyword = target_keyword;
       if (keyword_group !== undefined) nextMonthFields.keyword_group = keyword_group;
 
-      await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, nextMonthFields);
+      if (Object.keys(nextMonthFields).length > 0) {
+        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, nextMonthFields);
+      }
 
       return NextResponse.json({
         ok: true,
@@ -348,38 +369,44 @@ export async function PATCH(request: NextRequest) {
         await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
       }
     } else {
-      // Standard / Long-Form → fire n8n webhook with dynamic content type + length
+      // Standard / Long-Form → fire-and-forget n8n webhook (do not await — n8n latency
+      // must not block the portal user's approval response).
       const cfg = CONTENT_TYPE_CONFIG[typeName];
       const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL ?? "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
 
       const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
       const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
       const searchIntent = jobRecord?.fields["Search intent"] || "informational";
-      try {
-        const webhookRes = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            recordId: record_id,
-            fields: {
-              "Blog Title": blogTitle,
-              "Client ID": clientIds,
-              "Search intent": searchIntent,
-              "Content type": { id: cfg.airtableContentType, name: cfg.airtableContentType },
-              "Desired length range": cfg.airtableLengthRange,
-            },
-          }),
-        });
+      fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordId: record_id,
+          fields: {
+            "Blog Title": blogTitle,
+            "Client ID": clientIds,
+            "Search intent": searchIntent,
+            "Content type": { id: cfg.airtableContentType, name: cfg.airtableContentType },
+            "Desired length range": cfg.airtableLengthRange,
+          },
+        }),
+      }).then(async (webhookRes) => {
         if (!webhookRes.ok) {
-          await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" });
+          await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
         }
-      } catch {
-        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
-      }
+      }).catch(() => {
+        contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
+      });
     }
   }
 
   return NextResponse.json({ ok: true });
+
+  } catch (err) {
+    console.error("[PATCH /api/portal/titles] error:", err);
+    const message = err instanceof Error ? err.message : "Internal error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -389,6 +416,9 @@ export async function DELETE(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
+
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
@@ -396,6 +426,15 @@ export async function DELETE(request: NextRequest) {
   const { record_id } = body;
 
   if (!record_id) return NextResponse.json({ error: "record_id required" }, { status: 400 });
+
+  // Ownership check — verify this record belongs to the authenticated client
+  const companyName = client.fields.company_name;
+  const escapedName = companyName.replace(/"/g, '\\"');
+  const ownerCheck = await contentAirtableFetch<{ id: string }>(CONTENT_JOBS_TABLE, {
+    filterByFormula: `AND(RECORD_ID()="${record_id}",FIND("${escapedName}",ARRAYJOIN({Client Name (from Client ID)},",")))`,
+    maxRecords: 1,
+  });
+  if (!ownerCheck[0]) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { title_status: "skipped" });
 

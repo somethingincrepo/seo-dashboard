@@ -82,7 +82,7 @@ export async function airtableCreate(
   const res = await fetch(`${BASE_URL}/${baseId}/${tableId}`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields, typecast: true }),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -101,7 +101,7 @@ export async function airtablePatch(
   const res = await fetch(`${BASE_URL}/${baseId}/${tableId}/${recordId}`, {
     method: "PATCH",
     headers: getHeaders(),
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields, typecast: true }),
   });
   if (!res.ok) {
     const err = await res.text();

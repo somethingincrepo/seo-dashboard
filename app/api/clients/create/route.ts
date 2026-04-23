@@ -3,14 +3,15 @@ import { randomBytes } from "crypto";
 import { airtableCreate, airtableFetch } from "@/lib/airtable";
 import { hashPassword } from "@/lib/portal-auth";
 import { getSupabase } from "@/lib/supabase";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-function isAuthorized(request: NextRequest): boolean {
+async function isAuthorized(request: NextRequest): Promise<boolean> {
   const auth = request.headers.get("authorization");
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  return auth === `Bearer ${expected}`;
+  if (auth && auth === `Bearer ${process.env.ADMIN_PASSWORD}`) return true;
+  const session = await getSession();
+  return !!session;
 }
 
 function slugify(name: string): string {
@@ -22,7 +23,7 @@ function slugify(name: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
+  if (!await isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -45,13 +46,21 @@ export async function POST(request: NextRequest) {
     keywords,
     competitors,
     notes,
-    package: packageTier = "growth",
+    package: packageTier,
     run_audit = false,
   } = body as Record<string, unknown>;
 
   if (!company_name || !site_url || !domain || !cms) {
     return NextResponse.json(
       { error: "company_name, site_url, domain, and cms are required" },
+      { status: 400 }
+    );
+  }
+
+  const VALID_PACKAGES = ["starter", "growth", "authority"];
+  if (!packageTier || !VALID_PACKAGES.includes(packageTier as string)) {
+    return NextResponse.json(
+      { error: "package must be one of: starter, growth, authority" },
       { status: 400 }
     );
   }

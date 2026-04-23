@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { airtableFetch } from "@/lib/airtable";
 import { batchSubmitUrls, updateIndexingStatusForUrls } from "@/lib/tools/google-indexing";
 import type { Change } from "@/lib/changes";
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
+
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
@@ -70,6 +74,9 @@ export async function POST(request: NextRequest) {
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return NextResponse.json({ error: "urls must be a non-empty array" }, { status: 400 });
   }
+
+  const authErr = await requirePortalAuth(token);
+  if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });

@@ -1,25 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
-import { airtablePatch } from "@/lib/airtable";
+import { airtableFetch, airtablePatch } from "@/lib/airtable";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
-import { getClients } from "@/lib/clients";
+
+type DesignReviewChange = {
+  id: string;
+  fields: {
+    type?: string;
+    page_url?: string;
+    current_value?: string;
+    proposed_value?: string;
+    approval?: string;
+    execution_status?: string;
+    requires_design_review?: boolean;
+    client_id?: string | string[];
+    priority?: string;
+    confidence?: string;
+    change_title?: string;
+  };
+};
+
+export async function GET(_request: NextRequest) {
+  const authed = await getSession();
+  if (!authed) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const changes = await airtableFetch<DesignReviewChange>("Changes", {
+    filterByFormula: `AND({approval}="approved",{requires_design_review}=TRUE(),OR({execution_status}="design_review_required",{execution_status}="pending"))`,
+    sort: [{ field: "priority", direction: "asc" }],
+  });
+
+  return NextResponse.json({ changes });
+}
 
 export async function POST(request: NextRequest) {
   try {
-    // Admin auth check
     const authed = await getSession();
     if (!authed) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
-    const { changeId, decision, clientId } = body as {
-      changeId: string;
-      decision: "safe" | "manual";
-      clientId?: string;
-    };
+    // Accept both camelCase (from UI) and snake_case (from API/tests)
+    const changeId: string = body.changeId ?? body.change_id;
+    const clientId: string | undefined = body.clientId ?? body.client_id;
+    // Accept "approved"/"safe" → queue implement; "rejected"/"manual" → manual required
+    const rawDecision: string = body.decision ?? "";
+    const decision: "safe" | "manual" =
+      rawDecision === "approved" || rawDecision === "safe"
+        ? "safe"
+        : rawDecision === "rejected" || rawDecision === "manual"
+        ? "manual"
+        : rawDecision as "safe" | "manual";
 
-    if (!changeId || !decision || !["safe", "manual"].includes(decision)) {
+    if (!changeId || !["safe", "manual"].includes(decision)) {
       return NextResponse.json({ error: "Missing or invalid fields" }, { status: 400 });
     }
 
@@ -39,7 +74,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, outcome: "manual_required" });
     }
 
-    // decision === "safe" — create implement job
+    // decision === "safe" — clear design review flag and create implement job
     try {
       await airtablePatch("Changes", changeId, {
         execution_status: "pending",
@@ -53,7 +88,6 @@ export async function POST(request: NextRequest) {
       throw err;
     }
 
-    // Insert Supabase job (picked up by Fly.io worker)
     if (clientId) {
       try {
         const supabase = getSupabase();

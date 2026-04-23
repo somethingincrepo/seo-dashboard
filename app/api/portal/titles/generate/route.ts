@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getClientByToken } from "@/lib/clients";
+import { requirePortalAuth } from "@/lib/portal-auth";
 import { contentAirtableFetch } from "@/lib/airtable";
 import { buildStylesPromptBlock, parseStyles } from "@/lib/content-styles";
 
