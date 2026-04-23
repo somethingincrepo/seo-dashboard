@@ -151,7 +151,22 @@ export async function createSession(username: string, password: string): Promise
   if (!user) return false;
 
   const hash = await hashPassword(user.password_salt as string, password);
-  if (hash !== user.password_hash) return false;
+  if (hash !== user.password_hash) {
+    // Fallback: if admin user supplies the current ADMIN_PASSWORD env var,
+    // treat it as a recovery login and re-sync the DB hash. This handles
+    // the case where ADMIN_PASSWORD was rotated without updating the stored hash.
+    if (username === "admin" && password === secret) {
+      const newSalt = randomHex();
+      const newHash = await hashPassword(newSalt, password);
+      await supabase
+        .from("admin_users")
+        .update({ password_hash: newHash, password_salt: newSalt })
+        .eq("username", "admin");
+      await setSessionCookie(username, secret);
+      return true;
+    }
+    return false;
+  }
 
   await setSessionCookie(username, secret);
   return true;
