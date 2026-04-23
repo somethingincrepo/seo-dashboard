@@ -111,15 +111,12 @@ export default async function JobsPage() {
         )}
       </section>
 
-      {/* ── OpenClaw legacy jobs (Airtable) ── */}
+      {/* ── Airtable jobs ── */}
       <section>
         <div className="flex items-center gap-3 mb-3">
           <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider">
-            OpenClaw Jobs
+            Airtable Jobs
           </h2>
-          <span className="text-xs bg-slate-100 text-slate-500 border border-slate-200 rounded px-2 py-0.5 font-medium">
-            Legacy
-          </span>
         </div>
 
         {atRunning.length > 0 && (

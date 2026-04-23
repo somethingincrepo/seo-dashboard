@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminAuthenticated } from "@/lib/auth";
 import { getNextPublishDate } from "@/lib/content-schedule";
 
 const BASE_URL = "https://api.airtable.com/v0";
@@ -99,6 +100,13 @@ async function handleResultApproval(recordId: string, action: string) {
 }
 
 export async function POST(request: NextRequest) {
+  // Require admin auth — Bearer token or session cookie
+  const bearer = request.headers.get("authorization");
+  const bearerOk = bearer === `Bearer ${process.env.ADMIN_PASSWORD}`;
+  if (!bearerOk && !(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     let parsed: { recordId?: string; action?: string; type?: string };
     try {
