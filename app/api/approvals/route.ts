@@ -131,8 +131,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, queued: false, outcome: "design_review_required" });
       }
 
-      // Both gates passed — queue implement job
-      await airtableCreate("Jobs", {
+      // Both gates passed — queue implement job.
+      // Create Airtable Jobs record first to capture its ID for round-trip sync.
+      // If this throws, the outer catch returns 500 (Changes approval already written).
+      const { id: airtableJobId } = await airtableCreate("Jobs", {
         client_id: (client.fields as { client_id: string }).client_id,
         job_type_new: "implement",
         job_status_new: "queued",
@@ -140,18 +142,16 @@ export async function POST(request: NextRequest) {
         params: JSON.stringify({ change_id: recordId }),
       });
 
-      try {
-        const supabase = getSupabase();
-        await supabase.from("jobs").insert({
-          sop_name: "implement",
-          runner: "fly",
-          client_id: client.id,
-          status: "pending",
-          payload: { change_id: recordId, triggered_by: "portal_approval" },
-        });
-      } catch (err) {
-        console.error("Supabase job insert failed (non-fatal):", err);
-      }
+      // Supabase insert is mandatory — bubble up on failure so the portal sees 500
+      // rather than silently losing the execution job.
+      const supabase = getSupabase();
+      await supabase.from("jobs").insert({
+        sop_name: "implement",
+        runner: "fly",
+        client_id: client.id,
+        status: "pending",
+        payload: { change_id: recordId, triggered_by: "portal_approval", airtable_job_id: airtableJobId },
+      });
 
       const pageUrl = changeFields.page_url as string | undefined;
       if (pageUrl) {
