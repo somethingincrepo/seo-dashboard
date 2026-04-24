@@ -160,13 +160,18 @@ export async function createSession(username: string, password: string): Promise
       const newHash = await hashPassword(newSalt, password);
       await supabase
         .from("admin_users")
-        .update({ password_hash: newHash, password_salt: newSalt })
+        .update({ password_hash: newHash, password_salt: newSalt, logged_out_at: null })
         .eq("username", "admin");
       await setSessionCookie(username, secret);
       return true;
     }
     return false;
   }
+
+  // Clear any stale logged_out_at so the new session is never rejected by it
+  try {
+    await supabase.from("admin_users").update({ logged_out_at: null }).eq("username", username);
+  } catch { /* non-fatal if column doesn't exist yet */ }
 
   await setSessionCookie(username, secret);
   return true;
@@ -231,7 +236,7 @@ export async function getSession(): Promise<AdminSession | null> {
   const loggedOutAt = data?.logged_out_at as string | null | undefined;
   if (loggedOutAt) {
     const issuedAt = parseIssuedAt(cookie.value);
-    if (issuedAt !== null && issuedAt <= new Date(loggedOutAt).getTime() / 1000) {
+    if (issuedAt !== null && issuedAt < new Date(loggedOutAt).getTime() / 1000) {
       return null;
     }
   }

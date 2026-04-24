@@ -35,7 +35,7 @@ async function checkAdminRateLimit(): Promise<boolean> {
 }
 
 export async function login(formData: FormData) {
-  const username = formData.get("username") as string;
+  const username = ((formData.get("username") as string) || "").trim().toLowerCase();
   const password = formData.get("password") as string;
   const next = formData.get("next") as string | null;
 
