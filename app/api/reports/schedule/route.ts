@@ -45,12 +45,23 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getSupabase();
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
   const scheduled: { client_id: string; company_name: string; job_id: string }[] = [];
   const errors: { client_id: string; error: string }[] = [];
 
   for (const client of due) {
     const clientId = client.id;
     const monthNumber = client.fields.month_number ?? 1;
+
+    const { data: existingJob } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("sop_name", "report_generate")
+      .eq("client_id", clientId)
+      .gte("created_at", startOfMonth)
+      .limit(1);
+
+    if (existingJob && existingJob.length > 0) continue;
 
     const { data, error } = await supabase
       .from("jobs")

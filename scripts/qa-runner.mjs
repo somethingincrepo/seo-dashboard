@@ -19,7 +19,7 @@ const crypto = webcrypto
 const BASE_URL = process.env.QA_BASE_URL || 'http://localhost:3000'
 const ADMIN_PASSWORD        = process.env.ADMIN_PASSWORD        || ''
 const PORTAL_SESSION_SECRET = process.env.PORTAL_SESSION_SECRET || process.env.ADMIN_PASSWORD || ''
-const SUPABASE_URL          = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const SUPABASE_URL          = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
 const SUPABASE_KEY          = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const AIRTABLE_API_KEY      = process.env.AIRTABLE_API_KEY      || ''
 const AIRTABLE_BASE_ID      = process.env.AIRTABLE_BASE_ID      || ''
@@ -829,15 +829,16 @@ async function runIntegrations() {
 async function cleanup() {
   if (toCleanup.length === 0) return
   console.log(`\n${'─'.repeat(64)}\n  Cleanup — deleting ${toCleanup.length} test record(s)\n${'─'.repeat(64)}`)
+  const adminCookie = `admin_session=${await forgeAdminSession()}`
   for (const item of toCleanup) {
     const airtableId = item.record_id
     if (!airtableId) { console.log(`  ⚠  No record_id for ${item.client_id}`); continue }
     try {
-      const res = await fetch(
-        `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Clients/${airtableId}`,
-        { method: 'DELETE', headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}` },
-          signal: AbortSignal.timeout(10000) }
-      )
+      const res = await fetch(`${BASE_URL}/api/clients/${airtableId}/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        signal: AbortSignal.timeout(15000),
+      })
       const body = await res.json()
       if (body.deleted) console.log(`  ✓  Deleted: ${item.client_id} (${airtableId})`)
       else console.log(`  ⚠  Delete failed for ${item.client_id}: ${JSON.stringify(body)}`)

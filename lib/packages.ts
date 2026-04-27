@@ -5,7 +5,7 @@ export type PackageDeliverables = {
   articles_longform: number;   // per month
   faq_sections: number;        // per month
   content_refreshes: number;   // per month
-  pages_optimized: number;     // per month (0 = refresh rotation only)
+  pages_optimized: number;     // per month
   internal_links: number;      // per month
   reddit_comments: number;     // per month
 };
@@ -16,7 +16,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_longform: 0,
     faq_sections: 1,
     content_refreshes: 1,
-    pages_optimized: 0,
+    pages_optimized: 2,
     internal_links: 4,
     reddit_comments: 2,
   },

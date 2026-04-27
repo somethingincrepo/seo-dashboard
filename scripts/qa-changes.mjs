@@ -5,10 +5,11 @@
  */
 import { webcrypto } from 'crypto'
 const crypto = webcrypto
-const BASE_URL         = process.env.QA_BASE_URL    || 'http://localhost:3000'
-const ADMIN_PASSWORD   = process.env.ADMIN_PASSWORD  || ''
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || ''
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || ''
+const BASE_URL              = process.env.QA_BASE_URL             || 'http://localhost:3000'
+const ADMIN_PASSWORD        = process.env.ADMIN_PASSWORD          || ''
+const PORTAL_SESSION_SECRET = process.env.PORTAL_SESSION_SECRET   || process.env.ADMIN_PASSWORD || ''
+const AIRTABLE_API_KEY      = process.env.AIRTABLE_API_KEY        || ''
+const AIRTABLE_BASE_ID      = process.env.AIRTABLE_BASE_ID        || ''
 
 const results = { pass: [], fail: [], skip: [], note: [] }
 function section(name) { console.log(`\n${'─'.repeat(64)}\n  ${name}\n${'─'.repeat(64)}`) }
@@ -27,6 +28,17 @@ async function test(id, desc, fn) {
       note: (t) => { if (!settled) { settled=true; note(id,desc,t) } },
     })
   } catch (e) { fail(id, desc, `threw: ${e.message}`) }
+}
+
+async function forgePortalSession(clientRecordId, portalToken) {
+  const payload = Buffer.from(JSON.stringify({ client_id: clientRecordId, portal_token: portalToken })).toString('base64url')
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(PORTAL_SESSION_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  )
+  const sig    = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload))
+  const sigHex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
+  return `${payload}.${sigHex}`
 }
 
 async function POST(path, body, opts={}) {
@@ -89,8 +101,11 @@ async function seedChange(clientSlug, changeType, opts={}) {
 async function runChangesTests() {
   section('Section 5 — SEO Changes & Internal Link Quota')
 
-  let starterClient
-  try { starterClient = await createClient('Starter', 'starter') } catch(e) {
+  let starterClient, starterCookie
+  try {
+    starterClient = await createClient('Starter', 'starter')
+    starterCookie = `portal_session=${await forgePortalSession(starterClient.record_id, starterClient.portal_token)}`
+  } catch(e) {
     console.log(`  ⚠  Could not create client: ${e.message}`)
   }
 
@@ -106,9 +121,9 @@ async function runChangesTests() {
   let pendingChangeId
   await test('CHG-001', 'Approve SEO change: creates implement job or manual_required', async ({pass,fail,skip}) => {
     if (!starterClient) { skip('No fixture client'); return }
-    pendingChangeId = await seedChange(starterClient.client_id, 'Title Tag').catch(e=>{skip(`Seed failed: ${e.message}`);return null})
+    pendingChangeId = await seedChange(starterClient.client_id, 'Heading').catch(e=>{skip(`Seed failed: ${e.message}`);return null})
     if (!pendingChangeId) return
-    const res = await POST('/api/approvals', { recordId:pendingChangeId, decision:'approved', token:starterClient.portal_token })
+    const res = await POST('/api/approvals', { recordId:pendingChangeId, decision:'approved', token:starterClient.portal_token }, {cookie:starterCookie})
     const b = await j(res)
     if (res.status===200 && b.ok) pass()
     else if (res.status===409 && b.quota_reached) pass()
@@ -118,9 +133,9 @@ async function runChangesTests() {
   // CHG-005: Skip change → ok, no implement job
   await test('CHG-005', 'Skip change → ok=true, no implement job', async ({pass,fail,skip}) => {
     if (!starterClient) { skip('No fixture client'); return }
-    const id = await seedChange(starterClient.client_id, 'Meta Description').catch(()=>null)
+    const id = await seedChange(starterClient.client_id, 'Metadata').catch(()=>null)
     if (!id) { skip('Could not seed change'); return }
-    const res = await POST('/api/approvals', { recordId:id, decision:'skipped', token:starterClient.portal_token })
+    const res = await POST('/api/approvals', { recordId:id, decision:'skipped', token:starterClient.portal_token }, {cookie:starterCookie})
     const b = await j(res)
     if (res.status===200 && b.ok) pass()
     else fail(`Expected ok=true, got ${res.status}: ${JSON.stringify(b)}`)
@@ -129,9 +144,9 @@ async function runChangesTests() {
   // CHG-006: auto_executable=false → manual_required
   await test('CHG-006', 'auto_executable=false → outcome=manual_required', async ({pass,fail,skip}) => {
     if (!starterClient) { skip('No fixture client'); return }
-    const id = await seedChange(starterClient.client_id, 'Schema', {auto_executable:false}).catch(()=>null)
+    const id = await seedChange(starterClient.client_id, 'Content', {auto_executable:false}).catch(()=>null)
     if (!id) { skip('Could not seed non-executable change'); return }
-    const res = await POST('/api/approvals', { recordId:id, decision:'approved', token:starterClient.portal_token })
+    const res = await POST('/api/approvals', { recordId:id, decision:'approved', token:starterClient.portal_token }, {cookie:starterCookie})
     const b = await j(res)
     if (res.status===200 && b.outcome==='manual_required') pass()
     else fail(`Expected outcome=manual_required, got ${res.status}: ${JSON.stringify(b)}`)
@@ -148,16 +163,19 @@ async function runChangesTests() {
   })
 
   // LINK-001: Approve 1 internal link (Starter, quota=4, starting from 0)
-  let linkClient
-  try { linkClient = await createClient('Link', 'starter') } catch(e) {
+  let linkClient, linkCookie
+  try {
+    linkClient = await createClient('Link', 'starter')
+    linkCookie = `portal_session=${await forgePortalSession(linkClient.record_id, linkClient.portal_token)}`
+  } catch(e) {
     console.log(`  ⚠  Could not create link test client: ${e.message}`)
   }
 
   await test('LINK-001', 'Starter approves 1 internal link (1/4 used)', async ({pass,fail,skip}) => {
     if (!linkClient) { skip('No fixture client'); return }
     const id = await seedChange(linkClient.client_id, 'Internal Link').catch(()=>null)
-    if (!id) { skip('Seed failed'); return }
-    const res = await POST('/api/approvals', { recordId:id, decision:'approved', token:linkClient.portal_token })
+    if (!id) { skip('Seed failed — "Internal Link" may not be a valid Airtable type option; add it in the Changes table UI'); return }
+    const res = await POST('/api/approvals', { recordId:id, decision:'approved', token:linkClient.portal_token }, {cookie:linkCookie})
     const b = await j(res)
     if (res.status===200 && b.ok) pass()
     else if (res.status===409 && b.quota_reached) fail('Quota rejected 1st link (quota=4) — bug')
@@ -170,57 +188,63 @@ async function runChangesTests() {
     // Approve links 2, 3, 4 (link 1 was approved in LINK-001 above)
     for (let i=0; i<3; i++) {
       const id = await seedChange(linkClient.client_id, 'Internal Link').catch(()=>null)
-      if (id) await POST('/api/approvals', { recordId:id, decision:'approved', token:linkClient.portal_token })
+      if (id) await POST('/api/approvals', { recordId:id, decision:'approved', token:linkClient.portal_token }, {cookie:linkCookie})
     }
     // 5th link
     const id5 = await seedChange(linkClient.client_id, 'Internal Link').catch(()=>null)
-    if (!id5) { skip('Could not seed 5th link'); return }
-    const res = await POST('/api/approvals', { recordId:id5, decision:'approved', token:linkClient.portal_token })
+    if (!id5) { skip('Could not seed 5th link — "Internal Link" may not be a valid Airtable type option'); return }
+    const res = await POST('/api/approvals', { recordId:id5, decision:'approved', token:linkClient.portal_token }, {cookie:linkCookie})
     const b = await j(res)
     if (res.status===409 && b.quota_reached) pass()
     else fail(`Expected 409+quota_reached, got ${res.status}: ${JSON.stringify(b)}`)
   })
 
   // LINK-003: Growth 11th link → quota_reached
-  let growthLinkClient
-  try { growthLinkClient = await createClient('GrowthLink', 'growth') } catch(e) {}
+  let growthLinkClient, growthLinkCookie
+  try {
+    growthLinkClient = await createClient('GrowthLink', 'growth')
+    growthLinkCookie = `portal_session=${await forgePortalSession(growthLinkClient.record_id, growthLinkClient.portal_token)}`
+  } catch(e) {}
 
   await test('LINK-003', 'Growth 11th internal link rejected (limit=10)', async ({pass,fail,skip}) => {
     if (!growthLinkClient) { skip('No Growth fixture client'); return }
     // Approve 10 links
     for (let i=0; i<10; i++) {
       const id = await seedChange(growthLinkClient.client_id, 'Internal Link').catch(()=>null)
-      if (id) await POST('/api/approvals', { recordId:id, decision:'approved', token:growthLinkClient.portal_token })
+      if (id) await POST('/api/approvals', { recordId:id, decision:'approved', token:growthLinkClient.portal_token }, {cookie:growthLinkCookie})
     }
     // 11th
     const id11 = await seedChange(growthLinkClient.client_id, 'Internal Link').catch(()=>null)
-    if (!id11) { skip('Could not seed 11th link'); return }
-    const res = await POST('/api/approvals', { recordId:id11, decision:'approved', token:growthLinkClient.portal_token })
+    if (!id11) { skip('Could not seed 11th link — "Internal Link" may not be a valid Airtable type option'); return }
+    const res = await POST('/api/approvals', { recordId:id11, decision:'approved', token:growthLinkClient.portal_token }, {cookie:growthLinkCookie})
     const b = await j(res)
     if (res.status===409 && b.quota_reached) pass()
     else fail(`Expected 409+quota_reached, got ${res.status}: ${JSON.stringify(b)}`)
   })
 
   // DATA-003: Race condition — concurrent approvals at quota limit
-  let raceClient
-  try { raceClient = await createClient('Race', 'starter') } catch(e) {}
+  let raceClient, raceCookie
+  try {
+    raceClient = await createClient('Race', 'starter')
+    raceCookie = `portal_session=${await forgePortalSession(raceClient.record_id, raceClient.portal_token)}`
+  } catch(e) {}
 
   await test('DATA-003', 'Quota atomicity: concurrent approvals at limit (race condition)', async ({pass,fail,skip}) => {
     if (!raceClient) { skip('No race fixture client'); return }
     // Approve 3 links (bring to 3/4)
     for (let i=0; i<3; i++) {
       const id = await seedChange(raceClient.client_id, 'Internal Link').catch(()=>null)
-      if (id) await POST('/api/approvals', { recordId:id, decision:'approved', token:raceClient.portal_token })
+      if (id) await POST('/api/approvals', { recordId:id, decision:'approved', token:raceClient.portal_token }, {cookie:raceCookie})
     }
     // Fire link 4 and 5 concurrently
     const [id4, id5] = await Promise.all([
       seedChange(raceClient.client_id, 'Internal Link').catch(()=>null),
       seedChange(raceClient.client_id, 'Internal Link').catch(()=>null),
     ])
-    if (!id4||!id5) { skip('Could not seed concurrent links'); return }
+    if (!id4||!id5) { skip('Could not seed concurrent links — "Internal Link" may not be a valid Airtable type option'); return }
     const [res4,res5] = await Promise.all([
-      POST('/api/approvals', { recordId:id4, decision:'approved', token:raceClient.portal_token }),
-      POST('/api/approvals', { recordId:id5, decision:'approved', token:raceClient.portal_token }),
+      POST('/api/approvals', { recordId:id4, decision:'approved', token:raceClient.portal_token }, {cookie:raceCookie}),
+      POST('/api/approvals', { recordId:id5, decision:'approved', token:raceClient.portal_token }, {cookie:raceCookie}),
     ])
     const [b4,b5] = [await j(res4), await j(res5)]
     const successes = [res4,res5].filter(r=>r.status===200).length

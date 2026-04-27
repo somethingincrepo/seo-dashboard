@@ -227,15 +227,19 @@ async function seedTitledContentJob(contentClientId, type = 'standard') {
   return rec.id
 }
 
-async function seedChangesRecord(mainAirtableClientId, changeType = 'Title Tag', opts = {}) {
+async function seedChangesRecord(clientSlug, changeType = 'Heading', opts = {}) {
   const rec = await atCreate(AIRTABLE_BASE_ID, 'Changes', {
-    'client_id': [mainAirtableClientId],
-    'type':      changeType,
-    'status':    'Pending',
-    'Change Type': changeType,
-    'suggested_change': 'QA test change',
-    'auto_executable': opts.auto_executable ?? true,
-    'requires_design_review': opts.requires_design_review ?? false,
+    'client_id':                  clientSlug,
+    'type':                       changeType,
+    'approval':                   'pending',
+    'change_title':               `QA test ${changeType} change`,
+    'plain_english_explanation':  'QA test change',
+    'business_impact_explanation':'QA test',
+    'confidence':                 'High',
+    'priority':                   'Medium',
+    'cat':                        'On-Page',
+    'auto_executable':            opts.auto_executable ?? true,
+    ...(opts.requires_design_review != null ? { 'requires_design_review': opts.requires_design_review } : {}),
     ...opts.extra,
   })
   cleanup.push({ type: 'change', record_id: rec.id, label: `${changeType} change`, base: AIRTABLE_BASE_ID, table: 'Changes' })
@@ -248,12 +252,13 @@ async function runContentQuota() {
   section('Section 4 — Content Quota Enforcement')
 
   // Create a starter fixture client
-  let starterClient, starterContentClientId, starterTitledStandard, starterTitledLongform
-  let growthClient, growthContentClientId, growthTitledLongform
+  let starterClient, starterContentClientId, starterTitledStandard, starterTitledLongform, starterPortalCookie
+  let growthClient, growthContentClientId, growthTitledLongform, growthPortalCookie
   let authorityClient, authorityContentClientId, authorityTitledStandard
 
   try {
     starterClient = await createFixtureClient('Starter', 'starter')
+    starterPortalCookie = `portal_session=${await forgePortalSession(starterClient.record_id, starterClient.portal_token)}`
     const cname = `QA Fixture Starter ${starterClient.record_id.slice(0,5)}`
     // Adjust company name to match what was actually created
     const rec = await atList(AIRTABLE_BASE_ID, 'Clients',
@@ -277,7 +282,8 @@ async function runContentQuota() {
     if (!starterClient || !starterTitledStandard) { skip('Fixture creation failed'); return }
     const res  = await PATCH(
       `/api/portal/titles?token=${starterClient.portal_token}`,
-      { record_id: starterTitledStandard, action: 'approve', content_type_name: 'standard' }
+      { record_id: starterTitledStandard, action: 'approve', content_type_name: 'standard' },
+      { cookie: starterPortalCookie }
     )
     const body = await j(res)
     // Code returns next_month:true when quota full (not quota_reached error)
@@ -292,7 +298,8 @@ async function runContentQuota() {
     if (!starterClient || !starterTitledLongform) { skip('Fixture creation failed'); return }
     const res  = await PATCH(
       `/api/portal/titles?token=${starterClient.portal_token}`,
-      { record_id: starterTitledLongform, action: 'approve', content_type_name: 'longform' }
+      { record_id: starterTitledLongform, action: 'approve', content_type_name: 'longform' },
+      { cookie: starterPortalCookie }
     )
     const body = await j(res)
     // Limit is 0 → used (0) >= limit (0) → should defer/block immediately
@@ -304,6 +311,7 @@ async function runContentQuota() {
   // Growth client: test longform quota (limit=2)
   try {
     growthClient = await createFixtureClient('Growth', 'growth')
+    growthPortalCookie = `portal_session=${await forgePortalSession(growthClient.record_id, growthClient.portal_token)}`
     const rec = await atList(AIRTABLE_BASE_ID, 'Clients',
       `filterByFormula=${encodeURIComponent(`RECORD_ID()="${growthClient.record_id}"`)}&fields[]=company_name&maxRecords=1`)
     const actualName = rec.records?.[0]?.fields?.company_name
@@ -320,7 +328,8 @@ async function runContentQuota() {
     if (!growthClient || !growthTitledLongform) { skip('Fixture creation failed'); return }
     const res  = await PATCH(
       `/api/portal/titles?token=${growthClient.portal_token}`,
-      { record_id: growthTitledLongform, action: 'approve', content_type_name: 'longform' }
+      { record_id: growthTitledLongform, action: 'approve', content_type_name: 'longform' },
+      { cookie: growthPortalCookie }
     )
     const body = await j(res)
     if (body.next_month === true || res.status === 409 || body.error === 'quota_reached') pass()
@@ -336,7 +345,8 @@ async function runContentQuota() {
 
     const res  = await DELETE_req(
       `/api/portal/titles?token=${starterClient.portal_token}`,
-      { record_id: titledId }
+      { record_id: titledId },
+      { cookie: starterPortalCookie }
     )
     const body = await j(res)
     if (res.status === 200 && body.ok) pass()
@@ -349,13 +359,14 @@ async function runContentQuota() {
 async function runChangesQuota() {
   section('Section 5 — SEO Changes & Internal Link Quota')
 
-  let starterChangeClient, pendingChangeId, pendingLinkId, designReviewChangeId
+  let starterChangeClient, starterChangeCookie, pendingChangeId, pendingLinkId, designReviewChangeId
 
   try {
     starterChangeClient = await createFixtureClient('Chg-Starter', 'starter')
-    pendingChangeId = await seedChangesRecord(starterChangeClient.record_id, 'Title Tag')
-    pendingLinkId   = await seedChangesRecord(starterChangeClient.record_id, 'Internal Link')
-    designReviewChangeId = await seedChangesRecord(starterChangeClient.record_id, 'Title Tag', {
+    starterChangeCookie = `portal_session=${await forgePortalSession(starterChangeClient.record_id, starterChangeClient.portal_token)}`
+    pendingChangeId = await seedChangesRecord(starterChangeClient.client_id, 'Heading')
+    pendingLinkId   = await seedChangesRecord(starterChangeClient.client_id, 'Internal Link').catch(() => null)
+    designReviewChangeId = await seedChangesRecord(starterChangeClient.client_id, 'Heading', {
       auto_executable: true,
       requires_design_review: true,
     })
@@ -371,7 +382,7 @@ async function runChangesQuota() {
       recordId: pendingChangeId,
       decision: 'approved',
       token:    starterChangeClient.portal_token,
-    })
+    }, { cookie: starterChangeCookie })
     const body = await j(res)
     if (res.status === 200 && body.ok) pass()
     else if (res.status === 409 && body.quota_reached) pass() // quota gate also acceptable
@@ -386,13 +397,13 @@ async function runChangesQuota() {
   // CHG-005: Skip change → no implement job
   await test('CHG-005', 'Skip change: ok=true, no implement job', async ({ pass, fail, skip }) => {
     if (!starterChangeClient) { skip('No fixture'); return }
-    const newChangeId = await seedChangesRecord(starterChangeClient.record_id, 'Meta Description').catch(() => null)
+    const newChangeId = await seedChangesRecord(starterChangeClient.client_id, 'Metadata').catch(() => null)
     if (!newChangeId) { skip('Could not seed change record'); return }
     const res  = await POST('/api/approvals', {
       recordId: newChangeId,
       decision: 'skipped',
       token:    starterChangeClient.portal_token,
-    })
+    }, { cookie: starterChangeCookie })
     const body = await j(res)
     if (res.status === 200 && body.ok) pass()
     else fail(`Expected ok=true, got ${res.status}: ${JSON.stringify(body)}`)
@@ -401,7 +412,7 @@ async function runChangesQuota() {
   // CHG-006: auto_executable=false → manual_required (no implement job)
   await test('CHG-006', 'auto_executable=false → manual_required response', async ({ pass, fail, skip }) => {
     if (!starterChangeClient) { skip('No fixture'); return }
-    const nonExecId = await seedChangesRecord(starterChangeClient.record_id, 'Title Tag', {
+    const nonExecId = await seedChangesRecord(starterChangeClient.client_id, 'Heading', {
       auto_executable: false,
     }).catch(() => null)
     if (!nonExecId) { skip('Could not seed non-executable change'); return }
@@ -409,7 +420,7 @@ async function runChangesQuota() {
       recordId: nonExecId,
       decision: 'approved',
       token:    starterChangeClient.portal_token,
-    })
+    }, { cookie: starterChangeCookie })
     const body = await j(res)
     if (res.status === 200 && body.outcome === 'manual_required') pass()
     else fail(`Expected outcome=manual_required, got ${res.status}: ${JSON.stringify(body)}`)
@@ -422,7 +433,7 @@ async function runChangesQuota() {
       recordId: designReviewChangeId,
       decision: 'approved',
       token:    starterChangeClient.portal_token,
-    })
+    }, { cookie: starterChangeCookie })
     const body = await j(res)
     if (res.status === 200 && body.outcome === 'design_review_required') pass()
     else fail(`Expected outcome=design_review_required, got ${res.status}: ${JSON.stringify(body)}`)
@@ -430,12 +441,12 @@ async function runChangesQuota() {
 
   // LINK-001: Approve 1 internal link (Starter, under quota of 4)
   await test('LINK-001', 'Starter approves 1 internal link (under quota of 4)', async ({ pass, fail, skip }) => {
-    if (!starterChangeClient || !pendingLinkId) { skip('No fixture'); return }
+    if (!starterChangeClient || !pendingLinkId) { skip('No fixture — "Internal Link" may not be a valid Airtable type option; add it in Changes table UI'); return }
     const res  = await POST('/api/approvals', {
       recordId: pendingLinkId,
       decision: 'approved',
       token:    starterChangeClient.portal_token,
-    })
+    }, { cookie: starterChangeCookie })
     const body = await j(res)
     if (res.status === 200 && body.ok) pass()
     else if (res.status === 409 && body.quota_reached) {
@@ -451,21 +462,21 @@ async function runChangesQuota() {
     // Seed 3 more links (1 already approved above), total 4 seeded+approved
     const linkIds = []
     for (let i = 0; i < 3; i++) {
-      const id = await seedChangesRecord(starterChangeClient.record_id, 'Internal Link').catch(() => null)
+      const id = await seedChangesRecord(starterChangeClient.client_id, 'Internal Link').catch(() => null)
       if (id) linkIds.push(id)
     }
     // Approve all 3 (brings us to 4 total)
     for (const id of linkIds) {
-      await POST('/api/approvals', { recordId: id, decision: 'approved', token: starterChangeClient.portal_token })
+      await POST('/api/approvals', { recordId: id, decision: 'approved', token: starterChangeClient.portal_token }, { cookie: starterChangeCookie })
     }
     // 5th link
-    const fifthId = await seedChangesRecord(starterChangeClient.record_id, 'Internal Link').catch(() => null)
-    if (!fifthId) { skip('Could not seed 5th link'); return }
+    const fifthId = await seedChangesRecord(starterChangeClient.client_id, 'Internal Link').catch(() => null)
+    if (!fifthId) { skip('Could not seed 5th link — "Internal Link" may not be a valid Airtable type option'); return }
     const res  = await POST('/api/approvals', {
       recordId: fifthId,
       decision: 'approved',
       token:    starterChangeClient.portal_token,
-    })
+    }, { cookie: starterChangeCookie })
     const body = await j(res)
     if (res.status === 409 && body.quota_reached) pass()
     else fail(`Expected 409+quota_reached, got ${res.status}: ${JSON.stringify(body)}`)
@@ -488,7 +499,7 @@ async function runAuthHeaders() {
     })
     const setCookie = res.headers.get('set-cookie') || ''
     const all = res.headers.getSetCookie ? res.headers.getSetCookie() : [setCookie]
-    const cookie = all.find(c => c.includes('seo_session')) || setCookie
+    const cookie = all.find(c => c.includes('admin_session')) || setCookie
 
     if (!cookie) {
       // Maybe the login endpoint is at /login (server action), not /api/auth/login
@@ -528,7 +539,7 @@ async function runAuthHeaders() {
     const adminCookie = await forgeAdminSession()
     const res = await fetch(`${BASE_URL}/api/auth/logout`, {
       method: 'POST',
-      headers: { Cookie: `seo_session=${adminCookie}` },
+      headers: { Cookie: `admin_session=${adminCookie}` },
       redirect: 'manual',
       signal: AbortSignal.timeout(15000),
     })
@@ -571,7 +582,7 @@ async function runAdminManagement(adminCookie) {
 
   // ADMN-001: List admin users — no hashes visible
   await test('ADMN-001', 'Admin users list: accessible, no password hashes', async ({ pass, fail, skip }) => {
-    const res  = await GET('/api/admin/users', { cookie: `seo_session=${adminCookie}` })
+    const res  = await GET('/api/admin/users', { cookie: `admin_session=${adminCookie}` })
     const body = await j(res)
     if (res.status === 404) { skip('Admin users endpoint not found at /api/admin/users'); return }
     if (res.status === 401 || res.status === 403) { fail('Admin auth rejected with valid session'); return }
@@ -586,7 +597,7 @@ async function runAdminManagement(adminCookie) {
   // ADMN-005: Cannot delete last admin
   await test('ADMN-005', 'Deleting last admin account blocked', async ({ pass, fail, skip }) => {
     // First list users to find admin record ID
-    const res  = await GET('/api/admin/users', { cookie: `seo_session=${adminCookie}` })
+    const res  = await GET('/api/admin/users', { cookie: `admin_session=${adminCookie}` })
     const body = await j(res)
     if (res.status === 404) { skip('Admin users endpoint not found'); return }
     const users = Array.isArray(body) ? body : body.users || []
@@ -595,7 +606,7 @@ async function runAdminManagement(adminCookie) {
     // Only 1 admin — try deleting
     const userId = users[0]?.id || users[0]?._id
     if (!userId) { skip('Cannot determine user ID format'); return }
-    const del = await DELETE_req(`/api/admin/users/${userId}`, null, { cookie: `seo_session=${adminCookie}` })
+    const del = await DELETE_req(`/api/admin/users/${userId}`, null, { cookie: `admin_session=${adminCookie}` })
     const delBody = await j(del)
     if (del.status === 400 || del.status === 409 || del.status === 403) pass()
     else if (del.status === 200) fail('CRITICAL: Last admin account was deleted!')
@@ -606,12 +617,12 @@ async function runAdminManagement(adminCookie) {
   // Portal password reset from admin
   await test('ADMN-003', 'Portal password reset available via admin API', async ({ pass, fail, skip }) => {
     // Check if the endpoint exists
-    const res = await GET('/api/admin/users', { cookie: `seo_session=${adminCookie}` })
+    const res = await GET('/api/admin/users', { cookie: `admin_session=${adminCookie}` })
     if (res.status === 404) { skip('Admin endpoint not found'); return }
     // Check /api/clients/[id]/generate-credentials exists
     // We use a known fixture or the first real client
     const clients = await fetch(`${BASE_URL}/api/clients`, {
-      headers: { Cookie: `seo_session=${adminCookie}` },
+      headers: { Cookie: `admin_session=${adminCookie}` },
       redirect: 'manual',
       signal: AbortSignal.timeout(15000),
     })
@@ -694,7 +705,7 @@ async function runDesignReview(adminCookie) {
 
   // DSGN-001/004: Check /design-review page requires admin auth
   await test('DSGN-001', 'Design review page accessible to admin', async ({ pass, fail, skip }) => {
-    const res = await GET('/design-review', { cookie: `seo_session=${adminCookie}` })
+    const res = await GET('/design-review', { cookie: `admin_session=${adminCookie}` })
     const loc = res.headers.get('location') || ''
     if (res.status === 200) pass()
     else if (res.status === 302 && loc.includes('/login')) fail('Admin redirected to login — session not accepted')
@@ -722,9 +733,10 @@ async function runDataIntegrityExtended() {
   // We'll test with internal links (quota enforced): create a starter client at 3/4 links,
   // then fire two concurrent approval requests for link 4 and 5 simultaneously.
   await test('DATA-003', 'Quota atomicity: concurrent approval requests at limit', async ({ pass, fail, skip }) => {
-    let raceClient
+    let raceClient, raceCookie
     try {
       raceClient = await createFixtureClient('Race', 'starter')
+      raceCookie = `portal_session=${await forgePortalSession(raceClient.record_id, raceClient.portal_token)}`
     } catch (e) {
       skip(`Could not create race fixture: ${e.message}`)
       return
@@ -732,18 +744,18 @@ async function runDataIntegrityExtended() {
 
     // Approve 3 links sequentially to reach 3/4
     for (let i = 0; i < 3; i++) {
-      const id = await seedChangesRecord(raceClient.record_id, 'Internal Link').catch(() => null)
-      if (id) await POST('/api/approvals', { recordId: id, decision: 'approved', token: raceClient.portal_token })
+      const id = await seedChangesRecord(raceClient.client_id, 'Internal Link').catch(() => null)
+      if (id) await POST('/api/approvals', { recordId: id, decision: 'approved', token: raceClient.portal_token }, { cookie: raceCookie })
     }
 
     // Now fire two concurrent attempts for links 4 and 5 simultaneously
-    const link4id = await seedChangesRecord(raceClient.record_id, 'Internal Link').catch(() => null)
-    const link5id = await seedChangesRecord(raceClient.record_id, 'Internal Link').catch(() => null)
-    if (!link4id || !link5id) { skip('Could not seed race condition links'); return }
+    const link4id = await seedChangesRecord(raceClient.client_id, 'Internal Link').catch(() => null)
+    const link5id = await seedChangesRecord(raceClient.client_id, 'Internal Link').catch(() => null)
+    if (!link4id || !link5id) { skip('Could not seed race condition links — "Internal Link" may not be a valid Airtable type option'); return }
 
     const [res4, res5] = await Promise.all([
-      POST('/api/approvals', { recordId: link4id, decision: 'approved', token: raceClient.portal_token }),
-      POST('/api/approvals', { recordId: link5id, decision: 'approved', token: raceClient.portal_token }),
+      POST('/api/approvals', { recordId: link4id, decision: 'approved', token: raceClient.portal_token }, { cookie: raceCookie }),
+      POST('/api/approvals', { recordId: link5id, decision: 'approved', token: raceClient.portal_token }, { cookie: raceCookie }),
     ])
     const [body4, body5] = await Promise.all([j(res4), j(res5)])
 
@@ -783,7 +795,7 @@ async function runReportsAndCost(adminCookie) {
 
   // COST-001: Admin can access token usage with valid session
   await test('COST-001', 'Admin can access token usage page', async ({ pass, fail, skip }) => {
-    const res = await GET('/token-usage', { cookie: `seo_session=${adminCookie}` })
+    const res = await GET('/token-usage', { cookie: `admin_session=${adminCookie}` })
     const loc = res.headers.get('location') || ''
     if (res.status === 200) pass()
     else if (res.status === 302 && loc.includes('/login')) fail('Admin redirected to login — session rejected')

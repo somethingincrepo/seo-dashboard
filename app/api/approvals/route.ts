@@ -76,9 +76,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (decision === "approved") {
-      // ── Monthly quota check (before writing anything) ──────────────────────
       const changeType = changeFields.type ?? "";
       const deliverableKey = TYPE_QUOTAS[changeType];
+
+      // ── Pre-check: early exit if already at limit (avoids unnecessary writes) ─
       if (deliverableKey) {
         const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
         const monthlyLimit = PACKAGES[pkg][deliverableKey] as number;
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-      // ───────────────────────────────────────────────────────────────────────
+      // ─────────────────────────────────────────────────────────────────────────
 
       // Determine gate outcome before any writes so approval + execution_status
       // are written atomically — no partial state if the patch fails.
@@ -122,6 +123,46 @@ export async function POST(request: NextRequest) {
       };
       if (notes) approvalFields.client_notes = notes;
       await airtablePatch("Changes", recordId, approvalFields);
+
+      // ── Post-write quota verification (closes the concurrent-approval race) ──
+      // Two requests can both pass the pre-check if they read before either writes.
+      // After writing, re-read and sort all approved records chronologically. If
+      // this record is not in the first `monthlyLimit` slots, it is a surplus
+      // approval — roll it back. Tie-breaking by record ID ensures exactly one
+      // concurrent winner when timestamps collide.
+      if (deliverableKey) {
+        const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
+        const monthlyLimit = PACKAGES[pkg][deliverableKey] as number;
+        if (monthlyLimit > 0) {
+          const clientId = (client.fields as Record<string, unknown>).client_id as string || client.id;
+          const monthStart = startOfMonthISO();
+          const approvedNow = await airtableFetch<{ id: string; fields: { approved_at?: string } }>("Changes", {
+            filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),FIND("${client.id}",{client_id})),{type}="${changeType}",{approval}="approved",IS_AFTER({approved_at},"${monthStart}"))`,
+            fields: ["approved_at"],
+          });
+          if (approvedNow.length > monthlyLimit) {
+            // Sort by approved_at asc, then record ID as tie-breaker for determinism.
+            const sorted = [...approvedNow].sort((a, b) => {
+              const ta = a.fields.approved_at ?? "";
+              const tb = b.fields.approved_at ?? "";
+              return ta !== tb ? ta.localeCompare(tb) : a.id.localeCompare(b.id);
+            });
+            const myPosition = sorted.findIndex((r) => r.id === recordId);
+            if (myPosition >= monthlyLimit) {
+              // This approval is surplus — roll it back.
+              await airtablePatch("Changes", recordId, { approval: "pending", approved_at: null, execution_status: null });
+              return NextResponse.json({
+                error: "quota_reached",
+                message: `Monthly ${changeType} limit reached (${monthlyLimit}/${monthlyLimit}). No more ${changeType} changes can be approved this month.`,
+                quota_reached: true,
+                limit: monthlyLimit,
+                used: monthlyLimit,
+              }, { status: 409 });
+            }
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
 
       if (executionStatus === "manual_required") {
         return NextResponse.json({ ok: true, queued: false, outcome: "manual_required" });
