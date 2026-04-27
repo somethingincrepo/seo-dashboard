@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         scheduled_for_month: string;
       };
     }>(CONTENT_JOBS_TABLE, {
-      filterByFormula: `AND(FIND("${escaped}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}!="skipped")`,
+      filterByFormula: `AND(FIND("${escaped}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}!="skipped",NOT(FIND("[QA-TEST]",{Blog Title})))`,
       sort: [{ field: "proposed_at", direction: "desc" }],
       maxRecords: 200,
     });

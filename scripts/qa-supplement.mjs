@@ -201,7 +201,7 @@ async function seedApprovedContentJobs(contentClientId, count, type = 'standard'
   }
   for (let i = 0; i < count; i++) {
     const rec = await atCreate(CONTENT_BASE_ID, 'Content Jobs', {
-      'Blog Title': `QA Seeded ${type} article ${i + 1}`,
+      'Blog Title': `[QA-TEST] QA Seeded ${type} article ${i + 1}`,
       'Client ID': [contentClientId],
       ...fields[type],
     })
@@ -218,7 +218,7 @@ async function seedTitledContentJob(contentClientId, type = 'standard') {
     'standard': {},
   }
   const rec = await atCreate(CONTENT_BASE_ID, 'Content Jobs', {
-    'Blog Title': `QA Titled ${type} article`,
+    'Blog Title': `[QA-TEST] QA Titled ${type} article`,
     'Client ID': [contentClientId],
     'title_status': 'titled',
     ...extraFields[type],

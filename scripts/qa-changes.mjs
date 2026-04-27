@@ -10,6 +10,7 @@ const ADMIN_PASSWORD        = process.env.ADMIN_PASSWORD          || ''
 const PORTAL_SESSION_SECRET = process.env.PORTAL_SESSION_SECRET   || process.env.ADMIN_PASSWORD || ''
 const AIRTABLE_API_KEY      = process.env.AIRTABLE_API_KEY        || ''
 const AIRTABLE_BASE_ID      = process.env.AIRTABLE_BASE_ID        || ''
+const CONTENT_BASE_ID       = process.env.CONTENT_AIRTABLE_BASE_ID || ''
 
 const results = { pass: [], fail: [], skip: [], note: [] }
 function section(name) { console.log(`\n${'─'.repeat(64)}\n  ${name}\n${'─'.repeat(64)}`) }
