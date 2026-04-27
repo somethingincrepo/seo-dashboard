@@ -71,36 +71,76 @@ function SectionCard({ title, description, children }: { title: string; descript
 
 function SuccessScreen({ companyName }: { companyName: string }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full text-center space-y-6">
-        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-          <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
+      <div className="max-w-lg w-full space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+            <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">You&apos;re all set, {companyName}.</h1>
+            <p className="text-slate-500 mt-2 leading-relaxed">
+              We&apos;ve received your onboarding form and everything is recorded. Your SEO program is officially underway.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">You&apos;re in the queue</h1>
-          <p className="text-slate-500 mt-2 leading-relaxed">
-            Thanks, {companyName}. We&apos;ve received your intake form and we&apos;ll be in touch within 24 hours to get your SEO program set up.
-          </p>
+
+        {/* Email callout */}
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 flex gap-4">
+          <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-indigo-800">Check your inbox</p>
+            <p className="text-sm text-indigo-600 mt-0.5 leading-relaxed">
+              You&apos;ll receive an email with your client portal link and login credentials shortly. The portal is where you&apos;ll review and approve all deliverables each month.
+            </p>
+          </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 text-left space-y-2">
-          <p className="text-sm font-medium text-slate-700">What happens next</p>
-          <ol className="space-y-2">
+
+        {/* What happens next */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+          <p className="text-sm font-semibold text-slate-800">What&apos;s happening right now</p>
+          <ol className="space-y-3">
             {[
-              "We review your intake and confirm your package",
-              "You'll receive portal login credentials via email",
-              "Your Month 1 audit kicks off within 1–2 business days",
+              {
+                title: "Site audit is running",
+                desc: "We've kicked off a full audit of your site — crawling pages, analysing keywords, and identifying quick wins.",
+              },
+              {
+                title: "Portal credentials coming your way",
+                desc: "Your login link will arrive by email. Use it to review audit findings, approve changes, and track progress.",
+              },
+              {
+                title: "First deliverables within the week",
+                desc: "Title proposals, on-page recommendations, and internal link suggestions will appear in your portal once the audit wraps up.",
+              },
+              {
+                title: "Monthly reports on your schedule",
+                desc: "On the report day you selected, you'll automatically receive a full performance report covering rankings, traffic, and completed work.",
+              },
             ].map((step, i) => (
-              <li key={i} className="flex items-start gap-3 text-sm text-slate-500">
+              <li key={i} className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
                   {i + 1}
                 </span>
-                {step}
+                <div>
+                  <p className="text-sm font-medium text-slate-700">{step.title}</p>
+                  <p className="text-sm text-slate-400 mt-0.5 leading-relaxed">{step.desc}</p>
+                </div>
               </li>
             ))}
           </ol>
         </div>
+
+        <p className="text-center text-xs text-slate-400">
+          Questions? Reply to your confirmation email or reach out directly.
+        </p>
       </div>
     </div>
   );
