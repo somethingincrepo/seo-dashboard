@@ -1,0 +1,107 @@
+{
+  "_template_version": "1.0",
+  "_instructions": "Fill out this template before running /seo-implement. All fields marked REQUIRED must be present. Optional fields can be omitted.",
+
+  "client": "REQUIRED: Client name",
+  "domain": "REQUIRED: https://example.com",
+
+  "cms": "REQUIRED: wordpress | shopify | webflow | framer | squarespace | custom",
+  "page_builder": "elementor | gutenberg | divi | native | null",
+  "seo_plugin": "yoast | rankmath | aioseo | native | null",
+  "theme": "optional: theme name",
+
+  "credentials": {
+    "_note": "Store actual values in .env — reference them here by env var name",
+
+    "wordpress": {
+      "wp_url": "https://example.com",
+      "wp_user": "username",
+      "wp_app_password_env": "WP_CLIENT_APP_PASSWORD"
+    },
+    "shopify": {
+      "shop_url": "storename.myshopify.com",
+      "admin_api_token_env": "SHOPIFY_CLIENT_ADMIN_TOKEN",
+      "storefront_api_token_env": "SHOPIFY_CLIENT_STOREFRONT_TOKEN"
+    },
+    "webflow": {
+      "site_id": "webflow-site-id",
+      "api_token_env": "WEBFLOW_CLIENT_API_TOKEN"
+    },
+    "framer": {
+      "_note": "Framer has no public write API — changes require manual Framer editor access or code overrides via custom domain"
+    }
+  },
+
+  "business": {
+    "name": "Business Name",
+    "phone": "+1XXXXXXXXXX",
+    "email": "hello@example.com",
+    "address": {
+      "street": "123 Main St",
+      "city": "City",
+      "region": "State/Region",
+      "postal_code": "00000",
+      "country": "US"
+    },
+    "geo": { "lat": 0.0, "lng": 0.0 },
+    "price_range": "$ | $$ | $$$ | $$$$",
+    "schema_types": ["LocalBusiness"],
+    "social_profiles": []
+  },
+
+  "pages": [
+    {
+      "id": "REQUIRED: page ID (WP), page handle (Shopify), collection item ID (Webflow)",
+      "slug": "/page-slug/",
+      "name": "Human readable name",
+      "title_tag": "Target title tag — keep under 60 chars",
+      "meta_description": "Target meta description — keep under 160 chars",
+      "og_title": "optional — defaults to title_tag if omitted",
+      "og_description": "optional — defaults to meta_description if omitted",
+      "h1": "Target H1 text — null if not changing",
+      "h1_elementor_path": "optional: e.g. [1][0][0] — only needed for Elementor pages",
+      "h2s": ["optional: list of H2 targets if restructuring headings"],
+      "schema": ["FAQPage", "LocalBusiness", "Product", "Article", "BreadcrumbList"],
+      "faqs": [
+        { "q": "Question?", "a": "Answer." }
+      ],
+      "internal_links": [
+        {
+          "anchor_text": "text to find on page",
+          "target_url": "/page-to-link-to/",
+          "context": "optional: sentence context to locate the right instance"
+        }
+      ],
+      "content_updates": [
+        {
+          "find": "exact text to find",
+          "replace": "replacement text",
+          "note": "optional: reason for change"
+        }
+      ],
+      "image_alts": [
+        {
+          "image_url_contains": "partial filename or URL fragment to identify image",
+          "alt_text": "descriptive alt text"
+        }
+      ],
+      "status": "pending | in_progress | complete | partial | skipped"
+    }
+  ],
+
+  "global": {
+    "internal_linking_rules": [
+      "Always link 'BVI charter' to /full-day-charters/",
+      "Always link 'water taxi' to /water-taxi/"
+    ],
+    "robots_txt_updates": null,
+    "sitemap_notes": null,
+    "redirect_map": [
+      { "from": "/old-url/", "to": "/new-url/", "code": 301 }
+    ]
+  },
+
+  "remaining": [
+    "List of tasks not yet implemented — updated after each run"
+  ]
+}
