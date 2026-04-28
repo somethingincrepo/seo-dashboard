@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { airtableCreate, airtableFetch } from "@/lib/airtable";
 import { hashPassword } from "@/lib/portal-auth";
 import { getSupabase } from "@/lib/supabase";
+import { triggerAudit } from "@/lib/audit/triggerAudit";
 
 export const dynamic = "force-dynamic";
 
@@ -208,19 +209,18 @@ export async function POST(request: NextRequest) {
     console.error("[intake] failed to mark invite token as used:", e);
   }
 
-  // Immediately queue the Month 1 audit — non-blocking, failure doesn't surface to the client
-  // The worker's Airtable poller will catch any records that miss this step
+  // Fire the deterministic audit engine. Non-blocking: failure logs but doesn't surface to the client.
+  // The crawler webhook returns 202 quickly; the actual crawl + diagnose runs in the background on Fly.
   try {
-    await supabase.from("jobs").insert({
-      sop_name: "audit_parent",
+    await triggerAudit({
       client_id: record.id,
-      payload: { client_id: record.id },
-      status: "pending",
-      runner: "fly",
+      client_name: (company_name as string).trim(),
+      root_url: normalizedUrl,
+      triggered_by: "intake",
+      nav_urls: [normalizedUrl],
     });
   } catch (e) {
-    // Log but don't fail the request — the worker poller will retry
-    console.error(`[intake] audit job creation failed for ${record.id}:`, e);
+    console.error(`[intake] audit trigger failed for ${record.id}:`, e);
   }
 
   return NextResponse.json({ ok: true, record_id: record.id, client_id }, { status: 201 });

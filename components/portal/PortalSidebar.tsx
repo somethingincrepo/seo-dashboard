@@ -15,6 +15,7 @@ interface PortalSidebarProps {
   titleProposalCount: number;
   contentOptimizationCount?: number;
   internalLinksPendingCount?: number;
+  auditIssueCount?: number;
   categoryBreakdown: Record<string, number>;
   isLoggedIn: boolean;
   monthlyProgress?: React.ReactNode;
@@ -138,9 +139,20 @@ function IconLogOut({ className }: { className?: string }) {
     </svg>
   );
 }
+function IconAudit({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <circle cx="11.5" cy="14.5" r="2.5"/>
+      <line x1="13.5" y1="16.5" x2="15.5" y2="18.5"/>
+    </svg>
+  );
+}
 
 const NAV_ITEMS = [
   { suffix: "",                      label: "Dashboard",           Icon: IconDashboard },
+  { suffix: "/audit",                label: "Site Audit",          Icon: IconAudit },
   { suffix: "/approvals",            label: "Approvals",           Icon: IconApprovals },
   { suffix: "/content",              label: "Content",             Icon: IconContent },
   { suffix: "/content-optimization", label: "Content Refreshes",  Icon: IconOptimization },
@@ -161,6 +173,7 @@ export function PortalSidebar({
   titleProposalCount,
   contentOptimizationCount,
   internalLinksPendingCount,
+  auditIssueCount,
   categoryBreakdown,
   isLoggedIn,
   monthlyProgress,
@@ -250,6 +263,11 @@ export function PortalSidebar({
                   {item.suffix === "/internal-links" && (internalLinksPendingCount ?? 0) > 0 && (
                     <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
                       {internalLinksPendingCount}
+                    </span>
+                  )}
+                  {item.suffix === "/audit" && (auditIssueCount ?? 0) > 0 && (
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200/60">
+                      {auditIssueCount}
                     </span>
                   )}
                   {item.suffix === "/reddit" && (redditMentionCount ?? 0) > 0 && (

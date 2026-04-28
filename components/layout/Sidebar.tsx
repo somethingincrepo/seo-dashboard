@@ -14,6 +14,7 @@ const NAV_GROUPS = [
     label: "Operations",
     items: [
       { href: "/activity", label: "Activity", icon: "✦" },
+      { href: "/audit", label: "Audits", icon: "⌖" },
       { href: "/design-review", label: "Design Review", icon: "◎" },
       { href: "/reddit", label: "Reddit", icon: "▲" },
       { href: "/indexing", label: "Indexing", icon: "⊙" },

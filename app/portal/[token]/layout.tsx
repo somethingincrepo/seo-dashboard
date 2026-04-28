@@ -6,6 +6,7 @@ import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { getEngainMentionStats } from "@/lib/engain";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
+import { getLatestIssueCount } from "@/lib/audit/queries";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
 import { MonthlyProgressSidebar } from "@/components/portal/MonthlyProgress";
 
@@ -63,13 +64,14 @@ export default async function PortalLayout({
   // Show Reddit tab for any client on a package (all tiers include reddit_comments)
   const hasReddit = !!(pkg && PACKAGES[pkg].reddit_comments > 0);
 
-  const [pending, contentResults, contentJobs, engainStats] = await Promise.all([
+  const [pending, contentResults, contentJobs, engainStats, auditIssueCount] = await Promise.all([
     getPendingApprovals(clientId, recordId),
     getContentResultsForClient(companyName).catch(() => []),
     getContentJobsForClient(companyName).catch(() => []),
     engainProjectId
       ? getEngainMentionStats(engainProjectId).catch(() => null)
       : Promise.resolve(null),
+    getLatestIssueCount(recordId).catch(() => 0),
   ]);
 
   const KNOWN_CATS = ["Technical", "On-Page", "Content", "AI-GEO"];
@@ -117,6 +119,7 @@ export default async function PortalLayout({
       titleProposalCount={titleProposalCount}
       contentOptimizationCount={contentOptimizationCount}
       internalLinksPendingCount={internalLinksPendingCount}
+      auditIssueCount={auditIssueCount}
       categoryBreakdown={categoryBreakdown}
       isLoggedIn={true}
       monthlyProgress={<MonthlyProgressSidebar client={client} />}
