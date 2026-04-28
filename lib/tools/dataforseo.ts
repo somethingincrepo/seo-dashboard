@@ -134,7 +134,7 @@ export const dataforSeoRelatedKeywordsDefinition: Anthropic.Messages.Tool = {
   name: "dataforseo_related_keywords",
   description:
     "Expand a seed keyword into up to 100 related keywords, each with search volume, " +
-    "keyword difficulty, and search intent. Use during SOP 14 keyword group research to " +
+    "keyword difficulty, and search intent. Use during keyword_research to " +
     "discover candidate subkeywords before clustering into groups.",
   input_schema: {
     type: "object" as const,

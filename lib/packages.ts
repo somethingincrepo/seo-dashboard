@@ -49,7 +49,7 @@ export const PACKAGE_LABELS: Record<PackageTier, string> = {
 // Month 1 uses the same content volumes as the ongoing package.
 // The only Month 1 distinction is that implementation scope is nav pages only.
 
-// Title generation settings per package (drives SOP 15 + content_scheduler)
+// Title generation settings per package (drives title_generation + content_scheduler)
 export const TITLE_BOTTLENECK: Record<PackageTier, number> = {
   starter: 6,    // ~8 articles/mo → buffer of 6 pending before pausing
   growth: 10,    // ~16 articles/mo → buffer of 10
