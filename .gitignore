@@ -15,7 +15,11 @@
 
 # next.js
 /.next/
+/.next */
 /out/
+
+# supabase CLI
+supabase/.temp/
 
 # production
 /build
