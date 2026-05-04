@@ -110,11 +110,26 @@ export async function writePages(
     is_nav_page: r.is_nav_page,
   }));
 
-  // Bulk insert in chunks to stay under PostgREST size limits
+  // De-dup by (audit_run_id, url) before insert. The crawler can land on the
+  // same final URL via two request paths (different redirects, normalized
+  // forms), which would violate the (audit_run_id, url) unique index.
+  const seen = new Set<string>();
+  const deduped: typeof dbRows = [];
+  for (const r of dbRows) {
+    const k = `${r.audit_run_id}::${r.url}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    deduped.push(r);
+  }
+
+  // Bulk upsert in chunks. ON CONFLICT (audit_run_id, url) DO UPDATE so a
+  // race or rerun in the same run replaces the row instead of erroring.
   const CHUNK = 200;
-  for (let i = 0; i < dbRows.length; i += CHUNK) {
-    const slice = dbRows.slice(i, i + CHUNK);
-    const { error } = await supa().from("pages").insert(slice);
-    if (error) throw new Error(`pages insert failed at chunk ${i / CHUNK}: ${error.message}`);
+  for (let i = 0; i < deduped.length; i += CHUNK) {
+    const slice = deduped.slice(i, i + CHUNK);
+    const { error } = await supa()
+      .from("pages")
+      .upsert(slice, { onConflict: "audit_run_id,url" });
+    if (error) throw new Error(`pages upsert failed at chunk ${i / CHUNK}: ${error.message}`);
   }
 }

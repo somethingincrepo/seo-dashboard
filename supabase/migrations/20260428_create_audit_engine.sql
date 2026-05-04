@@ -48,6 +48,7 @@ CREATE INDEX IF NOT EXISTS audit_runs_status_idx
   ON public.audit_runs (status);
 
 ALTER TABLE public.audit_runs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service role only" ON public.audit_runs;
 CREATE POLICY "service role only" ON public.audit_runs USING (false);
 
 -- ===========================================================================
@@ -158,6 +159,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS pages_run_url_uniq
   ON public.pages (audit_run_id, url);
 
 ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service role only" ON public.pages;
 CREATE POLICY "service role only" ON public.pages USING (false);
 
 -- ===========================================================================
@@ -191,6 +193,7 @@ CREATE INDEX IF NOT EXISTS issues_rule_idx ON public.issues (rule_id);
 CREATE INDEX IF NOT EXISTS issues_page_idx ON public.issues (page_id);
 
 ALTER TABLE public.issues ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service role only" ON public.issues;
 CREATE POLICY "service role only" ON public.issues USING (false);
 
 NOTIFY pgrst, 'reload schema';
