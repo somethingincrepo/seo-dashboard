@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { runAllRules, type Page, type SiteContext } from "@/lib/audit/rules";
+import { getFixGuidance } from "@/lib/audit/rules/fix-guidance";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // up to 5 minutes for very large sites
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
           category: v.category,
           current_value: v.current_value,
           expected_value: v.expected_value,
-          evidence: v.evidence ?? null,
+          evidence: { ...(v.evidence ?? {}), fix_guidance: getFixGuidance(v.rule_id) },
           proposed_value: null,
         });
       }
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
         category: v.category,
         current_value: v.current_value,
         expected_value: v.expected_value,
-        evidence: v.evidence ?? null,
+        evidence: { ...(v.evidence ?? {}), fix_guidance: getFixGuidance(v.rule_id) },
         proposed_value: null,
       });
     }

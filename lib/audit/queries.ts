@@ -15,6 +15,13 @@ export interface AuditRunSummary {
   diagnose_completed_at: string | null;
   error_message: string | null;
   created_at: string;
+  // Site-level extraction snapshot (used by the audit page health checklist)
+  robots_txt_present: boolean | null;
+  sitemap_present: boolean | null;
+  llms_txt_present: boolean | null;
+  llms_full_txt_present: boolean | null;
+  https_enforced: boolean | null;
+  hsts_header_present: boolean | null;
 }
 
 export interface AuditIssue {

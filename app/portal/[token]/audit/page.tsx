@@ -3,6 +3,7 @@ import { getClientByToken } from "@/lib/clients";
 import { getLatestAuditRun, getLatestCompletedRun, getIssuesForRun } from "@/lib/audit/queries";
 import { AuditMasterDetail } from "@/components/portal/AuditMasterDetail";
 import { AuditEmptyState } from "@/components/portal/AuditEmptyState";
+import { SiteHealthChecklist } from "@/components/portal/SiteHealthChecklist";
 
 export const revalidate = 0;
 
@@ -24,15 +25,18 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
 
   const issues = await getIssuesForRun(completedRun.id);
 
+  const pageIssueCount = issues.filter((i) => i.scope === "page").length;
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Site Audit</h1>
         <p className="text-base text-slate-500 mt-1">
-          {completedRun.pages_crawled.toLocaleString()} pages crawled · {issues.length.toLocaleString()} issues found ·{" "}
+          {completedRun.pages_crawled.toLocaleString()} pages crawled · {pageIssueCount.toLocaleString()} page-level issue{pageIssueCount === 1 ? "" : "s"} ·{" "}
           last run {formatRelative(completedRun.diagnose_completed_at ?? completedRun.created_at)}
         </p>
       </div>
+      <SiteHealthChecklist run={completedRun} />
       <AuditMasterDetail run={completedRun} issues={issues} />
     </div>
   );

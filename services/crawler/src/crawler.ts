@@ -54,6 +54,18 @@ export async function crawlSite(opts: CrawlOptions): Promise<CrawlOutput> {
         walker = from;
       }
 
+      // Wait for SPA hydration. networkidle settles in-flight fetches; the
+      // waitForFunction guard ensures the body actually has rendered text
+      // before we snapshot. Both are best-effort — a slow page still proceeds
+      // with whatever has rendered so far.
+      await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+      await page
+        .waitForFunction(
+          () => !!document.body && document.body.innerText.trim().length > 0,
+          { timeout: 10_000 },
+        )
+        .catch(() => {});
+
       const html = await page.content();
       const visibleText = await page.evaluate(() => document.body?.innerText ?? "");
 
@@ -140,7 +152,7 @@ function failedPagePlaceholder(url: string, origin: string): ExtractedPage {
     external_link_targets: [],
     word_count: 0,
     text_to_html_ratio: 0,
-    content_hash: "",
+    content_hash: null,
     images_count: 0,
     alt_text_missing_count: 0,
     alt_text_empty_count: 0,

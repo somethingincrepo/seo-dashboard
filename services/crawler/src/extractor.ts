@@ -52,7 +52,7 @@ export interface ExtractedPage {
 
   word_count: number;
   text_to_html_ratio: number;
-  content_hash: string;
+  content_hash: string | null;
 
   images_count: number;
   alt_text_missing_count: number;
@@ -226,7 +226,18 @@ export function extract(input: ExtractionInput): ExtractedPage {
   const wordCount = visibleText ? visibleText.split(/\s+/).length : 0;
   const renderedHtmlSize = Buffer.byteLength(input.html, "utf8");
   const textToHtmlRatio = renderedHtmlSize > 0 ? +(visibleText.length / renderedHtmlSize).toFixed(4) : 0;
-  const contentHash = createHash("sha1").update(visibleText.toLowerCase()).digest("hex");
+
+  // Hash the page's MAIN content only — never the full body. Two reasons:
+  // (1) shared chrome (nav/footer) creates spurious dup matches when the
+  //     main content is short; (2) empty SPA shells all hash to the same
+  //     SHA-1 of empty string. Below 100 words the signal is too weak to
+  //     trust at all, so emit null and the dup detector skips the page.
+  const mainText = extractMainContent($).replace(/\s+/g, " ").trim();
+  const mainWordCount = mainText ? mainText.split(/\s+/).length : 0;
+  const contentHash =
+    mainWordCount >= 100
+      ? createHash("sha1").update(mainText.toLowerCase()).digest("hex")
+      : null;
 
   // Images
   let imagesCount = 0;
@@ -281,7 +292,7 @@ export function extract(input: ExtractionInput): ExtractedPage {
   $("ul, ol").each((_, el) => {
     if ($(el).children("li").length === 1) singleItemList = true;
   });
-  const hasToc = $("nav.toc, [class*=table-of-contents], [id=toc], [class*=Toc]").length > 0;
+  const hasToc = detectToc($);
 
   // Author / dates from schema
   let datePublished: string | null = null;
@@ -379,4 +390,29 @@ function classifyPageType(
   if ($("article").length > 0 && $("article p").length >= 3) return "article";
   if (/\/(category|categories|tag|tags|collection)\//i.test(u.pathname)) return "category";
   return "other";
+}
+
+/** Returns just the main content text — strips nav/header/footer/aside chrome. */
+function extractMainContent($: cheerio.CheerioAPI): string {
+  const main = $("main, [role=main], article").first();
+  if (main.length > 0) return main.text();
+  // Fallback: clone body and strip chrome before reading text
+  const $body = $("body").clone();
+  $body.find("nav, header, footer, aside, script, style, noscript, [role=navigation], [role=banner], [role=contentinfo]").remove();
+  return $body.text();
+}
+
+/** True if the page has a recognizable table of contents. */
+function detectToc($: cheerio.CheerioAPI): boolean {
+  // Common explicit patterns (id/class/role/aria)
+  if ($('nav.toc, [class*="table-of-contents" i], [class*="toc" i], [id*="toc" i], [role="doc-toc"], [aria-label*="contents" i]').length > 0) {
+    return true;
+  }
+  // Heuristic: an <aside> or <nav> with 3+ same-page anchor links is almost always a TOC
+  let found = false;
+  $("aside, nav").each((_, el) => {
+    const inPageLinks = $(el).find('a[href^="#"]').length;
+    if (inPageLinks >= 3) found = true;
+  });
+  return found;
 }
