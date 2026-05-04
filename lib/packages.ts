@@ -70,3 +70,95 @@ export function getAuditScopeTier(pageCount: number): AuditScopeTier {
   if (pageCount <= 50) return "priority";
   return "top_traffic";
 }
+
+// ─── Weekly cadence ────────────────────────────────────────────────────
+//
+// Clients see deliverables shipped on a weekly rhythm. Months are split into
+// 4 weeks; we floor every weekly slot count and carry the remainder into the
+// final week so the month total stays equal to PACKAGES[tier]. The agents
+// pull from "this week's slots" instead of a monthly bucket.
+
+export type WeeklyVolumes = {
+  articles_standard: number[]; // length 4 — values per week (week 1, 2, 3, 4)
+  articles_longform: number[];
+  faq_sections: number[];
+  content_refreshes: number[];
+  pages_optimized: number[];
+  internal_links: number[];
+  reddit_comments: number[];
+};
+
+/**
+ * Splits each monthly volume into 4 weekly buckets. Distribution rule:
+ *   base = floor(monthly / 4); remainder = monthly mod 4
+ * The remainder is added to the LATER weeks (so a 14/mo splits 3/3/4/4).
+ * This keeps weeks roughly even but back-loads any leftover so the first
+ * week of the month doesn't overshoot before we know if a client is paused.
+ */
+export function splitMonthlyToWeekly(monthly: number): number[] {
+  const base = Math.floor(monthly / 4);
+  const remainder = monthly % 4; // 0..3
+  // Distribute remainder to later weeks: e.g. r=3 → [0,1,1,1]; r=2 → [0,0,1,1]
+  return [0, 1, 2, 3].map((wIdx) => base + (wIdx >= 4 - remainder ? 1 : 0));
+}
+
+export function getWeeklyVolumes(tier: PackageTier): WeeklyVolumes {
+  const m = PACKAGES[tier];
+  return {
+    articles_standard: splitMonthlyToWeekly(m.articles_standard),
+    articles_longform: splitMonthlyToWeekly(m.articles_longform),
+    faq_sections: splitMonthlyToWeekly(m.faq_sections),
+    content_refreshes: splitMonthlyToWeekly(m.content_refreshes),
+    pages_optimized: splitMonthlyToWeekly(m.pages_optimized),
+    internal_links: splitMonthlyToWeekly(m.internal_links),
+    reddit_comments: splitMonthlyToWeekly(m.reddit_comments),
+  };
+}
+
+/** ISO week-of-month: 1..4 inclusive (capped at 4 to match the 4-bucket model). */
+export function weekOfMonth(date = new Date()): 1 | 2 | 3 | 4 {
+  const day = date.getUTCDate();
+  const idx = Math.min(4, Math.max(1, Math.ceil(day / 7))) as 1 | 2 | 3 | 4;
+  return idx;
+}
+
+/** ISO Monday for the week containing the given date, as YYYY-MM-DD (UTC). */
+export function isoMondayUTC(date = new Date()): string {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Returns the deliverable counts targeted for the current ISO week, given a
+ * client's package tier. Each value is `targets_for_this_week`. Use alongside
+ * a "delivered this week" count for progress UI.
+ */
+export interface WeeklyTargets {
+  week_of_month: 1 | 2 | 3 | 4;
+  week_start: string; // ISO Monday
+  articles: number;     // articles_standard + articles_longform combined
+  faq_sections: number;
+  content_refreshes: number;
+  pages_optimized: number;
+  internal_links: number;
+  reddit_comments: number;
+}
+
+export function getWeeklyTargets(tier: PackageTier, date = new Date()): WeeklyTargets {
+  const week = weekOfMonth(date);
+  const idx = week - 1;
+  const w = getWeeklyVolumes(tier);
+  return {
+    week_of_month: week,
+    week_start: isoMondayUTC(date),
+    articles: w.articles_standard[idx] + w.articles_longform[idx],
+    faq_sections: w.faq_sections[idx],
+    content_refreshes: w.content_refreshes[idx],
+    pages_optimized: w.pages_optimized[idx],
+    internal_links: w.internal_links[idx],
+    reddit_comments: w.reddit_comments[idx],
+  };
+}

@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals, getClientChanges } from "@/lib/changes";
+import { isoMondayUTC, type PackageTier } from "@/lib/packages";
 import { DashboardHero } from "@/components/portal/DashboardHero";
 import { PipelineBoard } from "@/components/portal/PipelineBoard";
+import { WeeklyTargetsCard } from "@/components/portal/WeeklyTargetsCard";
 
 export const revalidate = 0;
 
@@ -31,6 +33,35 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
     (c) => c.fields.execution_status === "complete" || !!c.fields.implemented_at
   ).length;
 
+  // ─── This-week deliverables ──────────────────────────────────────────
+  const tier = (client.fields.package as PackageTier | undefined) ?? "growth";
+  const weekStart = isoMondayUTC();
+  const isThisWeek = (iso?: string): boolean => {
+    if (!iso) return false;
+    return iso >= weekStart;
+  };
+  // Derive what we can from existing Changes data — these will become non-zero
+  // as soon as approvals start flowing through this week.
+  const internalLinksThisWeek = allChanges.filter(
+    (c) => (c.fields.type ?? "").toLowerCase() === "internal link" &&
+            (c.fields.execution_status === "complete" || !!c.fields.implemented_at) &&
+            isThisWeek(c.fields.implemented_at as string | undefined),
+  ).length;
+  const pagesOptimizedThisWeek = new Set(
+    allChanges
+      .filter(
+        (c) =>
+          (c.fields.type ?? "").toLowerCase() !== "internal link" &&
+          (c.fields.execution_status === "complete" || !!c.fields.implemented_at) &&
+          isThisWeek(c.fields.implemented_at as string | undefined),
+      )
+      .map((c) => c.fields.page_url ?? ""),
+  ).size;
+  const deliveredThisWeek = {
+    internal_links: internalLinksThisWeek,
+    pages_optimized: pagesOptimizedThisWeek,
+  };
+
   return (
     <div className="flex flex-col gap-5 overflow-hidden" style={{ height: "calc(100vh - 5rem)" }}>
       {/* Status banner */}
@@ -43,6 +74,11 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
           contactName={contactName}
           status={status}
         />
+      </div>
+
+      {/* This Week deliverables */}
+      <div className="flex-shrink-0">
+        <WeeklyTargetsCard packageTier={tier} delivered={deliveredThisWeek} />
       </div>
 
       {/* Pipeline Board */}
