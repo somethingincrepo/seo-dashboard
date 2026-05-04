@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import type { AuditRunSummary, AuditIssue } from "@/lib/audit/queries";
+import type { AuditRunSummary, AuditIssue, IssueDecision } from "@/lib/audit/queries";
 import { AuditDonut } from "./AuditDonut";
 
 const SEVERITIES = ["critical", "high", "medium", "low"] as const;
@@ -61,13 +61,6 @@ const CATEGORY_BAR_COLOR: Record<Category, string> = {
   "ai-geo": "bg-emerald-500",
 };
 
-// Severity weight used for ranking "top priorities" (descending impact)
-const SEVERITY_WEIGHT: Record<Severity, number> = {
-  critical: 8,
-  high: 4,
-  medium: 2,
-  low: 1,
-};
 
 function pageLabel(url: string | null): string {
   if (!url) return "Sitewide";
@@ -96,6 +89,7 @@ interface RuleGroup {
 interface Props {
   run: AuditRunSummary;
   issues: AuditIssue[];
+  token: string;
 }
 
 type Selection =
@@ -111,7 +105,7 @@ export function AuditMasterDetail(props: Props) {
   );
 }
 
-function AuditMasterDetailInner({ run, issues }: Props) {
+function AuditMasterDetailInner({ run, issues, token }: Props) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -126,6 +120,71 @@ function AuditMasterDetailInner({ run, issues }: Props) {
     new Set(initialRule ? [initialRule] : []),
   );
 
+  // ─── Approval state ────────────────────────────────────────────────────
+  // Local decisions overlay the server's decision field for instant UI updates.
+  const [localDecisions, setLocalDecisions] = useState<Map<string, IssueDecision>>(() => {
+    const m = new Map<string, IssueDecision>();
+    for (const i of issues) if (i.decision) m.set(i.id, i.decision);
+    return m;
+  });
+  const [showDismissed, setShowDismissed] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
+
+  const decisionFor = useCallback(
+    (issueId: string): IssueDecision => {
+      if (localDecisions.has(issueId)) return localDecisions.get(issueId) ?? null;
+      const i = issues.find((x) => x.id === issueId);
+      return i?.decision ?? null;
+    },
+    [localDecisions, issues],
+  );
+
+  const decide = useCallback(
+    async (issueIds: string[], decision: IssueDecision) => {
+      if (issueIds.length === 0) return;
+      setSubmitting(true);
+      // Optimistic
+      setLocalDecisions((prev) => {
+        const next = new Map(prev);
+        for (const id of issueIds) {
+          if (decision === null) next.delete(id);
+          else next.set(id, decision);
+        }
+        return next;
+      });
+      try {
+        const r = await fetch(`/api/portal/audit-decide?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ issue_ids: issueIds, decision }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      } catch (e) {
+        console.error("[audit-decide]", e);
+        // Rollback on failure
+        setLocalDecisions((prev) => {
+          const next = new Map(prev);
+          for (const id of issueIds) {
+            const original = issues.find((x) => x.id === id)?.decision ?? null;
+            if (original === null) next.delete(id);
+            else next.set(id, original);
+          }
+          return next;
+        });
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [token, issues],
+  );
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
   // Strip ?rule= from URL once consumed
   useEffect(() => {
     if (initialRule) {
@@ -137,7 +196,22 @@ function AuditMasterDetailInner({ run, issues }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pageIssues = useMemo(() => issues.filter((i) => i.scope === "page"), [issues]);
+  // Hide dismissed issues from the main view unless toggled on.
+  const pageIssues = useMemo(() => issues.filter((i) => {
+    if (i.scope !== "page") return false;
+    const d = localDecisions.get(i.id) ?? i.decision;
+    if (d === "dismissed" && !showDismissed) return false;
+    return true;
+  }), [issues, localDecisions, showDismissed]);
+
+  const dismissedCount = useMemo(
+    () => issues.filter((i) => i.scope === "page" && (localDecisions.get(i.id) ?? i.decision) === "dismissed").length,
+    [issues, localDecisions],
+  );
+  const approvedCount = useMemo(
+    () => issues.filter((i) => i.scope === "page" && (localDecisions.get(i.id) ?? i.decision) === "approved").length,
+    [issues, localDecisions],
+  );
 
   const severityCounts = useMemo(() => {
     const c: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0 };
@@ -259,39 +333,38 @@ function AuditMasterDetailInner({ run, issues }: Props) {
   return (
     <div className="space-y-5">
       {/* ─── Dashboard header (3 panels: health · severity · category) ─ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Panel 1: Health score donut */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-5 py-4 flex items-center gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        {/* Panel 1: Health score */}
+        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-4 py-3 flex items-center gap-3">
           <HealthDial pct={healthPct} />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Site health</div>
-            <div className="text-[13.5px] text-slate-700 mt-1 leading-snug">
+            <div className="text-[13px] text-slate-700 mt-1 leading-snug">
               <span className="text-slate-900 font-semibold">{affectedPages}</span> of {totalPagesCrawled} pages have at least one issue.
             </div>
-            <div className="text-[12px] text-slate-500 mt-1.5">
-              {pageIssues.length.toLocaleString()} total findings · avg{" "}
+            <div className="text-[11.5px] text-slate-500 mt-1">
+              {pageIssues.length.toLocaleString()} findings · avg{" "}
               <span className="tabular-nums">
                 {affectedPages > 0 ? (pageIssues.length / affectedPages).toFixed(1) : "0"}
               </span>{" "}
-              per affected page.
+              per affected page
             </div>
           </div>
         </div>
 
         {/* Panel 2: Severity donut + legend */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-5 py-4">
+        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">By priority</div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <AuditDonut
               slices={donutSlices}
               activeKey={severity}
               onSliceClick={(k) => setSeverity((cur) => (cur === k ? "all" : (k as SeverityFilter)))}
               centerValue={pageIssues.length}
-              centerLabel="issues"
-              size={120}
-              thickness={12}
+              size={92}
+              thickness={11}
             />
-            <div className="space-y-1 min-w-0">
+            <div className="flex-1 min-w-0 space-y-1">
               {SEVERITIES.map((sev) => {
                 const count = severityCounts[sev] ?? 0;
                 const isActive = severity === sev;
@@ -300,14 +373,14 @@ function AuditMasterDetailInner({ run, issues }: Props) {
                   <button
                     key={sev}
                     onClick={() => setSeverity(isActive ? "all" : sev)}
-                    className={`w-full flex items-center gap-2 text-[12px] transition-colors ${count === 0 ? "opacity-40" : "hover:text-slate-900"}`}
+                    className={`w-full flex items-center gap-2 text-[11.5px] transition-colors ${count === 0 ? "opacity-40" : "hover:text-slate-900"}`}
                   >
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${SEVERITY_DOT[sev]}`} />
-                    <span className={`flex-1 text-left ${isActive ? "text-slate-900 font-medium" : "text-slate-600"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${SEVERITY_DOT[sev]}`} />
+                    <span className={`flex-1 text-left truncate ${isActive ? "text-slate-900 font-medium" : "text-slate-600"}`}>
                       {SEVERITY_LABEL[sev]}
                     </span>
                     <span className="tabular-nums text-slate-700 font-medium">{count}</span>
-                    <span className="tabular-nums text-slate-400 w-8 text-right">{pct}%</span>
+                    <span className="tabular-nums text-slate-400 w-7 text-right">{pct}%</span>
                   </button>
                 );
               })}
@@ -316,9 +389,9 @@ function AuditMasterDetailInner({ run, issues }: Props) {
         </div>
 
         {/* Panel 3: Category bars */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-5 py-4">
+        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">By category</div>
-          <div className="space-y-2.5">
+          <div className="space-y-1.5">
             {(Object.keys(CATEGORY_LABEL) as Category[]).map((cat) => {
               const count = categoryCounts[cat] ?? 0;
               const max = Math.max(1, ...Object.values(categoryCounts));
@@ -332,7 +405,7 @@ function AuditMasterDetailInner({ run, issues }: Props) {
                   className="w-full text-left group"
                   disabled={count === 0}
                 >
-                  <div className="flex items-center justify-between text-[12px] mb-1">
+                  <div className="flex items-center justify-between text-[11.5px] mb-0.5">
                     <span className={`${isActive ? "text-slate-900 font-medium" : "text-slate-600 group-hover:text-slate-900"} ${count === 0 ? "opacity-40" : ""}`}>
                       {CATEGORY_LABEL[cat]}
                     </span>
@@ -423,6 +496,43 @@ function AuditMasterDetailInner({ run, issues }: Props) {
         </aside>
 
         <div className="col-span-5 space-y-3">
+          {/* Toolbar above rule cards — bulk select + dismissed toggle + decision summary */}
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div className="flex items-center gap-2 text-[11.5px] text-slate-500">
+              {approvedCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-emerald-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="tabular-nums font-medium">{approvedCount}</span> approved
+                </span>
+              )}
+              {approvedCount > 0 && dismissedCount > 0 && <span className="text-slate-300">·</span>}
+              {dismissedCount > 0 && (
+                <button
+                  onClick={() => setShowDismissed((s) => !s)}
+                  className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                  <span className="tabular-nums font-medium">{dismissedCount}</span>{" "}
+                  dismissed{" "}
+                  <span className="underline underline-offset-2">{showDismissed ? "(hide)" : "(show)"}</span>
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                if (selectMode) exitSelectMode();
+                else setSelectMode(true);
+              }}
+              className={`text-[11.5px] px-2.5 py-1 rounded-md transition-colors border ${
+                selectMode
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              {selectMode ? `Cancel selection${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}` : "Select multiple"}
+            </button>
+          </div>
+
           {SEVERITIES.map((sev) => {
             const sevGroups = grouped.get(sev);
             if (!sevGroups || sevGroups.size === 0) return null;
@@ -444,6 +554,29 @@ function AuditMasterDetailInner({ run, issues }: Props) {
                     onSelectGroup={() => setSelection({ kind: "rule", rule_id: group.rule_id })}
                     onSelectIssue={(id) => setSelection({ kind: "issue", issue_id: id })}
                     selection={selection}
+                    selectMode={selectMode}
+                    selectedIds={selectedIds}
+                    onToggleIssueSelection={(id) =>
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else next.add(id);
+                        return next;
+                      })
+                    }
+                    onToggleAllSelection={() =>
+                      setSelectedIds((prev) => {
+                        const allIds = group.issues.map((i) => i.id);
+                        const allSelected = allIds.every((id) => prev.has(id));
+                        const next = new Set(prev);
+                        for (const id of allIds) {
+                          if (allSelected) next.delete(id);
+                          else next.add(id);
+                        }
+                        return next;
+                      })
+                    }
+                    decisionFor={decisionFor}
                   />
                 ))}
               </div>
@@ -457,88 +590,62 @@ function AuditMasterDetailInner({ run, issues }: Props) {
         </div>
 
         <div className="col-span-5 bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden h-fit sticky top-4 min-h-[640px]">
-          {detail?.kind === "issue" && <IssueDetail issue={detail.issue} />}
+          {detail?.kind === "issue" && (
+            <IssueDetail
+              issue={detail.issue}
+              decisionFor={decisionFor}
+              decide={decide}
+              submitting={submitting}
+            />
+          )}
           {detail?.kind === "rule" && (
-            <RuleDetail group={detail.group} onPickIssue={(id) => setSelection({ kind: "issue", issue_id: id })} />
+            <RuleDetail
+              group={detail.group}
+              onPickIssue={(id) => setSelection({ kind: "issue", issue_id: id })}
+              decisionFor={decisionFor}
+              decide={decide}
+              submitting={submitting}
+            />
           )}
           {!detail && <DetailPlaceholder />}
         </div>
       </div>
 
-      {/* ─── Bottom: Top priorities (most impactful rules first) ─── */}
-      <TopPriorities
-        pageIssues={pageIssues}
-        onSelectRule={(rule_id) => setSelection({ kind: "rule", rule_id })}
-      />
-    </div>
-  );
-}
-
-// ─── Top priorities (severity × count weighted) ────────────────────────
-
-function TopPriorities({
-  pageIssues,
-  onSelectRule,
-}: {
-  pageIssues: AuditIssue[];
-  onSelectRule: (rule_id: string) => void;
-}) {
-  // Aggregate by rule, weight by severity × count
-  const byRule = new Map<string, { rule_id: string; rule_name: string; severity: Severity; category: Category; count: number }>();
-  for (const i of pageIssues) {
-    const sev = i.severity as Severity;
-    const cur = byRule.get(i.rule_id);
-    if (cur) cur.count += 1;
-    else byRule.set(i.rule_id, {
-      rule_id: i.rule_id,
-      rule_name: i.rule_name,
-      severity: sev,
-      category: i.category as Category,
-      count: 1,
-    });
-  }
-  const ranked = [...byRule.values()]
-    .map((r) => ({ ...r, score: SEVERITY_WEIGHT[r.severity] * r.count }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 6);
-
-  if (ranked.length === 0) return null;
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/40 flex items-center gap-2">
-        <span className="text-[12px] font-semibold uppercase tracking-widest text-slate-500">Top priorities</span>
-        <span className="text-[11px] text-slate-400">Where to start — ranked by severity × number of pages affected.</span>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-100">
-        {ranked.map((r, idx) => (
+      {/* ─── Floating bulk action bar (when issues are selected) ──── */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700 px-4 py-2.5 flex items-center gap-3">
+          <span className="text-[13px] font-medium tabular-nums">
+            {selectedIds.size} selected
+          </span>
+          <span className="w-px h-5 bg-slate-700" />
           <button
-            key={r.rule_id}
-            onClick={() => onSelectRule(r.rule_id)}
-            className="flex items-start gap-3 px-4 py-3 bg-white text-left hover:bg-slate-50 transition-colors group"
+            onClick={async () => {
+              await decide([...selectedIds], "approved");
+              exitSelectMode();
+            }}
+            disabled={submitting}
+            className="px-3 py-1.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-white text-[12.5px] font-medium disabled:opacity-50"
           >
-            <span className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-500 text-[12px] font-semibold tabular-nums group-hover:bg-indigo-100 group-hover:text-indigo-700 transition-colors">
-              {idx + 1}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-medium text-slate-900 leading-snug truncate group-hover:text-indigo-700">
-                {r.rule_name}
-              </div>
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ring-1 ring-inset ${SEVERITY_PILL[r.severity]} font-semibold uppercase tracking-wider`}>
-                  {SEVERITY_LABEL[r.severity]}
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
-                  {CATEGORY_LABEL[r.category]}
-                </span>
-                <span className="text-[11px] text-slate-500 tabular-nums">
-                  {r.count} page{r.count === 1 ? "" : "s"}
-                </span>
-              </div>
-            </div>
+            Approve
           </button>
-        ))}
-      </div>
+          <button
+            onClick={async () => {
+              await decide([...selectedIds], "dismissed");
+              exitSelectMode();
+            }}
+            disabled={submitting}
+            className="px-3 py-1.5 rounded-md bg-slate-700 hover:bg-slate-600 text-white text-[12.5px] font-medium disabled:opacity-50"
+          >
+            Dismiss
+          </button>
+          <button
+            onClick={exitSelectMode}
+            className="px-2 py-1 text-[12.5px] text-slate-400 hover:text-white"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -636,6 +743,11 @@ function RuleCard({
   onSelectGroup,
   onSelectIssue,
   selection,
+  selectMode,
+  selectedIds,
+  onToggleIssueSelection,
+  onToggleAllSelection,
+  decisionFor,
 }: {
   group: RuleGroup;
   expanded: boolean;
@@ -643,25 +755,76 @@ function RuleCard({
   onSelectGroup: () => void;
   onSelectIssue: (issueId: string) => void;
   selection: Selection;
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  onToggleIssueSelection: (id: string) => void;
+  onToggleAllSelection: () => void;
+  decisionFor: (id: string) => IssueDecision;
 }) {
+  const groupIds = group.issues.map((i) => i.id);
+  const allSelected = selectMode && groupIds.every((id) => selectedIds.has(id));
+  const someSelected = selectMode && groupIds.some((id) => selectedIds.has(id));
+  const groupApproved = group.issues.every((i) => decisionFor(i.id) === "approved");
+  const groupDismissed = group.issues.every((i) => decisionFor(i.id) === "dismissed");
   const isSelected = selection?.kind === "rule" && selection.rule_id === group.rule_id;
   return (
     <div
       className={`bg-white rounded-lg shadow-sm overflow-hidden ${
         SEVERITY_BORDER[group.severity]
-      } border-y border-r border-slate-200/80 ${isSelected ? "ring-2 ring-indigo-300" : ""}`}
+      } border-y border-r border-slate-200/80 ${isSelected ? "ring-2 ring-indigo-300" : ""} ${
+        groupApproved ? "opacity-80" : ""
+      } ${groupDismissed ? "opacity-50" : ""}`}
     >
-      <button onClick={onSelectGroup} className="w-full text-left px-4 pt-3 pb-2 hover:bg-slate-50/50 transition-colors">
-        <div className="text-[14px] font-medium text-slate-900 leading-snug">{group.rule_name}</div>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
-            {CATEGORY_LABEL[group.category]}
-          </span>
-          <span className="text-[11px] text-slate-500 tabular-nums">
-            {group.issues.length} page{group.issues.length === 1 ? "" : "s"}
-          </span>
-        </div>
-      </button>
+      <div className="flex items-stretch">
+        {selectMode && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleAllSelection();
+            }}
+            className="flex items-center justify-center px-3 hover:bg-slate-50 border-r border-slate-100"
+            aria-label={allSelected ? "Deselect all pages" : "Select all pages"}
+          >
+            <span
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                allSelected
+                  ? "bg-indigo-500 border-indigo-500"
+                  : someSelected
+                  ? "bg-indigo-50 border-indigo-400"
+                  : "bg-white border-slate-300"
+              }`}
+            >
+              {allSelected && (
+                <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+              {!allSelected && someSelected && <span className="w-2 h-0.5 bg-indigo-500 rounded" />}
+            </span>
+          </button>
+        )}
+        <button onClick={onSelectGroup} className="flex-1 text-left px-4 pt-3 pb-2 hover:bg-slate-50/50 transition-colors">
+          <div className="text-[14px] font-medium text-slate-900 leading-snug">{group.rule_name}</div>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
+              {CATEGORY_LABEL[group.category]}
+            </span>
+            <span className="text-[11px] text-slate-500 tabular-nums">
+              {group.issues.length} page{group.issues.length === 1 ? "" : "s"}
+            </span>
+            {groupApproved && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/70 font-medium">
+                ✓ All approved
+              </span>
+            )}
+            {groupDismissed && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200">
+                Dismissed
+              </span>
+            )}
+          </div>
+        </button>
+      </div>
       <button
         onClick={onToggleExpand}
         className="w-full flex items-center justify-center gap-1 px-3 py-1 text-[11px] text-slate-500 hover:text-slate-900 border-t border-slate-100 hover:bg-slate-50"
@@ -675,19 +838,47 @@ function RuleCard({
         <div className="border-t border-slate-100 max-h-64 overflow-y-auto">
           {group.issues.map((i) => {
             const issueSelected = selection?.kind === "issue" && selection.issue_id === i.id;
+            const decision = decisionFor(i.id);
+            const isChecked = selectedIds.has(i.id);
             return (
-              <button
-                key={i.id}
-                onClick={() => onSelectIssue(i.id)}
-                className={`w-full text-left px-4 py-1.5 text-[12px] truncate ${
-                  issueSelected
-                    ? "bg-indigo-50 text-indigo-900 font-medium"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                }`}
-                title={i.page_url ?? ""}
-              >
-                {pageLabel(i.page_url)}
-              </button>
+              <div key={i.id} className="flex items-stretch">
+                {selectMode && (
+                  <button
+                    onClick={() => onToggleIssueSelection(i.id)}
+                    className="flex items-center justify-center px-3 hover:bg-slate-50 border-r border-slate-100"
+                    aria-label={isChecked ? "Deselect page" : "Select page"}
+                  >
+                    <span
+                      className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
+                        isChecked ? "bg-indigo-500 border-indigo-500" : "bg-white border-slate-300"
+                      }`}
+                    >
+                      {isChecked && (
+                        <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </span>
+                  </button>
+                )}
+                <button
+                  onClick={() => onSelectIssue(i.id)}
+                  className={`flex-1 flex items-center gap-2 text-left px-4 py-1.5 text-[12px] ${
+                    issueSelected
+                      ? "bg-indigo-50 text-indigo-900 font-medium"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                  title={i.page_url ?? ""}
+                >
+                  <span className="flex-1 truncate">{pageLabel(i.page_url)}</span>
+                  {decision === "approved" && (
+                    <span className="text-[10px] text-emerald-600 font-medium shrink-0">✓ approved</span>
+                  )}
+                  {decision === "dismissed" && (
+                    <span className="text-[10px] text-slate-400 shrink-0">dismissed</span>
+                  )}
+                </button>
+              </div>
             );
           })}
         </div>
@@ -696,9 +887,26 @@ function RuleCard({
   );
 }
 
-function RuleDetail({ group, onPickIssue }: { group: RuleGroup; onPickIssue: (id: string) => void }) {
+function RuleDetail({
+  group,
+  onPickIssue,
+  decisionFor,
+  decide,
+  submitting,
+}: {
+  group: RuleGroup;
+  onPickIssue: (id: string) => void;
+  decisionFor: (id: string) => IssueDecision;
+  decide: (ids: string[], decision: IssueDecision) => Promise<void>;
+  submitting: boolean;
+}) {
   const sample = group.issues[0];
   const ruleDescription = (sample?.evidence as { rule_description?: string } | null)?.rule_description;
+  const fixGuidance = (sample?.evidence as { fix_guidance?: string } | null)?.fix_guidance;
+
+  const pendingIds = group.issues.filter((i) => decisionFor(i.id) === null).map((i) => i.id);
+  const approvedIds = group.issues.filter((i) => decisionFor(i.id) === "approved").map((i) => i.id);
+
   return (
     <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
       <div className="p-7 space-y-6">
@@ -716,30 +924,92 @@ function RuleDetail({ group, onPickIssue }: { group: RuleGroup; onPickIssue: (id
           </div>
           <h2 className="text-2xl font-semibold text-slate-900 leading-tight">{group.rule_name}</h2>
         </div>
+
         {ruleDescription && (
-          <Section label="What this means">
-            <p className="text-[13.5px] text-slate-700 leading-relaxed">{ruleDescription}</p>
-          </Section>
+          <p className="text-[14px] text-slate-700 leading-relaxed">{ruleDescription}</p>
         )}
-        {sample?.expected_value && (
-          <Section label="What's expected">
-            <p className="text-[13.5px] text-slate-700 leading-relaxed">{sample.expected_value}</p>
-          </Section>
+
+        {fixGuidance && (
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700 mb-1">How we'll fix this</div>
+            <p className="text-[13.5px] text-slate-800 leading-relaxed">{fixGuidance}</p>
+          </div>
         )}
-        <Section label={`Affected pages (${group.issues.length})`}>
-          <div className="rounded-lg border border-slate-200/80 divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
-            {group.issues.map((i) => (
+
+        {/* Bulk approval bar */}
+        <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-[12px] text-slate-600">
+            {approvedIds.length > 0 && (
+              <span>
+                <span className="text-emerald-700 font-medium tabular-nums">{approvedIds.length}</span> approved
+                {pendingIds.length > 0 && <span className="text-slate-400"> · </span>}
+              </span>
+            )}
+            {pendingIds.length > 0 && (
+              <span>
+                <span className="text-slate-700 font-medium tabular-nums">{pendingIds.length}</span> pending
+              </span>
+            )}
+            {approvedIds.length === group.issues.length && (
+              <span className="text-emerald-700 font-medium">All pages approved.</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {pendingIds.length > 0 && (
               <button
-                key={i.id}
-                onClick={() => onPickIssue(i.id)}
-                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 transition-colors group"
+                onClick={() => decide(pendingIds, "approved")}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-white text-[12.5px] font-medium disabled:opacity-50"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-slate-700 truncate group-hover:text-indigo-700">{pageLabel(i.page_url)}</span>
-                  <span className="text-[11px] text-slate-400 truncate flex-1 text-right">{truncate(i.page_url ?? "", 60)}</span>
-                </div>
+                Approve all {pendingIds.length} {pendingIds.length === 1 ? "page" : "pages"}
               </button>
-            ))}
+            )}
+            {pendingIds.length > 0 && (
+              <button
+                onClick={() => decide(pendingIds, "dismissed")}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-[12.5px] font-medium disabled:opacity-50"
+              >
+                Dismiss all
+              </button>
+            )}
+            {approvedIds.length > 0 && pendingIds.length === 0 && (
+              <button
+                onClick={() => decide(approvedIds, null)}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-md text-slate-500 hover:text-slate-900 text-[12.5px] font-medium underline underline-offset-2 disabled:opacity-50"
+              >
+                Undo approvals
+              </button>
+            )}
+          </div>
+        </div>
+
+        <Section label={`Affected pages (${group.issues.length})`}>
+          <div className="rounded-lg border border-slate-200/80 divide-y divide-slate-100 max-h-[380px] overflow-y-auto">
+            {group.issues.map((i) => {
+              const d = decisionFor(i.id);
+              return (
+                <button
+                  key={i.id}
+                  onClick={() => onPickIssue(i.id)}
+                  className={`w-full text-left px-3.5 py-2 hover:bg-slate-50 transition-colors group ${d === "dismissed" ? "opacity-50" : ""}`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-slate-700 truncate group-hover:text-indigo-700">{pageLabel(i.page_url)}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {d === "approved" && (
+                        <span className="text-[10px] text-emerald-600 font-medium">✓ approved</span>
+                      )}
+                      {d === "dismissed" && (
+                        <span className="text-[10px] text-slate-400">dismissed</span>
+                      )}
+                      <span className="text-[11px] text-slate-400 truncate max-w-[14rem]">{truncate(i.page_url ?? "", 40)}</span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </Section>
       </div>
@@ -747,7 +1017,17 @@ function RuleDetail({ group, onPickIssue }: { group: RuleGroup; onPickIssue: (id
   );
 }
 
-function IssueDetail({ issue }: { issue: AuditIssue }) {
+function IssueDetail({
+  issue,
+  decisionFor,
+  decide,
+  submitting,
+}: {
+  issue: AuditIssue;
+  decisionFor: (id: string) => IssueDecision;
+  decide: (ids: string[], decision: IssueDecision) => Promise<void>;
+  submitting: boolean;
+}) {
   const sev = issue.severity as Severity;
   const ev = issue.evidence as { fix_guidance?: string; rule_description?: string; [k: string]: unknown } | null;
   const fixGuidance = ev?.fix_guidance;
@@ -759,6 +1039,8 @@ function IssueDetail({ issue }: { issue: AuditIssue }) {
     delete rest.rule_description;
     return Object.keys(rest).length > 0 ? rest : null;
   })();
+  const decision = decisionFor(issue.id);
+
   return (
     <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
       <div className="p-7 space-y-6">
@@ -770,6 +1052,16 @@ function IssueDetail({ issue }: { issue: AuditIssue }) {
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
               {CATEGORY_LABEL[issue.category as Category] ?? issue.category}
             </span>
+            {decision === "approved" && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/70 font-medium">
+                ✓ Approved
+              </span>
+            )}
+            {decision === "dismissed" && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200">
+                Dismissed
+              </span>
+            )}
           </div>
           <h2 className="text-2xl font-semibold text-slate-900 leading-tight">{issue.rule_name}</h2>
           {issue.page_url && (
@@ -788,11 +1080,69 @@ function IssueDetail({ issue }: { issue: AuditIssue }) {
             </a>
           )}
         </div>
+
+        {/* Plain-English lead — combines what + why */}
         {ruleDescription && (
-          <Section label="What this means">
-            <p className="text-[13.5px] text-slate-700 leading-relaxed">{ruleDescription}</p>
-          </Section>
+          <p className="text-[14px] text-slate-700 leading-relaxed">{ruleDescription}</p>
         )}
+
+        {/* Per-issue fix in a clearly-labelled callout */}
+        <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700 mb-1">How we'll fix this page</div>
+          <p className="text-[13.5px] text-slate-800 leading-relaxed">
+            {fixGuidance ?? "We'll detail the specific fix steps for this rule in a future release."}
+          </p>
+        </div>
+
+        {/* Approve / dismiss action bar */}
+        <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          {decision === null && (
+            <>
+              <span className="text-[12px] text-slate-500">Approve to send this to the fix queue.</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => decide([issue.id], "approved")}
+                  disabled={submitting}
+                  className="px-3 py-1.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-white text-[12.5px] font-medium disabled:opacity-50"
+                >
+                  Approve fix
+                </button>
+                <button
+                  onClick={() => decide([issue.id], "dismissed")}
+                  disabled={submitting}
+                  className="px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-[12.5px] font-medium disabled:opacity-50"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </>
+          )}
+          {decision === "approved" && (
+            <>
+              <span className="text-[12px] text-emerald-700">Approved — this is in the fix queue.</span>
+              <button
+                onClick={() => decide([issue.id], null)}
+                disabled={submitting}
+                className="text-[12.5px] text-slate-500 hover:text-slate-900 underline underline-offset-2 disabled:opacity-50"
+              >
+                Undo
+              </button>
+            </>
+          )}
+          {decision === "dismissed" && (
+            <>
+              <span className="text-[12px] text-slate-500">Dismissed — won't be fixed.</span>
+              <button
+                onClick={() => decide([issue.id], null)}
+                disabled={submitting}
+                className="text-[12.5px] text-slate-500 hover:text-slate-900 underline underline-offset-2 disabled:opacity-50"
+              >
+                Undo
+              </button>
+            </>
+          )}
+        </div>
+
         <Section label="What we found on this page">
           <pre className="font-mono text-[13px] text-slate-700 bg-slate-50 border border-slate-200/80 rounded-lg px-3.5 py-2.5 whitespace-pre-wrap break-words">
             {issue.current_value ?? "—"}
@@ -800,13 +1150,6 @@ function IssueDetail({ issue }: { issue: AuditIssue }) {
         </Section>
         <Section label="What's expected">
           <p className="text-[13.5px] text-slate-700 leading-relaxed">{issue.expected_value ?? "—"}</p>
-        </Section>
-        <Section label="How to fix this page">
-          <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3.5">
-            <p className="text-[13.5px] text-slate-800 leading-relaxed">
-              {fixGuidance ?? "We'll detail the specific fix steps for this rule in a future release."}
-            </p>
-          </div>
         </Section>
         {evidenceForDisplay && (
           <Section label="Evidence">

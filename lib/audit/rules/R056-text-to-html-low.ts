@@ -2,12 +2,12 @@ import type { PageRule } from "./types";
 
 export const R056_textToHtmlLow: PageRule = {
   id: "R056",
-  name: "Text-to-HTML ratio is below 10%",
+  name: "Page has very little visible content",
   severity: "low",
   category: "content",
   scope: "page",
   description:
-    "A very low text ratio means the page is mostly markup, scripts, or hidden content with little actual copy. Often a sign of bloated templates or empty pages.",
+    "The page renders a lot of HTML but very little actual visible text. This is usually a sign of an empty template, content hidden behind a click or accordion, or a page where copy never got written. Search engines and AI assistants need real text to understand what a page is about.",
   check: (page) => {
     if (page.status_code !== 200) return null;
     const r = page.text_to_html_ratio;
@@ -15,12 +15,12 @@ export const R056_textToHtmlLow: PageRule = {
     if (r >= 0.1) return null;
     return {
       rule_id: "R056",
-      rule_name: "Text-to-HTML ratio is below 10%",
+      rule_name: "Page has very little visible content",
       severity: "low",
       category: "content",
       scope: "page",
-      current_value: `${(r * 100).toFixed(1)}% text-to-HTML`,
-      expected_value: "At least 10–25% of the rendered HTML should be visible text content.",
+      current_value: `Only ${(r * 100).toFixed(1)}% of the rendered HTML is visible text`,
+      expected_value: "Most pages should have at least 10–25% visible text relative to their markup.",
       evidence: { text_to_html_ratio: r },
     };
   },
