@@ -596,6 +596,7 @@ function AuditMasterDetailInner({ run, issues, token }: Props) {
               decisionFor={decisionFor}
               decide={decide}
               submitting={submitting}
+              token={token}
             />
           )}
           {detail?.kind === "rule" && (
@@ -1022,11 +1023,13 @@ function IssueDetail({
   decisionFor,
   decide,
   submitting,
+  token,
 }: {
   issue: AuditIssue;
   decisionFor: (id: string) => IssueDecision;
   decide: (ids: string[], decision: IssueDecision) => Promise<void>;
   submitting: boolean;
+  token: string;
 }) {
   const sev = issue.severity as Severity;
   const ev = issue.evidence as { fix_guidance?: string; rule_description?: string; [k: string]: unknown } | null;
@@ -1086,13 +1089,16 @@ function IssueDetail({
           <p className="text-[14px] text-slate-700 leading-relaxed">{ruleDescription}</p>
         )}
 
-        {/* Per-issue fix in a clearly-labelled callout */}
-        <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700 mb-1">How we'll fix this page</div>
-          <p className="text-[13.5px] text-slate-800 leading-relaxed">
-            {fixGuidance ?? "We'll detail the specific fix steps for this rule in a future release."}
-          </p>
-        </div>
+        {/* Proposed fix — the actual generated copy */}
+        <ProposedFixSection issue={issue} token={token} />
+
+        {/* Why-it-matters / fix approach in a small helper callout */}
+        {fixGuidance && (
+          <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">More about this fix</div>
+            <p className="text-[13px] text-slate-700 leading-relaxed">{fixGuidance}</p>
+          </div>
+        )}
 
         {/* Approve / dismiss action bar */}
         <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
@@ -1171,6 +1177,144 @@ function Section({ label, children }: { label: string; children: React.ReactNode
     <div>
       <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">{label}</div>
       {children}
+    </div>
+  );
+}
+
+// ─── Proposed fix (renders generation status + edit + retry) ──────────
+
+function ProposedFixSection({ issue, token }: { issue: AuditIssue; token: string }) {
+  const [draft, setDraft] = useState<string>(issue.proposed_value ?? "");
+  const [saving, setSaving] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  // Sync draft when the issue id changes (user picks a different page)
+  useEffect(() => {
+    setDraft(issue.proposed_value ?? "");
+    setSavedAt(null);
+  }, [issue.id, issue.proposed_value]);
+
+  const status = issue.fix_status;
+
+  // Out-of-scope (no auto-fix planned for this rule)
+  if (status === null) {
+    return null;
+  }
+
+  // Queued or running
+  if (status === "queued" || status === "generating") {
+    return (
+      <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-4 flex items-center gap-3">
+        <span className="inline-flex w-5 h-5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin shrink-0" />
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold uppercase tracking-widest text-indigo-700">Proposed fix</div>
+          <p className="text-[13.5px] text-slate-700 mt-0.5">
+            {status === "queued" ? "Queued for generation…" : "Generating fix…"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Failed
+  if (status === "failed") {
+    return (
+      <div className="rounded-lg border border-rose-200/70 bg-rose-50/50 px-4 py-3">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-rose-700 mb-1">Proposed fix — generation failed</div>
+        {issue.fix_error && (
+          <p className="text-[12px] text-rose-700 mb-2 font-mono">{issue.fix_error}</p>
+        )}
+        <button
+          onClick={async () => {
+            setRetrying(true);
+            try {
+              await fetch(`/api/portal/audit-regenerate?token=${encodeURIComponent(token)}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ issue_ids: [issue.id] }),
+              });
+            } finally {
+              setRetrying(false);
+            }
+          }}
+          disabled={retrying}
+          className="px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-500 text-white text-[12.5px] font-medium disabled:opacity-50"
+        >
+          {retrying ? "Retrying…" : "Retry generation"}
+        </button>
+      </div>
+    );
+  }
+
+  // Generated — render editable proposed_value
+  const isMultiline = (draft ?? "").includes("\n") || (draft ?? "").length > 120;
+
+  const persist = async () => {
+    if (draft === (issue.proposed_value ?? "")) return; // no-op
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/portal/audit-edit-fix?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ issue_id: issue.id, proposed_value: draft }),
+      });
+      if (r.ok) setSavedAt(Date.now());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 px-4 py-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700">Proposed fix</div>
+        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+          {saving && <span>Saving…</span>}
+          {!saving && savedAt && <span className="text-emerald-600">Saved</span>}
+          <button
+            onClick={async () => {
+              setRetrying(true);
+              try {
+                await fetch(`/api/portal/audit-regenerate?token=${encodeURIComponent(token)}`, {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ issue_ids: [issue.id] }),
+                });
+              } finally {
+                setRetrying(false);
+              }
+            }}
+            disabled={retrying}
+            className="text-slate-500 hover:text-slate-900 underline underline-offset-2 disabled:opacity-50"
+          >
+            {retrying ? "Regenerating…" : "Regenerate"}
+          </button>
+        </div>
+      </div>
+      {isMultiline ? (
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={persist}
+          className="w-full font-mono text-[12.5px] text-slate-800 bg-white border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+          rows={Math.min(20, Math.max(4, draft.split("\n").length + 1))}
+          spellCheck={false}
+        />
+      ) : (
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={persist}
+          className="w-full text-[14px] text-slate-900 bg-white border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+        />
+      )}
+      {draft && (
+        <div className="text-[10px] text-slate-400 mt-1.5 tabular-nums">
+          {draft.length} characters
+        </div>
+      )}
     </div>
   );
 }

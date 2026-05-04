@@ -3,6 +3,8 @@ import { getSupabase } from "@/lib/supabase";
 import { runAllRules, type Page, type SiteContext } from "@/lib/audit/rules";
 import { buildFixGuidance } from "@/lib/audit/rules/fix-guidance";
 import { getRuleDescription } from "@/lib/audit/rules/rule-descriptions";
+import { generateMechanicalFix, MECHANICAL_RULE_IDS } from "@/lib/audit/mechanical-fixes";
+import { RULE_TO_FIX_TYPE, FIX_TYPE_TO_SOP, groupByFixType, chunk, ISSUES_PER_JOB } from "@/lib/audit/generation";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // up to 5 minutes for very large sites
@@ -149,6 +151,118 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Fix generation: mechanical (synchronous) + agent (enqueued) ──────
+    // Re-fetch the just-inserted issues so we have the database-assigned ids.
+    const { data: insertedIssues, error: refetchErr } = await supabase
+      .from("issues")
+      .select("id, rule_id, page_id, page_url, current_value, evidence, scope")
+      .eq("audit_run_id", auditRunId);
+    if (refetchErr) throw new Error(`issues refetch failed: ${refetchErr.message}`);
+    const allIssues = (insertedIssues ?? []) as Array<{
+      id: string;
+      rule_id: string;
+      page_id: string | null;
+      page_url: string | null;
+      current_value: string | null;
+      evidence: Record<string, unknown> | null;
+      scope: "page" | "site";
+    }>;
+
+    // Page lookup (keyed by id) so mechanical generators can read crawled data.
+    const pagesById = new Map<string, Page>();
+    for (const p of pages) pagesById.set(p.id, p);
+
+    // Path A — synchronous mechanical fixes
+    const mechanicalUpdates: Array<{ id: string; proposed_value: string }> = [];
+    for (const i of allIssues) {
+      if (!MECHANICAL_RULE_IDS.has(i.rule_id)) continue;
+      const page = i.page_id ? pagesById.get(i.page_id) ?? null : null;
+      const proposed = generateMechanicalFix(
+        { rule_id: i.rule_id, page_url: i.page_url, current_value: i.current_value, evidence: i.evidence },
+        page,
+        { rootUrl: run.root_url, sitemapUrls: run.sitemap_urls ?? [], pages },
+      );
+      if (proposed) mechanicalUpdates.push({ id: i.id, proposed_value: proposed });
+    }
+    // Bulk-update by id. Each row is a tiny payload so we send them in chunks.
+    if (mechanicalUpdates.length > 0) {
+      const nowIso = new Date().toISOString();
+      const CHUNK = 50;
+      for (let i = 0; i < mechanicalUpdates.length; i += CHUNK) {
+        const slice = mechanicalUpdates.slice(i, i + CHUNK);
+        // Supabase doesn't have a true bulk-update-by-id-with-different-values; loop per row.
+        await Promise.all(
+          slice.map((u) =>
+            supabase
+              .from("issues")
+              .update({ proposed_value: u.proposed_value, fix_status: "generated", fix_generated_at: nowIso })
+              .eq("id", u.id),
+          ),
+        );
+      }
+    }
+
+    // Path B — enqueue agent jobs for the per-fix-type rules
+    const agentIssues = allIssues.filter(
+      (i) => i.scope === "page" && RULE_TO_FIX_TYPE[i.rule_id],
+    );
+    const grouped = groupByFixType(agentIssues);
+    let jobsCreated = 0;
+    for (const [fixType, list] of grouped) {
+      const sopName = FIX_TYPE_TO_SOP[fixType];
+      const chunks = chunk(list, ISSUES_PER_JOB);
+      for (const c of chunks) {
+        const ids = c.map((i) => i.id);
+        const { error: jobErr } = await supabase.from("jobs").insert({
+          sop_name: sopName,
+          client_id: run.client_id,
+          payload: { issue_ids: ids, audit_run_id: auditRunId },
+          status: "pending",
+          runner: "fly",
+        });
+        if (jobErr) {
+          console.error(`[diagnose] failed to enqueue ${sopName} job:`, jobErr.message);
+          continue;
+        }
+        // Mark these issues as queued
+        await supabase
+          .from("issues")
+          .update({ fix_status: "queued" })
+          .in("id", ids);
+        jobsCreated += 1;
+      }
+    }
+
+    // ── First-batch deliverables ─────────────────────────────────────────
+    // Kick off the package's first-week deliverables so clients see content
+    // titles, internal-link suggestions, refresh picks, and keyword groups
+    // queued up immediately after the audit lands. Subsequent weeks fire on
+    // the worker's scheduler ticks.
+    const firstBatchSops = [
+      // Foundational keyword research feeds title generation downstream.
+      { sop_name: "keyword_research", payload: { client_id: run.client_id } },
+      // First batch of content title proposals — content_scheduler fans out
+      // title_generation children sized to one week's quota per package.
+      { sop_name: "content_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
+      // First batch of internal-link Change suggestions — quota-bounded.
+      { sop_name: "audit_internal_links", payload: { client_id: run.client_id, weekly_run: true } },
+      // First batch of content refresh picks — refresh_scheduler fans out
+      // content_refresh children sized to one week's quota.
+      { sop_name: "refresh_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
+    ];
+    for (const job of firstBatchSops) {
+      const { error: deliverableErr } = await supabase.from("jobs").insert({
+        sop_name: job.sop_name,
+        client_id: run.client_id,
+        payload: job.payload,
+        status: "pending",
+        runner: "fly",
+      });
+      if (deliverableErr) {
+        console.error(`[diagnose] failed to enqueue ${job.sop_name}:`, deliverableErr.message);
+      }
+    }
+
     await supabase
       .from("audit_runs")
       .update({
@@ -162,6 +276,9 @@ export async function POST(request: NextRequest) {
       ok: true,
       pages: pages.length,
       issues: issueRows.length,
+      mechanical_fixes: mechanicalUpdates.length,
+      agent_jobs_enqueued: jobsCreated,
+      first_batch_jobs_enqueued: firstBatchSops.length,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

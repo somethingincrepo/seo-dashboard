@@ -25,6 +25,8 @@ import {
   executeSheetsRead,
   executeSheetsBatchUpdate,
 } from "./google-sheets";
+import { supabaseFetchDefinition, executeSupabaseFetch } from "./supabase-fetch";
+import { supabaseUpdateDefinition, executeSupabaseUpdate } from "./supabase-update";
 import type Anthropic from "@anthropic-ai/sdk";
 
 export type ToolImpl = {
@@ -72,5 +74,13 @@ export const TOOL_REGISTRY: Record<string, ToolImpl> = {
   sheets_batch_update: {
     definition: sheetsBatchUpdateDefinition,
     execute: (input) => executeSheetsBatchUpdate(input as Parameters<typeof executeSheetsBatchUpdate>[0]),
+  },
+  supabase_fetch: {
+    definition: supabaseFetchDefinition,
+    execute: (input) => executeSupabaseFetch(input as unknown as Parameters<typeof executeSupabaseFetch>[0]),
+  },
+  supabase_update: {
+    definition: supabaseUpdateDefinition,
+    execute: (input) => executeSupabaseUpdate(input as unknown as Parameters<typeof executeSupabaseUpdate>[0]),
   },
 };

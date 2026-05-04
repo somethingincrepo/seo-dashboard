@@ -44,8 +44,14 @@ export interface AuditIssue {
   decision: IssueDecision;
   decided_at: string | null;
   decided_by: string | null;
+  fix_status: FixStatus;
+  fix_generated_at: string | null;
+  fix_attempts: number;
+  fix_error: string | null;
   detected_at: string;
 }
+
+export type FixStatus = "queued" | "generating" | "generated" | "failed" | null;
 
 /** Latest audit_run for a client (any status). Returns null if none exist. */
 export async function getLatestAuditRun(clientId: string): Promise<AuditRunSummary | null> {
