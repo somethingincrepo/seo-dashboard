@@ -187,6 +187,7 @@ export function PortalSidebar({
 
   const inApprovals = pathname.startsWith(`${base}/approvals`);
   const inContent = pathname.startsWith(`${base}/content`);
+  const inAudit = pathname.startsWith(`${base}/audit`);
 
   // Only expand sub-nav when actively in that section
   const approvalsExpanded = inApprovals;
@@ -276,6 +277,32 @@ export function PortalSidebar({
                     </span>
                   )}
                 </Link>
+
+                {/* Site Audit sub-nav */}
+                {item.suffix === "/audit" && inAudit && (
+                  <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
+                    {[
+                      { label: "Issues", href: `${base}/audit`, exactMatch: true },
+                      { label: "Site Health", href: `${base}/audit/health`, exactMatch: false },
+                    ].map(({ label, href, exactMatch }) => {
+                      const subActive = exactMatch ? pathname === href : pathname.startsWith(href);
+                      return (
+                        <Link
+                          key={label}
+                          href={href}
+                          className={cn(
+                            "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
+                            subActive
+                              ? "text-slate-900 font-medium bg-slate-50"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                          )}
+                        >
+                          <span>{label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Approvals sub-nav */}
                 {item.suffix === "/approvals" && approvalsExpanded && (

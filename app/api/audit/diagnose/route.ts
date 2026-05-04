@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { runAllRules, type Page, type SiteContext } from "@/lib/audit/rules";
-import { getFixGuidance } from "@/lib/audit/rules/fix-guidance";
+import { buildFixGuidance } from "@/lib/audit/rules/fix-guidance";
+import { getRuleDescription } from "@/lib/audit/rules/rule-descriptions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // up to 5 minutes for very large sites
@@ -100,7 +101,15 @@ export async function POST(request: NextRequest) {
           category: v.category,
           current_value: v.current_value,
           expected_value: v.expected_value,
-          evidence: { ...(v.evidence ?? {}), fix_guidance: getFixGuidance(v.rule_id) },
+          evidence: {
+            ...(v.evidence ?? {}),
+            fix_guidance: buildFixGuidance(v.rule_id, {
+              page_url: p.url,
+              current_value: v.current_value,
+              evidence: (v.evidence ?? null) as Record<string, unknown> | null,
+            }),
+            rule_description: getRuleDescription(v.rule_id),
+          },
           proposed_value: null,
         });
       }
@@ -118,7 +127,15 @@ export async function POST(request: NextRequest) {
         category: v.category,
         current_value: v.current_value,
         expected_value: v.expected_value,
-        evidence: { ...(v.evidence ?? {}), fix_guidance: getFixGuidance(v.rule_id) },
+        evidence: {
+          ...(v.evidence ?? {}),
+          fix_guidance: buildFixGuidance(v.rule_id, {
+            page_url: null,
+            current_value: v.current_value,
+            evidence: (v.evidence ?? null) as Record<string, unknown> | null,
+          }),
+          rule_description: getRuleDescription(v.rule_id),
+        },
         proposed_value: null,
       });
     }

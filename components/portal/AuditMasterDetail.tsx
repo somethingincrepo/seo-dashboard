@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { AuditRunSummary, AuditIssue } from "@/lib/audit/queries";
 
 const SEVERITIES = ["critical", "high", "medium", "low"] as const;
@@ -13,6 +14,13 @@ const CATEGORY_LABEL: Record<Category, string> = {
   "on-page": "On-Page",
   content: "Content",
   "ai-geo": "AI-GEO",
+};
+
+const SEVERITY_LABEL: Record<Severity, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
 };
 
 const SEVERITY_DOT: Record<Severity, string> = {
@@ -29,11 +37,18 @@ const SEVERITY_PILL: Record<Severity, string> = {
   low: "bg-emerald-50 text-emerald-700 ring-emerald-200/70",
 };
 
-const SEVERITY_BORDER: Record<Severity, string> = {
-  critical: "border-l-rose-500",
-  high: "border-l-orange-500",
-  medium: "border-l-amber-400",
-  low: "border-l-emerald-400",
+const SEVERITY_CARD_BORDER: Record<Severity, string> = {
+  critical: "border-l-4 border-l-rose-500",
+  high: "border-l-4 border-l-orange-500",
+  medium: "border-l-4 border-l-amber-400",
+  low: "border-l-4 border-l-emerald-400",
+};
+
+const SEVERITY_FILTER_ACTIVE: Record<Severity, string> = {
+  critical: "bg-rose-500 text-white border-rose-500",
+  high: "bg-orange-500 text-white border-orange-500",
+  medium: "bg-amber-400 text-white border-amber-400",
+  low: "bg-emerald-500 text-white border-emerald-500",
 };
 
 function pageLabel(url: string | null): string {
@@ -70,27 +85,60 @@ type Selection =
   | { kind: "issue"; issue_id: string }
   | null;
 
-export function AuditMasterDetail({ run: _run, issues }: Props) {
-  const [selection, setSelection] = useState<Selection>(null);
+export function AuditMasterDetail(props: Props) {
+  return (
+    <Suspense fallback={<div className="text-slate-400 text-sm">Loading…</div>}>
+      <AuditMasterDetailInner {...props} />
+    </Suspense>
+  );
+}
+
+function AuditMasterDetailInner({ run: _run, issues }: Props) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // ── State ─────────────────────────────────────────────────────────────
+  const initialRule = searchParams.get("rule");
+  const [selection, setSelection] = useState<Selection>(
+    initialRule ? { kind: "rule", rule_id: initialRule } : null,
+  );
   const [urlQuery, setUrlQuery] = useState("");
+  const [activeSeverities, setActiveSeverities] = useState<Set<Severity>>(
+    new Set<Severity>(["critical", "high", "medium", "low"]),
+  );
   const [activeCategories, setActiveCategories] = useState<Set<Category>>(
     new Set<Category>(["technical", "on-page", "content", "ai-geo"]),
   );
-  const [collapsedSeverities, setCollapsedSeverities] = useState<Set<Severity>>(new Set());
-  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
 
-  // ── Filter pipeline ────────────────────────────────────────────────────
+  // Auto-expand the rule group selected via ?rule= query param
+  const [expandedRules, setExpandedRules] = useState<Set<string>>(
+    new Set(initialRule ? [initialRule] : []),
+  );
+
+  // Strip the ?rule= param from the URL once we've consumed it (avoid stale links)
+  useEffect(() => {
+    if (initialRule) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("rule");
+      const qs = params.toString();
+      router.replace(qs ? `?${qs}` : "?", { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Filtering ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const needle = urlQuery.trim().toLowerCase();
     return issues.filter((i) => {
-      if (i.scope === "site") return false; // site issues live in the checklist
+      if (i.scope === "site") return false;
+      if (!activeSeverities.has(i.severity as Severity)) return false;
       if (!activeCategories.has(i.category as Category)) return false;
       if (needle && !(i.page_url ?? "").toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [issues, urlQuery, activeCategories]);
+  }, [issues, urlQuery, activeSeverities, activeCategories]);
 
-  // ── Severity-grouped, then rule-grouped ────────────────────────────────
+  // Group filtered issues by severity → rule
   const grouped = useMemo(() => {
     const out = new Map<Severity, Map<string, RuleGroup>>();
     for (const sev of SEVERITIES) out.set(sev, new Map());
@@ -111,7 +159,6 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
       }
       group.issues.push(i);
     }
-    // Sort each severity bucket by issue count desc
     for (const [sev, sevMap] of out) {
       const sorted = [...sevMap.values()].sort((a, b) => b.issues.length - a.issues.length);
       out.set(sev, new Map(sorted.map((g) => [g.rule_id, g])));
@@ -119,11 +166,16 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
     return out;
   }, [filtered]);
 
-  const totalCounts = useMemo(() => {
+  // Counts for filter chips (across the FULL issue set, not the filtered one,
+  // so users can see what they'd unlock by toggling)
+  const severityCounts = useMemo(() => {
     const c: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0 };
-    for (const i of filtered) c[i.severity as Severity] = (c[i.severity as Severity] ?? 0) + 1;
+    for (const i of issues) {
+      if (i.scope !== "page") continue;
+      c[i.severity as Severity] = (c[i.severity as Severity] ?? 0) + 1;
+    }
     return c;
-  }, [filtered]);
+  }, [issues]);
 
   const categoryCounts = useMemo(() => {
     const c: Record<Category, number> = { technical: 0, "on-page": 0, content: 0, "ai-geo": 0 };
@@ -134,16 +186,7 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
     return c;
   }, [issues]);
 
-  // ── Selection helpers ──────────────────────────────────────────────────
-  const toggleSeverity = useCallback((sev: Severity) => {
-    setCollapsedSeverities((prev) => {
-      const next = new Set(prev);
-      if (next.has(sev)) next.delete(sev);
-      else next.add(sev);
-      return next;
-    });
-  }, []);
-
+  // ── Selection helpers ─────────────────────────────────────────────────
   const toggleRule = useCallback((rule_id: string) => {
     setExpandedRules((prev) => {
       const next = new Set(prev);
@@ -153,30 +196,55 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
     });
   }, []);
 
+  const toggleSeverity = useCallback((sev: Severity) => {
+    setActiveSeverities((prev) => {
+      const next = new Set(prev);
+      if (next.has(sev)) next.delete(sev);
+      else next.add(sev);
+      return next.size === 0 ? prev : next;
+    });
+  }, []);
+
   const toggleCategory = useCallback((cat: Category) => {
     setActiveCategories((prev) => {
       const next = new Set(prev);
       if (next.has(cat)) next.delete(cat);
       else next.add(cat);
-      return next.size === 0 ? prev : next; // never empty
+      return next.size === 0 ? prev : next;
     });
   }, []);
 
-  // Resolve selection to a rendered detail
+  // Resolve selection
   const detail = useMemo(() => {
     if (!selection) return null;
     if (selection.kind === "issue") {
-      const issue = filtered.find((i) => i.id === selection.issue_id);
+      const issue = issues.find((i) => i.id === selection.issue_id);
       return issue ? ({ kind: "issue" as const, issue }) : null;
     }
+    // rule selection — try filtered first, fall back to all-issues so a
+    // ?rule=R0XX deep-link works even if filters would hide the group
     for (const sevMap of grouped.values()) {
       const g = sevMap.get(selection.rule_id);
       if (g) return { kind: "rule" as const, group: g };
     }
+    const all = issues.filter((i) => i.rule_id === selection.rule_id && i.scope === "page");
+    if (all.length > 0) {
+      return {
+        kind: "rule" as const,
+        group: {
+          rule_id: selection.rule_id,
+          rule_name: all[0].rule_name,
+          severity: all[0].severity as Severity,
+          category: all[0].category as Category,
+          scope: "page" as const,
+          issues: all,
+        },
+      };
+    }
     return null;
-  }, [selection, filtered, grouped]);
+  }, [selection, issues, grouped]);
 
-  // ── Empty state ────────────────────────────────────────────────────────
+  // ── Empty state ───────────────────────────────────────────────────────
   if (issues.filter((i) => i.scope === "page").length === 0) {
     return (
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-10 text-center">
@@ -186,20 +254,17 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
           </svg>
         </div>
         <p className="text-slate-700 font-medium">No page-level issues found</p>
-        <p className="text-slate-500 text-sm mt-1.5 max-w-md mx-auto">
-          Every page on your site passed the page-level checks. Site-level checks live in the checklist above.
-        </p>
       </div>
     );
   }
 
-  // ── Layout ─────────────────────────────────────────────────────────────
+  // ── Layout ────────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-4 h-[calc(100vh-22rem)] min-h-[640px]">
-      {/* Left panel: filters + grouped issues */}
-      <div className="w-[44%] bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col">
-        {/* Sticky filter bar */}
-        <div className="border-b border-slate-100 px-4 py-3 space-y-2.5">
+    <div className="grid grid-cols-12 gap-5 min-h-[640px]">
+      {/* Filter sidebar */}
+      <aside className="col-span-3 bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 h-fit sticky top-4 space-y-5">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Search</div>
           <div className="relative">
             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"/>
@@ -225,25 +290,32 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(CATEGORY_LABEL) as Category[]).map((cat) => {
-              const active = activeCategories.has(cat);
-              const count = categoryCounts[cat] ?? 0;
+        </div>
+
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Priority</div>
+          <div className="space-y-1">
+            {SEVERITIES.map((sev) => {
+              const active = activeSeverities.has(sev);
+              const count = severityCounts[sev] ?? 0;
               return (
                 <button
-                  key={cat}
-                  onClick={() => toggleCategory(cat)}
+                  key={sev}
+                  onClick={() => toggleSeverity(sev)}
                   disabled={count === 0}
-                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors border ${
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors border ${
                     active
-                      ? "bg-slate-900 text-white border-slate-900"
+                      ? SEVERITY_FILTER_ACTIVE[sev]
                       : count === 0
                       ? "bg-white text-slate-300 border-slate-100 cursor-not-allowed"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                   }`}
                 >
-                  <span>{CATEGORY_LABEL[cat]}</span>
-                  <span className={`tabular-nums text-[10px] ${active ? "text-slate-300" : "text-slate-400"}`}>
+                  <span className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${active ? "bg-white/90" : SEVERITY_DOT[sev]}`} />
+                    {SEVERITY_LABEL[sev]}
+                  </span>
+                  <span className={`tabular-nums text-[11px] ${active ? "text-white/80" : "text-slate-400"}`}>
                     {count}
                   </span>
                 </button>
@@ -252,53 +324,91 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
           </div>
         </div>
 
-        {/* Grouped list */}
-        <div className="overflow-y-auto flex-1">
-          {SEVERITIES.map((sev) => {
-            const sevGroups = grouped.get(sev);
-            if (!sevGroups || sevGroups.size === 0) return null;
-            const collapsed = collapsedSeverities.has(sev);
-            const totalForSev = totalCounts[sev] ?? 0;
-            return (
-              <div key={sev} className="border-b border-slate-100 last:border-b-0">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Category</div>
+          <div className="space-y-1">
+            {(Object.keys(CATEGORY_LABEL) as Category[]).map((cat) => {
+              const active = activeCategories.has(cat);
+              const count = categoryCounts[cat] ?? 0;
+              return (
                 <button
-                  onClick={() => toggleSeverity(sev)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                  key={cat}
+                  onClick={() => toggleCategory(cat)}
+                  disabled={count === 0}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors border ${
+                    active
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : count === 0
+                      ? "bg-white text-slate-300 border-slate-100 cursor-not-allowed"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
                 >
-                  <Caret open={!collapsed} />
-                  <span className={`w-2 h-2 rounded-full ${SEVERITY_DOT[sev]}`} />
-                  <span className="text-[12px] font-semibold uppercase tracking-widest text-slate-700">
-                    {cap(sev)}
-                  </span>
-                  <span className="text-[11px] text-slate-400 tabular-nums">
-                    ({sevGroups.size} rule{sevGroups.size === 1 ? "" : "s"} · {totalForSev} issue{totalForSev === 1 ? "" : "s"})
+                  <span>{CATEGORY_LABEL[cat]}</span>
+                  <span className={`tabular-nums text-[11px] ${active ? "text-slate-300" : "text-slate-400"}`}>
+                    {count}
                   </span>
                 </button>
-                {!collapsed &&
-                  [...sevGroups.values()].map((group) => (
-                    <RuleRow
-                      key={group.rule_id}
-                      group={group}
-                      expanded={expandedRules.has(group.rule_id)}
-                      onToggleExpand={() => toggleRule(group.rule_id)}
-                      onSelectGroup={() => setSelection({ kind: "rule", rule_id: group.rule_id })}
-                      onSelectIssue={(id) => setSelection({ kind: "issue", issue_id: id })}
-                      selection={selection}
-                    />
-                  ))}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
+
+        <button
+          onClick={() => {
+            setUrlQuery("");
+            setActiveSeverities(new Set(SEVERITIES));
+            setActiveCategories(new Set(["technical", "on-page", "content", "ai-geo"]));
+          }}
+          className="text-[11px] text-slate-500 hover:text-slate-900 underline underline-offset-2"
+        >
+          Reset filters
+        </button>
+      </aside>
+
+      {/* Rule cards (middle) */}
+      <div className="col-span-4 space-y-4">
+        {SEVERITIES.map((sev) => {
+          const sevGroups = grouped.get(sev);
+          if (!sevGroups || sevGroups.size === 0) return null;
+          return (
+            <div key={sev} className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${SEVERITY_DOT[sev]}`} />
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+                  {SEVERITY_LABEL[sev]}
+                </span>
+                <span className="text-[11px] text-slate-400 tabular-nums">({sevGroups.size})</span>
+              </div>
+              {[...sevGroups.values()].map((group) => (
+                <RuleCard
+                  key={group.rule_id}
+                  group={group}
+                  expanded={expandedRules.has(group.rule_id)}
+                  onToggleExpand={() => toggleRule(group.rule_id)}
+                  onSelectGroup={() => setSelection({ kind: "rule", rule_id: group.rule_id })}
+                  onSelectIssue={(id) => setSelection({ kind: "issue", issue_id: id })}
+                  selection={selection}
+                />
+              ))}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-8 text-center text-sm text-slate-500">
+            No issues match the current filters.
+          </div>
+        )}
       </div>
 
-      {/* Right detail panel */}
-      <div className="flex-1 bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col">
+      {/* Detail panel */}
+      <div className="col-span-5 bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden h-fit sticky top-4">
         {detail?.kind === "issue" && <IssueDetail issue={detail.issue} />}
-        {detail?.kind === "rule" && <RuleDetail group={detail.group} onPickIssue={(id) => setSelection({ kind: "issue", issue_id: id })} />}
+        {detail?.kind === "rule" && (
+          <RuleDetail group={detail.group} onPickIssue={(id) => setSelection({ kind: "issue", issue_id: id })} />
+        )}
         {!detail && (
-          <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
-            Select a rule on the left to see details and affected pages.
+          <div className="h-[480px] flex items-center justify-center text-slate-400 text-sm px-6 text-center">
+            Pick a rule on the left to see what it means and the affected pages.
           </div>
         )}
       </div>
@@ -306,9 +416,9 @@ export function AuditMasterDetail({ run: _run, issues }: Props) {
   );
 }
 
-// ─── Rule row (collapsed = single line, expanded = inline URL list) ─────
+// ─── Rule card ──────────────────────────────────────────────────────────
 
-function RuleRow({
+function RuleCard({
   group,
   expanded,
   onToggleExpand,
@@ -324,43 +434,49 @@ function RuleRow({
   selection: Selection;
 }) {
   const isSelected = selection?.kind === "rule" && selection.rule_id === group.rule_id;
+  const previewIssues = expanded ? group.issues : group.issues.slice(0, 0);
+
   return (
-    <div className={`border-l-2 transition-all duration-150 ${isSelected ? SEVERITY_BORDER[group.severity] + " bg-slate-50/80" : "border-l-transparent"}`}>
-      <div className="flex items-stretch hover:bg-slate-50">
-        <button
-          onClick={onToggleExpand}
-          className="px-2 py-2.5 flex items-center text-slate-400 hover:text-slate-700"
-          aria-label={expanded ? "Collapse pages" : "Expand pages"}
-        >
-          <Caret open={expanded} />
-        </button>
-        <button onClick={onSelectGroup} className="flex-1 text-left pr-3 py-2.5">
-          <div className="flex items-baseline gap-2">
-            <span className={`w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${SEVERITY_DOT[group.severity]}`} />
-            <span className="text-sm font-medium text-slate-800 truncate">{group.rule_name}</span>
+    <div
+      className={`bg-white rounded-lg shadow-sm overflow-hidden transition-all ${
+        SEVERITY_CARD_BORDER[group.severity]
+      } border-y border-r border-slate-200/80 ${isSelected ? "ring-2 ring-indigo-200" : ""}`}
+    >
+      <button onClick={onSelectGroup} className="w-full text-left px-3.5 pt-2.5 pb-2 hover:bg-slate-50/50 transition-colors">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-medium text-slate-900 leading-snug">
+              {group.rule_name}
+            </div>
+            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
+                {CATEGORY_LABEL[group.category]}
+              </span>
+              <span className="text-[11px] text-slate-500 tabular-nums">
+                {group.issues.length} page{group.issues.length === 1 ? "" : "s"}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 mt-1 ml-3.5 flex-wrap">
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70 font-mono">
-              {group.rule_id}
-            </span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
-              {CATEGORY_LABEL[group.category]}
-            </span>
-            <span className="text-[11px] text-slate-500 tabular-nums">
-              {group.issues.length} page{group.issues.length === 1 ? "" : "s"}
-            </span>
-          </div>
-        </button>
-      </div>
+        </div>
+      </button>
+      <button
+        onClick={onToggleExpand}
+        className="w-full flex items-center justify-center gap-1 px-3 py-1 text-[11px] text-slate-500 hover:text-slate-900 border-t border-slate-100 hover:bg-slate-50 transition-colors"
+      >
+        <span>{expanded ? "Hide pages" : `Show all ${group.issues.length} page${group.issues.length === 1 ? "" : "s"}`}</span>
+        <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
       {expanded && (
-        <div className="ml-7 border-l border-slate-100 my-1">
-          {group.issues.map((i) => {
+        <div className="border-t border-slate-100 max-h-64 overflow-y-auto">
+          {previewIssues.map((i) => {
             const issueSelected = selection?.kind === "issue" && selection.issue_id === i.id;
             return (
               <button
                 key={i.id}
                 onClick={() => onSelectIssue(i.id)}
-                className={`w-full text-left px-3 py-1.5 text-[12px] truncate ${
+                className={`w-full text-left px-3.5 py-1.5 text-[12px] truncate ${
                   issueSelected
                     ? "bg-indigo-50 text-indigo-900 font-medium"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -381,17 +497,14 @@ function RuleRow({
 
 function RuleDetail({ group, onPickIssue }: { group: RuleGroup; onPickIssue: (id: string) => void }) {
   const sample = group.issues[0];
-  const fixGuidance = (sample?.evidence as { fix_guidance?: string } | null)?.fix_guidance;
+  const ruleDescription = (sample?.evidence as { rule_description?: string } | null)?.rule_description;
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="p-8 space-y-6 max-w-3xl">
+    <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
+      <div className="p-7 space-y-6">
         <div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ring-inset ${SEVERITY_PILL[group.severity]} font-semibold uppercase tracking-wider`}>
-              {group.severity}
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70 font-mono">
-              {group.rule_id}
+              {SEVERITY_LABEL[group.severity]}
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
               {CATEGORY_LABEL[group.category]}
@@ -403,17 +516,15 @@ function RuleDetail({ group, onPickIssue }: { group: RuleGroup; onPickIssue: (id
           <h2 className="text-2xl font-semibold text-slate-900 leading-tight">{group.rule_name}</h2>
         </div>
 
-        {sample?.expected_value && (
-          <DetailSection label="What's expected">
-            <p className="text-[14px] text-slate-700 leading-relaxed">{sample.expected_value}</p>
+        {ruleDescription && (
+          <DetailSection label="What this means">
+            <p className="text-[13.5px] text-slate-700 leading-relaxed">{ruleDescription}</p>
           </DetailSection>
         )}
 
-        {fixGuidance && (
-          <DetailSection label="How we'll fix this">
-            <div className="rounded-lg border border-slate-200/80 bg-slate-50/60 px-4 py-3.5">
-              <p className="text-[13px] text-slate-700 leading-relaxed">{fixGuidance}</p>
-            </div>
+        {sample?.expected_value && (
+          <DetailSection label="What's expected">
+            <p className="text-[13.5px] text-slate-700 leading-relaxed">{sample.expected_value}</p>
           </DetailSection>
         )}
 
@@ -446,24 +557,28 @@ function RuleDetail({ group, onPickIssue }: { group: RuleGroup; onPickIssue: (id
 
 function IssueDetail({ issue }: { issue: AuditIssue }) {
   const sev = issue.severity as Severity;
-  const fixGuidance = (issue.evidence as { fix_guidance?: string } | null)?.fix_guidance;
-  // Strip fix_guidance from the evidence dump so we don't show the same text twice.
+  const ev = issue.evidence as
+    | { fix_guidance?: string; rule_description?: string; [k: string]: unknown }
+    | null;
+  const fixGuidance = ev?.fix_guidance;
+  const ruleDescription = ev?.rule_description;
+
+  // Strip our injected meta from the displayed evidence dump
   const evidenceForDisplay = ((): Record<string, unknown> | null => {
-    if (!issue.evidence || typeof issue.evidence !== "object") return null;
-    const rest: Record<string, unknown> = { ...(issue.evidence as Record<string, unknown>) };
+    if (!ev || typeof ev !== "object") return null;
+    const rest: Record<string, unknown> = { ...ev };
     delete rest.fix_guidance;
+    delete rest.rule_description;
     return Object.keys(rest).length > 0 ? rest : null;
   })();
+
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="p-8 space-y-6 max-w-3xl">
+    <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
+      <div className="p-7 space-y-6">
         <div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ring-inset ${SEVERITY_PILL[sev]} font-semibold uppercase tracking-wider`}>
-              {sev}
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70 font-mono">
-              {issue.rule_id}
+              {SEVERITY_LABEL[sev]}
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
               {CATEGORY_LABEL[issue.category as Category] ?? issue.category}
@@ -487,14 +602,28 @@ function IssueDetail({ issue }: { issue: AuditIssue }) {
           )}
         </div>
 
-        <DetailSection label="What we found">
+        {ruleDescription && (
+          <DetailSection label="What this means">
+            <p className="text-[13.5px] text-slate-700 leading-relaxed">{ruleDescription}</p>
+          </DetailSection>
+        )}
+
+        <DetailSection label="What we found on this page">
           <pre className="font-mono text-[13px] text-slate-700 bg-slate-50 border border-slate-200/80 rounded-lg px-3.5 py-2.5 whitespace-pre-wrap break-words">
             {issue.current_value ?? "—"}
           </pre>
         </DetailSection>
 
         <DetailSection label="What's expected">
-          <p className="text-[14px] text-slate-700 leading-relaxed">{issue.expected_value ?? "—"}</p>
+          <p className="text-[13.5px] text-slate-700 leading-relaxed">{issue.expected_value ?? "—"}</p>
+        </DetailSection>
+
+        <DetailSection label="How to fix this page">
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3.5">
+            <p className="text-[13.5px] text-slate-800 leading-relaxed">
+              {fixGuidance ?? "We'll detail the specific fix steps for this rule in a future release."}
+            </p>
+          </div>
         </DetailSection>
 
         {evidenceForDisplay && (
@@ -504,14 +633,6 @@ function IssueDetail({ issue }: { issue: AuditIssue }) {
             </pre>
           </DetailSection>
         )}
-
-        <DetailSection label="How we'll fix this">
-          <div className="rounded-lg border border-slate-200/80 bg-slate-50/60 px-4 py-3.5">
-            <p className="text-[13px] text-slate-700 leading-relaxed">
-              {fixGuidance ?? "We'll detail the specific fix steps for this rule in a future release."}
-            </p>
-          </div>
-        </DetailSection>
 
         <div className="text-[12px] text-slate-400 pt-4 border-t border-slate-100">
           Detected {new Date(issue.detected_at).toLocaleString()}
@@ -528,24 +649,4 @@ function DetailSection({ label, children }: { label: string; children: React.Rea
       {children}
     </div>
   );
-}
-
-function Caret({ open }: { open: boolean }) {
-  return (
-    <svg
-      className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-90" : ""}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
