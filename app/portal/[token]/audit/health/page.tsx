@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
-import { getLatestAuditRun, getLatestCompletedRun, getIssuesForRun } from "@/lib/audit/queries";
+import { getLatestAuditRun, getLatestCompletedRun, getIssuesForRun, getSchemaCoverage } from "@/lib/audit/queries";
 import { AuditEmptyState } from "@/components/portal/AuditEmptyState";
 import { SiteHealthBoard } from "@/components/portal/SiteHealthBoard";
 
@@ -22,7 +22,10 @@ export default async function SiteHealthPage({ params }: { params: Promise<{ tok
     return <AuditEmptyState state={latestRun.status === "failed" ? "failed" : "in_progress"} run={latestRun} />;
   }
 
-  const issues = await getIssuesForRun(completedRun.id);
+  const [issues, schemaCoverage] = await Promise.all([
+    getIssuesForRun(completedRun.id),
+    getSchemaCoverage(completedRun.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -33,7 +36,7 @@ export default async function SiteHealthPage({ params }: { params: Promise<{ tok
           <a className="text-indigo-600 hover:underline" href={`/portal/${token}/audit`}>Issues</a>.
         </p>
       </div>
-      <SiteHealthBoard token={token} run={completedRun} issues={issues} />
+      <SiteHealthBoard token={token} run={completedRun} issues={issues} schemaCoverage={schemaCoverage} />
     </div>
   );
 }
