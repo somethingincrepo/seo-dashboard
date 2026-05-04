@@ -54,6 +54,21 @@ const SEVERITY_HEX: Record<Severity, string> = {
   low: "#10b981",
 };
 
+const CATEGORY_BAR_COLOR: Record<Category, string> = {
+  technical: "bg-indigo-500",
+  "on-page": "bg-violet-500",
+  content: "bg-sky-500",
+  "ai-geo": "bg-emerald-500",
+};
+
+// Severity weight used for ranking "top priorities" (descending impact)
+const SEVERITY_WEIGHT: Record<Severity, number> = {
+  critical: 8,
+  high: 4,
+  medium: 2,
+  low: 1,
+};
+
 function pageLabel(url: string | null): string {
   if (!url) return "Sitewide";
   try {
@@ -243,45 +258,96 @@ function AuditMasterDetailInner({ run, issues }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* ─── Dashboard header ────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 grid grid-cols-1 lg:grid-cols-3 gap-5 items-center">
-        <div className="flex items-center justify-center lg:justify-start gap-5">
-          <AuditDonut
-            slices={donutSlices}
-            activeKey={severity}
-            onSliceClick={(k) => setSeverity((cur) => (cur === k ? "all" : (k as SeverityFilter)))}
-            centerValue={pageIssues.length}
-            centerLabel="issues"
-          />
-          <div className="space-y-1.5">
-            {SEVERITIES.map((sev) => {
-              const count = severityCounts[sev] ?? 0;
-              const isActive = severity === sev;
+      {/* ─── Dashboard header (3 panels: health · severity · category) ─ */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Panel 1: Health score donut */}
+        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-5 py-4 flex items-center gap-4">
+          <HealthDial pct={healthPct} />
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Site health</div>
+            <div className="text-[13.5px] text-slate-700 mt-1 leading-snug">
+              <span className="text-slate-900 font-semibold">{affectedPages}</span> of {totalPagesCrawled} pages have at least one issue.
+            </div>
+            <div className="text-[12px] text-slate-500 mt-1.5">
+              {pageIssues.length.toLocaleString()} total findings · avg{" "}
+              <span className="tabular-nums">
+                {affectedPages > 0 ? (pageIssues.length / affectedPages).toFixed(1) : "0"}
+              </span>{" "}
+              per affected page.
+            </div>
+          </div>
+        </div>
+
+        {/* Panel 2: Severity donut + legend */}
+        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-5 py-4">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">By priority</div>
+          <div className="flex items-center gap-4">
+            <AuditDonut
+              slices={donutSlices}
+              activeKey={severity}
+              onSliceClick={(k) => setSeverity((cur) => (cur === k ? "all" : (k as SeverityFilter)))}
+              centerValue={pageIssues.length}
+              centerLabel="issues"
+              size={120}
+              thickness={12}
+            />
+            <div className="space-y-1 min-w-0">
+              {SEVERITIES.map((sev) => {
+                const count = severityCounts[sev] ?? 0;
+                const isActive = severity === sev;
+                const pct = pageIssues.length > 0 ? Math.round((count / pageIssues.length) * 100) : 0;
+                return (
+                  <button
+                    key={sev}
+                    onClick={() => setSeverity(isActive ? "all" : sev)}
+                    className={`w-full flex items-center gap-2 text-[12px] transition-colors ${count === 0 ? "opacity-40" : "hover:text-slate-900"}`}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${SEVERITY_DOT[sev]}`} />
+                    <span className={`flex-1 text-left ${isActive ? "text-slate-900 font-medium" : "text-slate-600"}`}>
+                      {SEVERITY_LABEL[sev]}
+                    </span>
+                    <span className="tabular-nums text-slate-700 font-medium">{count}</span>
+                    <span className="tabular-nums text-slate-400 w-8 text-right">{pct}%</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Panel 3: Category bars */}
+        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 shadow-sm px-5 py-4">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">By category</div>
+          <div className="space-y-2.5">
+            {(Object.keys(CATEGORY_LABEL) as Category[]).map((cat) => {
+              const count = categoryCounts[cat] ?? 0;
+              const max = Math.max(1, ...Object.values(categoryCounts));
+              const w = (count / max) * 100;
+              const isActive = category === cat;
+              const barColor = CATEGORY_BAR_COLOR[cat];
               return (
                 <button
-                  key={sev}
-                  onClick={() => setSeverity(isActive ? "all" : sev)}
-                  className={`flex items-center gap-2 text-[12px] transition-colors ${count === 0 ? "opacity-40" : ""}`}
+                  key={cat}
+                  onClick={() => setCategory(isActive ? "all" : cat)}
+                  className="w-full text-left group"
+                  disabled={count === 0}
                 >
-                  <span className={`w-2.5 h-2.5 rounded-full ${SEVERITY_DOT[sev]}`} />
-                  <span className={`font-medium ${isActive ? "text-slate-900" : "text-slate-600"}`}>
-                    {SEVERITY_LABEL[sev]}
-                  </span>
-                  <span className="tabular-nums text-slate-400">{count}</span>
+                  <div className="flex items-center justify-between text-[12px] mb-1">
+                    <span className={`${isActive ? "text-slate-900 font-medium" : "text-slate-600 group-hover:text-slate-900"} ${count === 0 ? "opacity-40" : ""}`}>
+                      {CATEGORY_LABEL[cat]}
+                    </span>
+                    <span className="tabular-nums text-slate-700 font-medium">{count}</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${barColor} ${isActive ? "" : "opacity-80 group-hover:opacity-100"}`}
+                      style={{ width: `${w}%` }}
+                    />
+                  </div>
                 </button>
               );
             })}
           </div>
-        </div>
-
-        <Stat label="Pages crawled" value={totalPagesCrawled.toLocaleString()} />
-        <div className="grid grid-cols-2 gap-4">
-          <Stat label="Pages with issues" value={`${affectedPages}`} sub={`of ${totalPagesCrawled}`} />
-          <Stat
-            label="Healthy pages"
-            value={`${healthPct}%`}
-            accent={healthPct >= 70 ? "good" : healthPct >= 40 ? "warn" : "bad"}
-          />
         </div>
       </div>
 
@@ -390,33 +456,123 @@ function AuditMasterDetailInner({ run, issues }: Props) {
           )}
         </div>
 
-        <div className="col-span-5 bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden h-fit sticky top-4">
+        <div className="col-span-5 bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden h-fit sticky top-4 min-h-[640px]">
           {detail?.kind === "issue" && <IssueDetail issue={detail.issue} />}
           {detail?.kind === "rule" && (
             <RuleDetail group={detail.group} onPickIssue={(id) => setSelection({ kind: "issue", issue_id: id })} />
           )}
-          {!detail && (
-            <div className="h-[480px] flex items-center justify-center text-slate-400 text-sm px-6 text-center">
-              Pick an issue type on the left to see what it means and the affected pages.
-            </div>
-          )}
+          {!detail && <DetailPlaceholder />}
         </div>
       </div>
+
+      {/* ─── Bottom: Top priorities (most impactful rules first) ─── */}
+      <TopPriorities
+        pageIssues={pageIssues}
+        onSelectRule={(rule_id) => setSelection({ kind: "rule", rule_id })}
+      />
+    </div>
+  );
+}
+
+// ─── Top priorities (severity × count weighted) ────────────────────────
+
+function TopPriorities({
+  pageIssues,
+  onSelectRule,
+}: {
+  pageIssues: AuditIssue[];
+  onSelectRule: (rule_id: string) => void;
+}) {
+  // Aggregate by rule, weight by severity × count
+  const byRule = new Map<string, { rule_id: string; rule_name: string; severity: Severity; category: Category; count: number }>();
+  for (const i of pageIssues) {
+    const sev = i.severity as Severity;
+    const cur = byRule.get(i.rule_id);
+    if (cur) cur.count += 1;
+    else byRule.set(i.rule_id, {
+      rule_id: i.rule_id,
+      rule_name: i.rule_name,
+      severity: sev,
+      category: i.category as Category,
+      count: 1,
+    });
+  }
+  const ranked = [...byRule.values()]
+    .map((r) => ({ ...r, score: SEVERITY_WEIGHT[r.severity] * r.count }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  if (ranked.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/40 flex items-center gap-2">
+        <span className="text-[12px] font-semibold uppercase tracking-widest text-slate-500">Top priorities</span>
+        <span className="text-[11px] text-slate-400">Where to start — ranked by severity × number of pages affected.</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-100">
+        {ranked.map((r, idx) => (
+          <button
+            key={r.rule_id}
+            onClick={() => onSelectRule(r.rule_id)}
+            className="flex items-start gap-3 px-4 py-3 bg-white text-left hover:bg-slate-50 transition-colors group"
+          >
+            <span className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-500 text-[12px] font-semibold tabular-nums group-hover:bg-indigo-100 group-hover:text-indigo-700 transition-colors">
+              {idx + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13.5px] font-medium text-slate-900 leading-snug truncate group-hover:text-indigo-700">
+                {r.rule_name}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ring-1 ring-inset ${SEVERITY_PILL[r.severity]} font-semibold uppercase tracking-wider`}>
+                  {SEVERITY_LABEL[r.severity]}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200/70">
+                  {CATEGORY_LABEL[r.category]}
+                </span>
+                <span className="text-[11px] text-slate-500 tabular-nums">
+                  {r.count} page{r.count === 1 ? "" : "s"}
+                </span>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Empty detail placeholder ─────────────────────────────────────────
+
+function DetailPlaceholder() {
+  return (
+    <div className="h-full min-h-[640px] flex flex-col items-center justify-center text-center px-8 py-10">
+      <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
+      <p className="text-slate-700 font-medium text-[14px]">Pick an issue to see details</p>
+      <p className="text-slate-500 text-[12.5px] mt-2 max-w-sm leading-relaxed">
+        Click a rule on the left to see what it means, why it matters, and the full list of affected pages.
+        Then click any page to see a fix specific to that URL.
+      </p>
     </div>
   );
 }
 
 // ─── Bits ──────────────────────────────────────────────────────────────
 
-function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: "good" | "warn" | "bad" }) {
-  const tone =
-    accent === "good" ? "text-emerald-600" : accent === "warn" ? "text-amber-600" : accent === "bad" ? "text-rose-600" : "text-slate-900";
+function HealthDial({ pct }: { pct: number }) {
+  // Choose color stop by health bucket
+  const color = pct >= 70 ? "rgb(16 185 129)" : pct >= 40 ? "rgb(245 158 11)" : "rgb(244 63 94)";
+  const ring = `conic-gradient(${color} ${(pct * 3.6).toFixed(1)}deg, rgb(241 245 249) 0deg)`;
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-widest text-slate-400">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums mt-0.5 ${tone}`}>
-        {value}
-        {sub && <span className="text-[11px] text-slate-400 font-normal ml-1.5">{sub}</span>}
+    <div className="relative w-[88px] h-[88px] rounded-full shrink-0" style={{ background: ring }}>
+      <div className="absolute inset-[6px] rounded-full bg-white flex flex-col items-center justify-center">
+        <span className="text-[22px] font-semibold tabular-nums text-slate-900 leading-none">{pct}%</span>
+        <span className="text-[9px] uppercase tracking-widest text-slate-500 mt-1">healthy</span>
       </div>
     </div>
   );
