@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { PostCrawlOutput } from "./post-crawl.js";
 import type { SiteChecksResult } from "./site-checks.js";
+import { normalizeUrl } from "./url.js";
 
 let _client: SupabaseClient | null = null;
 
@@ -43,7 +44,7 @@ export async function writePages(
   const dbRows = rows.map((r) => ({
     audit_run_id: auditRunId,
     client_id: clientId,
-    url: r.url,
+    url: normalizeUrl(r.url),
     status_code: r.status_code,
     redirect_target: r.redirect_target,
     redirect_chain: r.redirect_chain,
@@ -89,7 +90,7 @@ export async function writePages(
     word_count: r.word_count,
     text_to_html_ratio: r.text_to_html_ratio,
     content_hash: r.content_hash,
-    duplicate_of_url: r.duplicate_of_url,
+    duplicate_of_url: r.duplicate_of_url ? normalizeUrl(r.duplicate_of_url) : null,
     images_count: r.images_count,
     alt_text_missing_count: r.alt_text_missing_count,
     alt_text_empty_count: r.alt_text_empty_count,

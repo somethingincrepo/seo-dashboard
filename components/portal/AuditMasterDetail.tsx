@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { AuditRunSummary, AuditIssue, IssueDecision } from "@/lib/audit/queries";
 import { AuditDonut } from "./AuditDonut";
+import { getFixGuidance } from "@/lib/audit/rules/fix-guidance";
 
 const SEVERITIES = ["critical", "high", "medium", "low"] as const;
 type Severity = (typeof SEVERITIES)[number];
@@ -903,7 +904,9 @@ function RuleDetail({
 }) {
   const sample = group.issues[0];
   const ruleDescription = (sample?.evidence as { rule_description?: string } | null)?.rule_description;
-  const fixGuidance = (sample?.evidence as { fix_guidance?: string } | null)?.fix_guidance;
+  // Rule-level guidance is generic (applies to every affected page).
+  // The per-page fix_guidance lives on each issue's evidence and shows up in IssueDetail.
+  const ruleGuidance = getFixGuidance(group.rule_id);
 
   const pendingIds = group.issues.filter((i) => decisionFor(i.id) === null).map((i) => i.id);
   const approvedIds = group.issues.filter((i) => decisionFor(i.id) === "approved").map((i) => i.id);
@@ -930,10 +933,11 @@ function RuleDetail({
           <p className="text-[14px] text-slate-700 leading-relaxed">{ruleDescription}</p>
         )}
 
-        {fixGuidance && (
+        {ruleGuidance && (
           <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700 mb-1">How we'll fix this</div>
-            <p className="text-[13.5px] text-slate-800 leading-relaxed">{fixGuidance}</p>
+            <p className="text-[13.5px] text-slate-800 leading-relaxed">{ruleGuidance}</p>
+            <p className="text-[11.5px] text-slate-500 mt-2">Click any page below for the specific fix on that URL.</p>
           </div>
         )}
 

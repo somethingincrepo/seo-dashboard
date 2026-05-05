@@ -231,17 +231,45 @@ function brokenLinksList(
 ): string {
   const broken = (evidence?.broken_links as Array<{ url: string; status: number }> | undefined) ?? [];
   if (broken.length === 0) return `Update or remove every broken ${kind} link.`;
-  return [
-    `${broken.length} broken ${kind} link${broken.length === 1 ? "" : "s"}:`,
+  const sample = broken.slice(0, 25);
+
+  if (kind === "internal") {
+    // Internal: the most actionable thing is a 301 redirect snippet the user can paste.
+    // We don't know the *intended* destination, so we leave a clearly-marked placeholder.
+    const lines: string[] = [
+      `${broken.length} broken internal link${broken.length === 1 ? "" : "s"} found on this page.`,
+      "Pick one of two fixes per URL:",
+      "",
+      "── Option A: 301 redirect on the server (recommended) ──",
+      "# nginx — paste into your server block",
+    ];
+    for (const b of sample) {
+      const path = pathFromUrl(b.url);
+      lines.push(`location = ${path} { return 301 /REPLACE-WITH-LIVE-URL; }  # was ${b.status}`);
+    }
+    if (broken.length > sample.length) lines.push(`# … and ${broken.length - sample.length} more`);
+    lines.push("");
+    lines.push("── Option B: edit this page's HTML ──");
+    lines.push("Find each <a href=\"…\"> below and either change href to a live URL or delete the link entirely:");
+    for (const b of sample) lines.push(`  ${b.status}  ${b.url}`);
+    if (broken.length > sample.length) lines.push(`  … and ${broken.length - sample.length} more`);
+    return lines.join("\n");
+  }
+
+  // External: no 301 control, so the only fix is editing the page.
+  const lines: string[] = [
+    `${broken.length} broken external link${broken.length === 1 ? "" : "s"} found on this page.`,
     "",
-    ...broken.slice(0, 25).map((b) => `  ${b.status}  ${b.url}`),
-    broken.length > 25 ? `  … and ${broken.length - 25} more` : "",
+    "For each URL below — either replace with a current source, swap to https://web.archive.org/web/*/{URL}, or delete the link.",
     "",
-    kind === "internal"
-      ? "For each one: either update the link to a working URL on your site, or remove it. If a page genuinely no longer exists, 301 the old path to the closest live equivalent."
-      : "For each one: replace with a current source, swap to the Internet Archive snapshot if the original is gone, or remove the link entirely.",
-    "",
-  ].filter(Boolean).join("\n");
+  ];
+  for (const b of sample) lines.push(`  ${b.status}  ${b.url}`);
+  if (broken.length > sample.length) lines.push(`  … and ${broken.length - sample.length} more`);
+  return lines.join("\n");
+}
+
+function pathFromUrl(u: string): string {
+  try { return new URL(u).pathname || "/"; } catch { return u; }
 }
 
 function unsafeBlankFix(page: Page | null): string {

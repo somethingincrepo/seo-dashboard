@@ -309,54 +309,9 @@ function DetailPanel({
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 px-6 py-5 space-y-5 overflow-y-auto">
-        {/* Context sentence */}
-        {context && (
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Where the link goes in the page</div>
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
-              <p className="text-[13px] text-slate-700 leading-relaxed italic">
-                &ldquo;{contextNodes}&rdquo;
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Why we recommend it */}
-        {change.fields.plain_english_explanation && (
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Why we recommend this</div>
-            <p className="text-[13px] text-slate-600 leading-relaxed">
-              {change.fields.plain_english_explanation}
-            </p>
-          </div>
-        )}
-
-        {/* Business impact */}
-        {change.fields.business_impact_explanation && (
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Business impact</div>
-            <p className="text-[13px] text-slate-600 leading-relaxed">
-              {change.fields.business_impact_explanation}
-            </p>
-          </div>
-        )}
-
-        {/* Implemented confirmation */}
-        {isImplemented && change.fields.implemented_at && (
-          <div className="flex items-center gap-2 text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            <span>Implemented on {formatDate(change.fields.implemented_at)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
+      {/* Actions — placed directly under the header so they're always above the fold */}
       {!isImplemented && (
-        <div className="px-6 pb-6 pt-4 border-t border-slate-100 space-y-3">
+        <div className="px-6 pt-4 pb-3 border-b border-slate-100 space-y-3">
           {feedback && (
             <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
               <p className="text-[12px] text-emerald-700">{feedback}</p>
@@ -436,6 +391,44 @@ function DetailPanel({
           ) : null}
         </div>
       )}
+
+      {/* Body — context, rationale, and impact, scrollable below the actions */}
+      <div className="flex-1 px-6 py-5 space-y-5 overflow-y-auto">
+        {context && (
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Where the link goes in the page</div>
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+              <p className="text-[13px] text-slate-700 leading-relaxed italic">
+                &ldquo;{contextNodes}&rdquo;
+              </p>
+            </div>
+          </div>
+        )}
+        {change.fields.plain_english_explanation && (
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Why we recommend this</div>
+            <p className="text-[13px] text-slate-600 leading-relaxed">
+              {change.fields.plain_english_explanation}
+            </p>
+          </div>
+        )}
+        {change.fields.business_impact_explanation && (
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Business impact</div>
+            <p className="text-[13px] text-slate-600 leading-relaxed">
+              {change.fields.business_impact_explanation}
+            </p>
+          </div>
+        )}
+        {isImplemented && change.fields.implemented_at && (
+          <div className="flex items-center gap-2 text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span>Implemented on {formatDate(change.fields.implemented_at)}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

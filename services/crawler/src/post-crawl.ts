@@ -23,6 +23,19 @@ interface PostCrawlInputs {
 
 /** Computes inbound link counts, click depth, dup detection, canonical/og-image/link statuses. */
 export async function postCrawl({ pages, rootUrl, sitemapUrls, navUrls, statusOf }: PostCrawlInputs): Promise<PostCrawlOutput[]> {
+  // Collapse trailing-slash duplicates (and any other normalization-equivalent URLs) BEFORE
+  // anything else. Crawlee can land on both `/foo` and `/foo/` separately when the server
+  // 301s one to the other; without this dedup we'd write two rows with the same content_hash
+  // and the dup-content + orphan rules misfire on what is actually one page.
+  const dedupByNorm = new Map<string, ExtractedPage>();
+  for (const p of pages) {
+    const norm = normalizeUrl(p.url);
+    if (!dedupByNorm.has(norm)) {
+      dedupByNorm.set(norm, { ...p, url: norm });
+    }
+  }
+  pages = [...dedupByNorm.values()];
+
   const byNorm = new Map<string, ExtractedPage>();
   for (const p of pages) byNorm.set(normalizeUrl(p.url), p);
 

@@ -320,17 +320,6 @@ export async function MonthlyProgress({ client }: { client: Client }) {
         <div>
           <SectionLabel>On-Page</SectionLabel>
           <div className="space-y-2.5">
-            {targets.pages_optimized > 0 ? (
-              <ProgressRow
-                label="Pages optimized"
-                actual={actuals.pages_optimized}
-                target={targets.pages_optimized}
-              />
-            ) : (
-              <div className="text-[12px] text-slate-400 italic">
-                Page optimization — refresh rotation
-              </div>
-            )}
             <ProgressRow
               label="Internal links added"
               actual={actuals.internal_links}

@@ -92,7 +92,7 @@ const GENERIC_GUIDANCE: Record<string, string> = {
   R065: "Add `potentialAction` to the WebSite schema with a `SearchAction` pointing at your site search URL template.",
   R066: "Add at least 2 `sameAs` URLs to the Organization schema (LinkedIn, Twitter/X, Wikipedia, Crunchbase, etc.).",
   R067: "Wrap the question/answer headings on this page in `FAQPage` JSON-LD.",
-  R068: "Wrap the numbered steps in `HowTo` JSON-LD (or `Recipe` for cooking content).",
+  R068: "Wrap the numbered steps on this page in `HowTo` JSON-LD so search engines can render them as a step-by-step rich result.",
   R069: "Add an `author` field to the Article schema with `@type: Person`, `name`, and a URL to a bio page.",
   R070: "Add an Article (or BlogPosting / NewsArticle) JSON-LD block with `headline`, `author`, `datePublished`, and `image`.",
   R071: "Add Product JSON-LD with `name`, `image`, `description`, `offers` (price + availability), and `aggregateRating` where reviews exist.",
