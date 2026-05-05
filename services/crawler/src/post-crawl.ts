@@ -39,11 +39,32 @@ export async function postCrawl({ pages, rootUrl, sitemapUrls, navUrls, statusOf
   const byNorm = new Map<string, ExtractedPage>();
   for (const p of pages) byNorm.set(normalizeUrl(p.url), p);
 
+  // ---- Redirect map: every URL in any redirect chain → the final landed page.
+  // A link to /old-url that 301s to /new-url should count as an inbound link to
+  // /new-url, not be silently dropped because /old-url isn't in `byNorm`.
+  const redirectMap = new Map<string, string>();
+  for (const p of pages) {
+    const finalNorm = normalizeUrl(p.url);
+    for (const hop of p.redirect_chain ?? []) {
+      if (hop?.url) redirectMap.set(normalizeUrl(hop.url), finalNorm);
+    }
+  }
+  function resolveTarget(t: string): string {
+    let n = normalizeUrl(t);
+    // Follow redirects up to 5 hops to avoid pathological cycles.
+    for (let i = 0; i < 5; i++) {
+      const next = redirectMap.get(n);
+      if (!next || next === n) break;
+      n = next;
+    }
+    return n;
+  }
+
   // ---- Inbound link counts ----
   const inboundCounts = new Map<string, number>();
   for (const p of pages) {
     for (const t of p.internal_link_targets) {
-      const n = normalizeUrl(t);
+      const n = resolveTarget(t);
       inboundCounts.set(n, (inboundCounts.get(n) ?? 0) + 1);
     }
   }
@@ -52,7 +73,7 @@ export async function postCrawl({ pages, rootUrl, sitemapUrls, navUrls, statusOf
   const adjacency = new Map<string, string[]>();
   for (const p of pages) {
     const norm = normalizeUrl(p.url);
-    adjacency.set(norm, p.internal_link_targets.map(normalizeUrl).filter((u) => byNorm.has(u)));
+    adjacency.set(norm, p.internal_link_targets.map(resolveTarget).filter((u) => byNorm.has(u)));
   }
   const depth = new Map<string, number>();
   const start = normalizeUrl(rootUrl);
