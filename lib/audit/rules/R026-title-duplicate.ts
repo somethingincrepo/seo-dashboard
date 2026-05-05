@@ -1,5 +1,5 @@
 import type { PageRule } from "./types";
-import { isBotChallengePage } from "./_helpers";
+import { isBotChallengePage, isPaginationPage } from "./_helpers";
 
 export const R026_titleDuplicate: PageRule = {
   id: "R026",
@@ -12,6 +12,7 @@ export const R026_titleDuplicate: PageRule = {
   check: (page, { allPages }) => {
     if (page.status_code !== 200 || !page.title) return null;
     if (isBotChallengePage(page)) return null; // crawler got bot-blocked; not the real title
+    if (isPaginationPage(page)) return null;   // pagination pages are expected to share the listing title
     const t = page.title.trim().toLowerCase();
     if (!t) return null;
     const dups = allPages.filter(
@@ -20,6 +21,7 @@ export const R026_titleDuplicate: PageRule = {
         p.status_code === 200 &&
         !!p.title &&
         !isBotChallengePage(p) &&
+        !isPaginationPage(p) &&
         p.title.trim().toLowerCase() === t,
     );
     if (dups.length === 0) return null;

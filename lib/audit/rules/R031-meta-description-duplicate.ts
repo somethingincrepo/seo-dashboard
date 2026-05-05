@@ -1,5 +1,5 @@
 import type { PageRule } from "./types";
-import { isBotChallengePage } from "./_helpers";
+import { isBotChallengePage, isPaginationPage } from "./_helpers";
 
 export const R031_metaDescriptionDuplicate: PageRule = {
   id: "R031",
@@ -12,6 +12,7 @@ export const R031_metaDescriptionDuplicate: PageRule = {
   check: (page, { allPages }) => {
     if (page.status_code !== 200 || !page.meta_description) return null;
     if (isBotChallengePage(page)) return null;
+    if (isPaginationPage(page)) return null;
     const d = page.meta_description.trim().toLowerCase();
     if (!d) return null;
     const dups = allPages.filter(
@@ -19,6 +20,7 @@ export const R031_metaDescriptionDuplicate: PageRule = {
         p.id !== page.id &&
         p.status_code === 200 &&
         !isBotChallengePage(p) &&
+        !isPaginationPage(p) &&
         p.meta_description?.trim().toLowerCase() === d,
     );
     if (dups.length === 0) return null;

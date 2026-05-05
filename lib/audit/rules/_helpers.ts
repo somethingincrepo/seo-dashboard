@@ -38,3 +38,20 @@ export function isBotChallengePage(page: Page): boolean {
   }
   return false;
 }
+
+/**
+ * Pagination pages (`/blog/page/2`, `/?page=3`, etc.) naturally share the
+ * title, meta description, and most of the body with their parent listing
+ * page. Treating them as duplicates is a false positive — they're meant to
+ * be paginated views of the same archive. Rules that fire on cross-page
+ * duplication (R026, R031, R055) should skip these.
+ */
+const PAGINATION_RES: RegExp[] = [
+  /\/page\/\d+\/?$/i,         // /blog/page/2, /blog/page/2/
+  /[?&](page|paged)=\d+/i,    // /?page=3, /?paged=3
+  /\/p\/\d+\/?$/i,            // /blog/p/3
+];
+export function isPaginationPage(page: Page): boolean {
+  const url = page.url ?? "";
+  return PAGINATION_RES.some((re) => re.test(url));
+}

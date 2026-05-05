@@ -1,5 +1,5 @@
 import type { PageRule } from "./types";
-import { isBotChallengePage } from "./_helpers";
+import { isBotChallengePage, isPaginationPage } from "./_helpers";
 
 export const R055_duplicateContent: PageRule = {
   id: "R055",
@@ -13,6 +13,7 @@ export const R055_duplicateContent: PageRule = {
     if (page.status_code !== 200) return null;
     if (!page.duplicate_of_url) return null;
     if (isBotChallengePage(page)) return null; // bot-blocked pages share boilerplate; not real duplicates
+    if (isPaginationPage(page)) return null;   // /blog/page/2 etc. share content with the listing by design
     return {
       rule_id: "R055",
       rule_name: "Two pages have identical content",
