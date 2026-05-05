@@ -218,6 +218,23 @@ export async function POST(request: NextRequest) {
     let internalLinkProposalsWritten = 0;
     let internalLinkFailures = 0;
     let internalLinkChangesWritten = 0;
+    let internalLinksSummary: {
+      pages_considered: number;
+      issues_seen: number;
+      proposals_generated: number;
+      proposal_failures: number;
+      changes_written: number;
+      status: "complete" | "skipped" | "no_demand" | "errored";
+      message: string;
+    } = {
+      pages_considered: pages.length,
+      issues_seen: 0,
+      proposals_generated: 0,
+      proposal_failures: 0,
+      changes_written: 0,
+      status: "no_demand",
+      message: "no R047–R050 issues raised by the rules engine; no internal-link proposals needed",
+    };
     if (internalLinkIssues.length > 0) {
       try {
         const linksResult = await runInternalLinksGeneration({
@@ -227,8 +244,27 @@ export async function POST(request: NextRequest) {
         internalLinkProposalsWritten = linksResult.proposals_generated;
         internalLinkFailures = linksResult.proposal_failures;
         internalLinkChangesWritten = linksResult.changes_written;
+        internalLinksSummary = {
+          pages_considered: linksResult.pages_considered,
+          issues_seen: linksResult.issues_seen,
+          proposals_generated: linksResult.proposals_generated,
+          proposal_failures: linksResult.proposal_failures,
+          changes_written: linksResult.changes_written,
+          status: linksResult.status,
+          message: linksResult.message ?? "",
+        };
       } catch (e) {
-        console.error("[diagnose] internal-links pipeline threw:", e instanceof Error ? e.message : String(e));
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[diagnose] internal-links pipeline threw:", msg);
+        internalLinksSummary = {
+          pages_considered: pages.length,
+          issues_seen: internalLinkIssues.length,
+          proposals_generated: 0,
+          proposal_failures: 0,
+          changes_written: 0,
+          status: "errored",
+          message: `internal-links pipeline threw: ${msg.slice(0, 500)}`,
+        };
       }
     }
 
@@ -268,24 +304,67 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Mark the audit complete BEFORE enqueueing downstream SOPs ────────
+    // The schedulers (refresh_scheduler, keyword_research) read the most
+    // recent audit_run with status="complete" to find pages. If we enqueue
+    // them while the row is still "diagnosing", a fast worker can claim and
+    // run the SOP before the status flip lands and skip the client because
+    // "no completed audit run exists." Flipping status first eliminates that
+    // race entirely.
+    const completionSummary = {
+      pages: pages.length,
+      issues: issueRows.length,
+      mechanical_fixes: mechanicalUpdates.length,
+      internal_links: internalLinksSummary,
+      jobs_enqueued: {} as Record<string, "pending" | "failed">,
+    };
+
+    // Try the new shape first (with summary columns). Fall back to the
+    // legacy shape if the migration hasn't been applied yet — the new
+    // columns are observability-only, never load-bearing.
+    const completedAt = new Date().toISOString();
+    const updatePayload: Record<string, unknown> = {
+      status: "complete",
+      diagnose_completed_at: completedAt,
+      issues_found: issueRows.length,
+      internal_links_summary: internalLinksSummary,
+      completion_summary: completionSummary,
+    };
+    let updateErr = (await supabase.from("audit_runs").update(updatePayload).eq("id", auditRunId)).error;
+    if (updateErr) {
+      console.warn(`[diagnose] audit_runs update with summary columns failed (${updateErr.message}); retrying without`);
+      const fallbackPayload = {
+        status: "complete",
+        diagnose_completed_at: completedAt,
+        issues_found: issueRows.length,
+      };
+      updateErr = (await supabase.from("audit_runs").update(fallbackPayload).eq("id", auditRunId)).error;
+      if (updateErr) {
+        throw new Error(`audit_runs status flip failed: ${updateErr.message}`);
+      }
+    }
+
     // ── First-batch deliverables ─────────────────────────────────────────
     // Kick off the package's first-week deliverables so clients see content
     // titles, internal-link suggestions, refresh picks, and keyword groups
-    // queued up immediately after the audit lands. Subsequent weeks fire on
-    // the worker's scheduler ticks.
-    // First-batch SOPs. The internal-links first batch is now produced
-    // synchronously by the deterministic TS generator above (Path C), so
-    // `audit_internal_links` is intentionally NOT enqueued here — keeping
-    // it would race with the TS generator and produce LLM-rewritten copy
-    // that conflicts with the deterministic proposals.
-    // Single first-batch entry point. keyword_research is the orchestrator
-    // of the title + refresh pipelines: when it finishes writing
-    // keyword_groups it fans out content_scheduler + refresh_scheduler with
-    // force=true. Enqueueing them here too caused the original Promptive
-    // gap — the schedulers ran in parallel with kw research, saw empty
-    // keyword_groups, and skipped the client; title_generation never fired.
+    // queued up immediately after the audit lands.
+    //
+    // Internal-link first batch is produced synchronously above (Path C), so
+    // `audit_internal_links` is intentionally NOT enqueued — it would race
+    // with the deterministic TS generator and overwrite the proposals with
+    // LLM-rewritten copy.
+    //
+    // We enqueue keyword_research AND refresh_scheduler directly (with
+    // single-client + force=true). keyword_research's fan_out also produces
+    // refresh_scheduler under normal flow, but the chain is fragile: if the
+    // SOP fails for any reason (OpenRouter blip, DataForSEO quota, prompt
+    // drift) the refreshes never get scheduled. Enqueueing refresh_scheduler
+    // directly here makes it independent of keyword_research succeeding.
+    // Both SOPs are idempotent in single-client mode so duplicate work is
+    // a no-op.
     const firstBatchSops = [
       { sop_name: "keyword_research", payload: { client_id: run.client_id } },
+      { sop_name: "refresh_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
     ];
     for (const job of firstBatchSops) {
       const { error: deliverableErr } = await supabase.from("jobs").insert({
@@ -297,17 +376,21 @@ export async function POST(request: NextRequest) {
       });
       if (deliverableErr) {
         console.error(`[diagnose] failed to enqueue ${job.sop_name}:`, deliverableErr.message);
+        completionSummary.jobs_enqueued[job.sop_name] = "failed";
+      } else {
+        completionSummary.jobs_enqueued[job.sop_name] = "pending";
       }
     }
 
+    // Patch the completion_summary again now that we know the enqueue
+    // results. Best-effort — if the column doesn't exist, swallow.
     await supabase
       .from("audit_runs")
-      .update({
-        status: "complete",
-        diagnose_completed_at: new Date().toISOString(),
-        issues_found: issueRows.length,
-      })
-      .eq("id", auditRunId);
+      .update({ completion_summary: completionSummary })
+      .eq("id", auditRunId)
+      .then(({ error }) => {
+        if (error) console.warn(`[diagnose] completion_summary update failed (${error.message}); column may be missing`);
+      });
 
     return NextResponse.json({
       ok: true,
@@ -317,8 +400,10 @@ export async function POST(request: NextRequest) {
       internal_link_proposals: internalLinkProposalsWritten,
       internal_link_changes_written: internalLinkChangesWritten,
       internal_link_failures: internalLinkFailures,
+      internal_links_summary: internalLinksSummary,
       agent_jobs_enqueued: jobsCreated,
       first_batch_jobs_enqueued: firstBatchSops.length,
+      first_batch_results: completionSummary.jobs_enqueued,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

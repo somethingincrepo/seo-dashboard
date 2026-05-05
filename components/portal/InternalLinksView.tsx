@@ -14,6 +14,18 @@ interface InternalLinksViewProps {
   implementedCount: number;
   token: string;
   contactEmail: string;
+  /**
+   * Optional summary from the latest audit's internal-links pipeline.
+   * Used to render an explanatory empty state — distinguishes "site has
+   * no orphan/dead-end pages" (healthy) from "audit hasn't run yet" or
+   * "generator errored" (action needed).
+   */
+  auditSummary?: {
+    status: string;
+    message: string;
+    issues_seen: number;
+    pages_considered: number;
+  } | null;
 }
 
 interface LinkProposal {
@@ -560,6 +572,7 @@ export function InternalLinksView({
   implementedCount,
   token,
   contactEmail,
+  auditSummary,
 }: InternalLinksViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(pending[0]?.id ?? decided[0]?.id ?? null);
   const [localDecisions, setLocalDecisions] = useState<Map<string, string>>(new Map());
@@ -702,10 +715,28 @@ export function InternalLinksView({
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
             </svg>
           </div>
-          <h3 className="text-[15px] font-semibold text-slate-800 mb-2">No link recommendations yet</h3>
-          <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
-            We scan your site monthly and generate recommendations based on your keyword research. Check back after your next scheduled analysis.
-          </p>
+          {auditSummary && (auditSummary.status === "no_demand" || (auditSummary.status === "complete" && auditSummary.issues_seen === 0)) ? (
+            <>
+              <h3 className="text-[15px] font-semibold text-slate-800 mb-2">Your internal linking is healthy</h3>
+              <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
+                The latest audit found no orphan pages, dead-end pages, or pages buried deep in your site structure. New suggestions will appear after your next audit if any gaps emerge.
+              </p>
+            </>
+          ) : auditSummary && auditSummary.status === "errored" ? (
+            <>
+              <h3 className="text-[15px] font-semibold text-slate-800 mb-2">Recommendations temporarily unavailable</h3>
+              <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
+                The internal links pipeline hit an error on the last audit. Your team has been notified — recommendations will be back on the next scheduled run.
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-[15px] font-semibold text-slate-800 mb-2">No link recommendations yet</h3>
+              <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
+                We scan your site monthly and generate recommendations based on your keyword research. Check back after your next scheduled analysis.
+              </p>
+            </>
+          )}
         </div>
       ) : listItems.length > 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)] overflow-hidden flex h-[calc(100vh-22rem)] min-h-[480px]">

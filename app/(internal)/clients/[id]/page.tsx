@@ -17,6 +17,7 @@ import { EngainLinkButton } from "@/components/ui/EngainLinkButton";
 import { ContentStylesEditor } from "@/components/ui/ContentStylesEditor";
 import { IntegrationsForm } from "@/components/ui/IntegrationsForm";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
+import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,48 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     getClientJobs(clientId),
     getContentStyles(f.company_name),
   ]);
+
+  // Pull the latest audit_run for the pipeline status panel. Best-effort —
+  // summary columns may not be present on older deployments.
+  type AuditRunRow = {
+    id: string;
+    status: string;
+    diagnose_completed_at: string | null;
+    issues_found: number | null;
+    error_message: string | null;
+    internal_links_summary: {
+      status: string;
+      message?: string;
+      issues_seen?: number;
+      proposals_generated?: number;
+      changes_written?: number;
+    } | null;
+    completion_summary: {
+      pages?: number;
+      issues?: number;
+      mechanical_fixes?: number;
+      jobs_enqueued?: Record<string, "pending" | "failed">;
+    } | null;
+  };
+  let latestAuditRun: AuditRunRow | null = null;
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase
+      .from("audit_runs")
+      .select("id, status, diagnose_completed_at, issues_found, error_message, internal_links_summary, completion_summary")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    latestAuditRun = (data?.[0] as AuditRunRow | undefined) ?? null;
+  } catch {
+    // best-effort
+  }
+  // Map enqueue status to icon + color — used for the audit pipeline card.
+  const renderJobStatus = (status?: "pending" | "failed") => {
+    if (status === "pending") return { icon: "✓", className: "text-emerald-600" } as const;
+    if (status === "failed") return { icon: "✗", className: "text-rose-600" } as const;
+    return { icon: "—", className: "text-slate-400" } as const;
+  };
 
   // Split changes by approval state
   const pending = changes.filter((c) => c.fields.approval === "pending" || c.fields.approval_status === "pending");
@@ -345,6 +388,87 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <div className="text-slate-500 text-xs mt-1">Jobs Run</div>
         </GlassCard>
       </div>
+
+      {/* Audit pipeline status — what fired (or didn't) on the latest audit */}
+      {latestAuditRun && (
+        <section>
+          <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider mb-3">
+            Latest Audit Pipeline
+          </h2>
+          <GlassCard className="p-5 space-y-3">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <StatusBadge value={latestAuditRun.status} variant="plan_status" />
+                {latestAuditRun.diagnose_completed_at && (
+                  <span className="text-xs text-slate-500">
+                    Completed {new Date(latestAuditRun.diagnose_completed_at).toLocaleString()}
+                  </span>
+                )}
+                {latestAuditRun.completion_summary?.issues != null && (
+                  <span className="text-xs text-slate-500">
+                    · {latestAuditRun.completion_summary.issues} issues
+                    {latestAuditRun.completion_summary.mechanical_fixes != null && (
+                      <> · {latestAuditRun.completion_summary.mechanical_fixes} mechanical fixes</>
+                    )}
+                  </span>
+                )}
+              </div>
+              {latestAuditRun.error_message && (
+                <span className="text-xs text-rose-600 max-w-md truncate" title={latestAuditRun.error_message}>
+                  {latestAuditRun.error_message}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              {/* Internal links */}
+              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                {(() => {
+                  const ils = latestAuditRun.internal_links_summary;
+                  const ok = ils?.status === "complete" || ils?.status === "no_demand";
+                  const errored = ils?.status === "errored";
+                  const icon = ok ? "✓" : errored ? "✗" : "—";
+                  const cls = ok ? "text-emerald-600" : errored ? "text-rose-600" : "text-slate-400";
+                  return <span className={`font-bold ${cls}`}>{icon}</span>;
+                })()}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-slate-700">Internal links</div>
+                  <div className="text-slate-500 text-[11px] mt-0.5">
+                    {latestAuditRun.internal_links_summary?.message
+                      ?? "summary unavailable (legacy audit run)"}
+                  </div>
+                </div>
+              </div>
+              {/* First-batch SOPs */}
+              {latestAuditRun.completion_summary?.jobs_enqueued
+                ? Object.entries(latestAuditRun.completion_summary.jobs_enqueued).map(([sop, status]) => {
+                    const r = renderJobStatus(status);
+                    return (
+                      <div key={sop} className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                        <span className={`font-bold ${r.className}`}>{r.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-slate-700 font-mono">{sop}</div>
+                          <div className="text-slate-500 text-[11px] mt-0.5">
+                            {status === "pending" ? "Enqueued — see Jobs" : "Failed to enqueue"}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                : (
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold text-slate-400">—</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-700">First-batch SOPs</div>
+                      <div className="text-slate-500 text-[11px] mt-0.5">
+                        summary unavailable (legacy audit run)
+                      </div>
+                    </div>
+                  </div>
+                )}
+            </div>
+          </GlassCard>
+        </section>
+      )}
 
       {/* Pending audit changes */}
       {pending.length > 0 && (

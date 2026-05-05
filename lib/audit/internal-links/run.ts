@@ -40,6 +40,8 @@ export interface RunInternalLinksInput {
 export interface RunInternalLinksResult {
   audit_run_id: string;
   pages_considered: number;
+  /** Number of R047–R050 issues that drove generation (the "demand" side). */
+  issues_seen: number;
   proposals_generated: number;
   proposal_failures: number;
   changes_written: number;
@@ -64,14 +66,17 @@ export async function runInternalLinksGeneration(
       .limit(1);
     if (error) throw new Error(`audit_runs lookup failed: ${error.message}`);
     if (!data || data.length === 0) {
+      const msg = "no completed audit_run found for client; skipping internal-links batch";
+      console.log(`[internal-links] ${msg} (client=${clientId})`);
       return {
         audit_run_id: "",
         pages_considered: 0,
+        issues_seen: 0,
         proposals_generated: 0,
         proposal_failures: 0,
         changes_written: 0,
         status: "skipped",
-        message: "no completed audit_run found for client; skipping internal-links batch",
+        message: msg,
       };
     }
     auditRunId = data[0].id as string;
@@ -80,14 +85,17 @@ export async function runInternalLinksGeneration(
   // Load all pages from the audit run.
   const pages = await loadAllPages(auditRunId);
   if (pages.length === 0) {
+    const msg = "no pages found for audit_run";
+    console.log(`[internal-links] ${msg} (audit_run_id=${auditRunId})`);
     return {
       audit_run_id: auditRunId,
       pages_considered: 0,
+      issues_seen: 0,
       proposals_generated: 0,
       proposal_failures: 0,
       changes_written: 0,
       status: "skipped",
-      message: "no pages found for audit_run",
+      message: msg,
     };
   }
 
@@ -103,14 +111,17 @@ export async function runInternalLinksGeneration(
     id: string; rule_id: string; page_id: string | null; page_url: string | null;
   }>;
   if (issues.length === 0) {
+    const msg = "no R047–R050 issues for this audit; site has no orphans, dead-ends, or buried pages";
+    console.log(`[internal-links] ${msg} (audit_run_id=${auditRunId}, pages_considered=${pages.length})`);
     return {
       audit_run_id: auditRunId,
       pages_considered: pages.length,
+      issues_seen: 0,
       proposals_generated: 0,
       proposal_failures: 0,
       changes_written: 0,
       status: "complete",
-      message: "no R047–R050 issues for this audit; nothing to generate",
+      message: msg,
     };
   }
 
@@ -192,13 +203,22 @@ export async function runInternalLinksGeneration(
     nowIso,
   });
 
+  const message =
+    result.proposals.length === 0
+      ? `${issues.length} R047–R050 issues but generator produced 0 proposals (no anchor matches found in candidate pages)`
+      : `${result.proposals.length} proposals generated → ${writeRes.written} Changes written`;
+  console.log(
+    `[internal-links] complete (audit_run_id=${auditRunId}, pages=${pages.length}, issues=${issues.length}, proposals=${result.proposals.length}, failures=${result.failures.length}, changes=${writeRes.written})`,
+  );
   return {
     audit_run_id: auditRunId,
     pages_considered: pages.length,
+    issues_seen: issues.length,
     proposals_generated: result.proposals.length,
     proposal_failures: result.failures.length,
     changes_written: writeRes.written,
     status: "complete",
+    message,
   };
 }
 

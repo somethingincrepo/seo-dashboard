@@ -2,8 +2,9 @@ import { getPendingApprovals } from "@/lib/changes";
 import { getClients } from "@/lib/clients";
 import { getSupabase } from "@/lib/supabase";
 import type { SupabaseJob } from "@/lib/supabase";
-import { airtableFetch } from "@/lib/airtable";
+import { airtableFetch, contentAirtableFetch } from "@/lib/airtable";
 import { ActivityView } from "./ActivityView";
+import { ContentJobsPanel } from "@/components/admin/ContentJobsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -81,8 +82,21 @@ type ImplementedChange = {
   };
 };
 
+interface ContentJobRow {
+  id: string;
+  fields: {
+    "Blog Title"?: string;
+    "Client Name (from Client ID)"?: string[];
+    Status?: string;
+    approved_at?: string;
+    webhook_retry_count?: number;
+    webhook_last_retry_at?: string;
+    webhook_error?: string;
+  };
+}
+
 export default async function ActivityPage() {
-  const [clients, approvals, supabaseJobs, revertChanges] = await Promise.all([
+  const [clients, approvals, supabaseJobs, revertChanges, contentJobs] = await Promise.all([
     getClients(),
 
     getPendingApprovals(),
@@ -102,7 +116,48 @@ export default async function ActivityPage() {
       sort: [{ field: "implemented_at", direction: "desc" }],
       maxRecords: 200,
     }),
+
+    // Content Jobs from the last 7 days — drives the n8n pipeline observability panel.
+    // Best-effort: if creds aren't set or filter rejects, return empty.
+    contentAirtableFetch<ContentJobRow>("Content Jobs", {
+      filterByFormula: `IS_AFTER({approved_at}, DATEADD(NOW(), -7, 'days'))`,
+      maxRecords: 200,
+    }).catch(() => [] as ContentJobRow[]),
   ]);
+
+  // ── Bucket Content Jobs for the n8n observability panel ───────────────────
+  const cjCounts: Record<string, number> = {
+    Queued: 0, "In Progress": 0, Completed: 0, "Webhook Failed": 0, Other: 0,
+  };
+  const cjStuckOrFailed: Array<{
+    id: string; blogTitle: string; clientName: string; status: string;
+    approvedAt: string | null; retryCount: number; lastRetryAt: string | null; error: string | null;
+  }> = [];
+  const cjStallMs = 30 * 60_000;
+  const nowMs = Date.now();
+  for (const r of contentJobs) {
+    const status = r.fields.Status ?? "Other";
+    cjCounts[status] = (cjCounts[status] ?? 0) + 1;
+    const approvedAt = r.fields.approved_at ?? null;
+    const isStuck = status === "Queued" && approvedAt != null && nowMs - new Date(approvedAt).getTime() > cjStallMs;
+    const isFailed = status === "Webhook Failed";
+    if (isStuck || isFailed) {
+      cjStuckOrFailed.push({
+        id: r.id,
+        blogTitle: r.fields["Blog Title"] ?? "(untitled)",
+        clientName: r.fields["Client Name (from Client ID)"]?.[0] ?? "(unknown)",
+        status,
+        approvedAt,
+        retryCount: r.fields.webhook_retry_count ?? 0,
+        lastRetryAt: r.fields.webhook_last_retry_at ?? null,
+        error: r.fields.webhook_error ?? null,
+      });
+    }
+  }
+  cjStuckOrFailed.sort((a, b) => {
+    if (a.status !== b.status) return a.status === "Webhook Failed" ? -1 : 1;
+    return (a.approvedAt ?? "").localeCompare(b.approvedAt ?? "");
+  });
 
   // ── Client lookup maps ────────────────────────────────────────────────────
   const clientInfos: ClientInfo[] = clients.map((c) => ({
@@ -175,13 +230,16 @@ export default async function ActivityPage() {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <ActivityView
-      approvals={approvalItems}
-      jobs={jobItems}
-      reverts={revertItems}
-      clients={filterClients}
-      byRecordId={Object.fromEntries(byRecordId)}
-      bySlug={Object.fromEntries(bySlug)}
-    />
+    <div className="space-y-6">
+      <ContentJobsPanel counts={cjCounts} stuckOrFailed={cjStuckOrFailed} />
+      <ActivityView
+        approvals={approvalItems}
+        jobs={jobItems}
+        reverts={revertItems}
+        clients={filterClients}
+        byRecordId={Object.fromEntries(byRecordId)}
+        bySlug={Object.fromEntries(bySlug)}
+      />
+    </div>
   );
 }

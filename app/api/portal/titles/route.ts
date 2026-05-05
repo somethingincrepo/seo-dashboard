@@ -23,6 +23,19 @@ async function getContentClientId(companyName: string): Promise<string | null> {
   return records[0]?.id ?? null;
 }
 
+// Marks the Content Job as Webhook Failed. Splits the write so that Status
+// always lands even if the optional `webhook_error` field is missing from
+// Airtable schema (returns 422 UNKNOWN_FIELD_NAME on bases that haven't been
+// migrated yet).
+async function markWebhookFailed(recordId: string, errorMessage: string): Promise<void> {
+  await contentAirtablePatch(CONTENT_JOBS_TABLE, recordId, { Status: "Webhook Failed" }).catch((e) => {
+    console.error(`[portal/titles] failed to mark Webhook Failed on ${recordId}:`, e);
+  });
+  await contentAirtablePatch(CONTENT_JOBS_TABLE, recordId, { webhook_error: errorMessage }).catch(() => {
+    // webhook_error field may not exist yet — non-fatal.
+  });
+}
+
 // ---------------------------------------------------------------------------
 // GET — fetch titles + keyword_groups + per-type quota for this portal client
 // ---------------------------------------------------------------------------
@@ -351,34 +364,44 @@ export async function PATCH(request: NextRequest) {
     const typeName: ContentTypeName = content_type_name ?? "standard";
 
     {
-      // Standard / Long-Form → fire-and-forget n8n webhook (do not await — n8n latency
-      // must not block the portal user's approval response).
       const cfg = CONTENT_TYPE_CONFIG[typeName];
-      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL ?? "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
+      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL;
 
-      const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
-      const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
-      const searchIntent = jobRecord?.fields["Search intent"] || "informational";
-      fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recordId: record_id,
-          fields: {
-            "Blog Title": blogTitle,
-            "Client ID": clientIds,
-            "Search intent": searchIntent,
-            "Content type": { id: cfg.airtableContentType, name: cfg.airtableContentType },
-            "Desired length range": cfg.airtableLengthRange,
-          },
-        }),
-      }).then(async (webhookRes) => {
-        if (!webhookRes.ok) {
-          await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
-        }
-      }).catch(() => {
-        contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
-      });
+      if (!webhookUrl) {
+        console.error("[portal/titles] N8N_CONTENT_WEBHOOK_URL not set; cannot fire content webhook");
+        await markWebhookFailed(record_id, "N8N_CONTENT_WEBHOOK_URL env var not configured");
+      } else {
+        // Standard / Long-Form → fire-and-forget n8n webhook (do not await — n8n
+        // latency must not block the portal user's approval response). 10s
+        // abort guards against a hung n8n holding the JS event loop.
+        const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
+        const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
+        const searchIntent = jobRecord?.fields["Search intent"] || "informational";
+        fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recordId: record_id,
+            fields: {
+              "Blog Title": blogTitle,
+              "Client ID": clientIds,
+              "Search intent": searchIntent,
+              // Single-select Airtable field — must be a plain string, not { id, name }.
+              "Content type": cfg.airtableContentType,
+              "Desired length range": cfg.airtableLengthRange,
+            },
+          }),
+          signal: AbortSignal.timeout(10_000),
+        }).then(async (webhookRes) => {
+          if (!webhookRes.ok) {
+            const errBody = await webhookRes.text().catch(() => "");
+            await markWebhookFailed(record_id, `n8n responded ${webhookRes.status}: ${errBody.slice(0, 500)}`);
+          }
+        }).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          markWebhookFailed(record_id, `webhook fetch failed: ${msg.slice(0, 500)}`);
+        });
+      }
     }
   }
 
