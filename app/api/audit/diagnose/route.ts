@@ -278,15 +278,14 @@ export async function POST(request: NextRequest) {
     // `audit_internal_links` is intentionally NOT enqueued here — keeping
     // it would race with the TS generator and produce LLM-rewritten copy
     // that conflicts with the deterministic proposals.
+    // Single first-batch entry point. keyword_research is the orchestrator
+    // of the title + refresh pipelines: when it finishes writing
+    // keyword_groups it fans out content_scheduler + refresh_scheduler with
+    // force=true. Enqueueing them here too caused the original Promptive
+    // gap — the schedulers ran in parallel with kw research, saw empty
+    // keyword_groups, and skipped the client; title_generation never fired.
     const firstBatchSops = [
-      // Foundational keyword research feeds title generation downstream.
       { sop_name: "keyword_research", payload: { client_id: run.client_id } },
-      // First batch of content title proposals — content_scheduler fans out
-      // title_generation children sized to one week's quota per package.
-      { sop_name: "content_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
-      // First batch of content refresh picks — refresh_scheduler fans out
-      // content_refresh children sized to one week's quota.
-      { sop_name: "refresh_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
     ];
     for (const job of firstBatchSops) {
       const { error: deliverableErr } = await supabase.from("jobs").insert({
