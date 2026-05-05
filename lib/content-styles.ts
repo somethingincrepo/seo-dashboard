@@ -1,4 +1,4 @@
-import { contentAirtableFetch, contentAirtablePatch } from "./airtable";
+import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate } from "./airtable";
 
 // ── Style definitions ─────────────────────────────────────────────────────────
 
@@ -85,22 +85,34 @@ ${modifiers}`;
 
 // ── Data access ───────────────────────────────────────────────────────────────
 
-/** Fetch styles for a client by their company name (Content Airtable key). */
+/**
+ * Fetch styles for a client by company name. If the Content Airtable doesn't
+ * have a matching Clients record yet, create one on the fly with empty styles
+ * so the editor lands in a usable state instead of showing the
+ * "Add a matching record" warning. Idempotent — repeated calls reuse the row.
+ */
 export async function getContentStyles(
   companyName: string
 ): Promise<{ recordId: string; styleIds: ContentStyleId[] } | null> {
+  if (!companyName?.trim()) return null;
   try {
     const records = await contentAirtableFetch<{
       id: string;
       fields: Record<string, string>;
     }>("Clients", { filterByFormula: `{Client Name}="${companyName.replace(/"/g, '\\"')}"` });
 
-    if (!records.length) return null;
+    if (records.length > 0) {
+      const record = records[0];
+      const raw = record.fields[STYLES_FIELD];
+      return { recordId: record.id, styleIds: parseStyles(raw) };
+    }
 
-    const record = records[0];
-    const raw = record.fields[STYLES_FIELD];
-    return { recordId: record.id, styleIds: parseStyles(raw) };
-  } catch {
+    // Auto-create the missing Clients record so the editor works without
+    // requiring a manual Airtable seeding step.
+    const created = await contentAirtableCreate("Clients", { "Client Name": companyName });
+    return { recordId: created.id, styleIds: [] };
+  } catch (err) {
+    console.error(`[content-styles] getContentStyles failed for "${companyName}":`, err);
     return null;
   }
 }
