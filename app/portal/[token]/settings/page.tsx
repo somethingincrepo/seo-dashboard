@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-const SEO_PLUGINS = ["Yoast", "RankMath", "AIOSEO", "SEOPress", "Other / None"];
-const PAGE_BUILDERS = ["Gutenberg (Block Editor)", "Elementor", "Divi", "Beaver Builder", "Bricks", "Oxygen", "Other"];
+import { ConnectionForm } from "@/components/connections/ConnectionForm";
+import { platformFromCmsField } from "@/lib/connections/registry";
 
 type Section = "credentials" | "integrations" | "security";
 
@@ -19,7 +18,6 @@ type ClientData = {
   gsc_property: string;
 };
 
-type TestResult = { ok: boolean; wp_user?: string; roles?: string[]; error?: string };
 type Toast = { message: string; type: "success" | "error" };
 
 function useToast() {
@@ -244,13 +242,6 @@ export default function SettingsPage() {
 
   const [client, setClient] = useState<ClientData | null>(null);
   const [loadingClient, setLoadingClient] = useState(true);
-  const [wpUsername, setWpUsername] = useState("");
-  const [wpAppPassword, setWpAppPassword] = useState("");
-  const [seoPlugin, setSeoPlugin] = useState("");
-  const [pageBuilder, setPageBuilder] = useState("");
-  const [savingCms, setSavingCms] = useState(false);
-  const [testingWp, setTestingWp] = useState(false);
-  const [wpTestResult, setWpTestResult] = useState<TestResult | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -270,10 +261,6 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data: ClientData) => {
         setClient(data);
-        setWpUsername(data.wp_username || "");
-        setWpAppPassword(data.wp_app_password || "");
-        setSeoPlugin(data.seo_plugin || "");
-        setPageBuilder(data.page_builder || "");
         setGscSaved(data.gsc_property || "");
         setGscProperty(data.gsc_property || "");
       })
@@ -281,43 +268,6 @@ export default function SettingsPage() {
       .finally(() => setLoadingClient(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
-
-  async function saveCmsCredentials() {
-    setSavingCms(true);
-    setWpTestResult(null);
-    try {
-      const res = await fetch("/api/portal/settings/cms-credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wp_username: wpUsername, wp_app_password: wpAppPassword, seo_plugin: seoPlugin, page_builder: pageBuilder }),
-      });
-      const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) throw new Error(data.error || "Save failed");
-      show("CMS credentials saved", "success");
-    } catch (err) {
-      show(err instanceof Error ? err.message : "Save failed", "error");
-    } finally {
-      setSavingCms(false);
-    }
-  }
-
-  async function testWpConnection() {
-    setTestingWp(true);
-    setWpTestResult(null);
-    try {
-      const res = await fetch("/api/portal/settings/test-wp-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wp_username: wpUsername, wp_app_password: wpAppPassword }),
-      });
-      const data = await res.json() as TestResult;
-      setWpTestResult(data);
-    } catch {
-      setWpTestResult({ ok: false, error: "Request failed" });
-    } finally {
-      setTestingWp(false);
-    }
-  }
 
   async function saveGsc(disconnect = false) {
     setSavingGsc(true);
@@ -366,7 +316,7 @@ export default function SettingsPage() {
   }
 
   const cms = client?.cms ?? "";
-  const isWordPress = cms.toLowerCase() === "wordpress";
+  const platform = platformFromCmsField(cms);
 
   return (
     <div className="space-y-6">
@@ -424,102 +374,38 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              <div className={cn("p-6", isWordPress ? "grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6 items-start" : "")}>
+              <div className={cn("p-6", platform ? "grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6 items-start" : "")}>
 
                 {/* Form area */}
                 {loadingClient ? (
                   <div className="py-8 text-center text-sm text-slate-400">Loading…</div>
-                ) : isWordPress ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-[13px] font-medium text-slate-700 mb-1.5">WordPress Username</label>
-                        <input
-                          type="text"
-                          value={wpUsername}
-                          onChange={(e) => { setWpUsername(e.target.value); setWpTestResult(null); }}
-                          placeholder="admin"
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Application Password</label>
-                        <input
-                          type="password"
-                          value={wpAppPassword}
-                          onChange={(e) => { setWpAppPassword(e.target.value); setWpTestResult(null); }}
-                          placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[13px] font-medium text-slate-700 mb-1.5">SEO Plugin</label>
-                        <select
-                          value={seoPlugin}
-                          onChange={(e) => setSeoPlugin(e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition bg-white"
-                        >
-                          <option value="">Select plugin…</option>
-                          {SEO_PLUGINS.map((p) => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Page Builder</label>
-                        <select
-                          value={pageBuilder}
-                          onChange={(e) => setPageBuilder(e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition bg-white"
-                        >
-                          <option value="">Select builder…</option>
-                          {PAGE_BUILDERS.map((b) => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                      </div>
-                    </div>
+                ) : platform ? (
+                  <div className="space-y-6">
+                    <ConnectionForm platform={platform} />
 
-                    {wpTestResult && (
-                      <div className={`rounded-lg px-4 py-3 text-[13px] ${
-                        wpTestResult.ok
-                          ? "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200"
-                          : "bg-red-50 text-red-800 ring-1 ring-inset ring-red-200"
-                      }`}>
-                        {wpTestResult.ok
-                          ? `Connected — logged in as ${wpTestResult.wp_user}${wpTestResult.roles?.length ? ` (${wpTestResult.roles.join(", ")})` : ""}`
-                          : wpTestResult.error}
+                    {/* Cloudflare section — required for redirect implementation */}
+                    <div className="border-t border-slate-200 pt-6">
+                      <div className="mb-3">
+                        <h3 className="text-[14px] font-semibold text-slate-900">Cloudflare (optional)</h3>
+                        <p className="text-[12px] text-slate-500 mt-0.5">
+                          Required if you want us to implement redirect changes automatically. Skip if you handle redirects elsewhere.
+                        </p>
                       </div>
-                    )}
-
-                    <div className="flex items-center gap-3 pt-1">
-                      <button
-                        onClick={saveCmsCredentials}
-                        disabled={savingCms}
-                        className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        {savingCms ? "Saving…" : "Save credentials"}
-                      </button>
-                      <button
-                        onClick={testWpConnection}
-                        disabled={testingWp || !wpUsername || !wpAppPassword}
-                        className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        {testingWp ? "Testing…" : "Test connection"}
-                      </button>
+                      <ConnectionForm platform="cloudflare" />
                     </div>
                   </div>
                 ) : (
                   <div>
                     <p className="text-[13px] text-slate-600 mb-4">
                       Your site runs on <strong className="text-slate-800">{cms || "an unsupported platform"}</strong>.
-                      Follow the instructions on the right to generate the credentials we need, then send them over and we&apos;ll configure the integration.
+                      Follow the instructions on the right to set up access — then contact us to configure the integration.
                     </p>
                   </div>
                 )}
 
                 {/* Help panel — only rendered when CMS is known */}
                 {!loadingClient && cms && (
-                  <div className={cn(
-                    "bg-slate-50 rounded-xl border border-slate-200 p-5",
-                    isWordPress ? "" : "mt-0"
-                  )}>
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
                     <CmsHelpPanel cms={cms} />
                   </div>
                 )}

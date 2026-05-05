@@ -11,7 +11,8 @@ import { CopyButton } from "@/components/ui/CopyButton";
 import { GenerateTokenButton } from "@/components/ui/GenerateTokenButton";
 import { GenerateCredentialsButton } from "@/components/ui/GenerateCredentialsButton";
 import { DeleteClientButton } from "@/components/ui/DeleteClientButton";
-import { CmsCredentialsForm } from "@/components/ui/CmsCredentialsForm";
+import { ConnectionForm } from "@/components/connections/ConnectionForm";
+import { platformFromCmsField } from "@/lib/connections/registry";
 import { EngainLinkButton } from "@/components/ui/EngainLinkButton";
 import { ContentStylesEditor } from "@/components/ui/ContentStylesEditor";
 import { IntegrationsForm } from "@/components/ui/IntegrationsForm";
@@ -235,27 +236,31 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </div>
       </GlassCard>
 
-      {/* CMS credentials — only show for WordPress clients */}
-      {f.cms?.toLowerCase() === "wordpress" && (
-        <GlassCard className="p-5">
-          <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">
-            CMS Credentials
-            <span className="ml-2 text-slate-400 normal-case font-normal">
-              — used by the implement agent to write changes to WordPress
-            </span>
-          </div>
-          <CmsCredentialsForm
-            clientId={id}
-            siteUrl={f.site_url || ""}
-            initialValues={{
-              wp_username: f.wp_username || "",
-              wp_app_password: f.wp_app_password || "",
-              seo_plugin: f.seo_plugin || "",
-              page_builder: f.page_builder || "",
-            }}
-          />
-        </GlassCard>
-      )}
+      {/* CMS credentials — works for every supported CMS via the connections subsystem */}
+      {(() => {
+        const platform = platformFromCmsField(f.cms || "");
+        if (!platform) return null;
+        return (
+          <GlassCard className="p-5">
+            <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">
+              CMS Connection
+              <span className="ml-2 text-slate-400 normal-case font-normal">
+                — used by the implement agent to write changes to {f.cms}
+              </span>
+            </div>
+            <ConnectionForm platform={platform} clientId={f.client_id || id} />
+            <div className="mt-6 pt-5 border-t border-slate-200">
+              <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">
+                Cloudflare (for redirects)
+                <span className="ml-2 text-slate-400 normal-case font-normal">
+                  — required if redirect changes should be auto-applied
+                </span>
+              </div>
+              <ConnectionForm platform="cloudflare" clientId={f.client_id || id} />
+            </div>
+          </GlassCard>
+        );
+      })()}
 
       {/* Reddit brand monitoring */}
       <GlassCard className="p-5">
