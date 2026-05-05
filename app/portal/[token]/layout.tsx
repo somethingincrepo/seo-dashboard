@@ -4,6 +4,7 @@ import { getPortalSession } from "@/lib/portal-auth";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
+import { getContentRefreshesForClient } from "@/lib/supabase";
 import { getEngainMentionStats } from "@/lib/engain";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { getLatestIssueCount } from "@/lib/audit/queries";
@@ -64,10 +65,11 @@ export default async function PortalLayout({
   // Show Reddit tab for any client on a package (all tiers include reddit_comments)
   const hasReddit = !!(pkg && PACKAGES[pkg].reddit_comments > 0);
 
-  const [pending, contentResults, contentJobs, engainStats, auditIssueCount] = await Promise.all([
+  const [pending, contentResults, contentJobs, contentRefreshes, engainStats, auditIssueCount] = await Promise.all([
     getPendingApprovals(clientId, recordId),
     getContentResultsForClient(companyName).catch(() => []),
     getContentJobsForClient(companyName).catch(() => []),
+    getContentRefreshesForClient(client.id).catch(() => []),
     engainProjectId
       ? getEngainMentionStats(engainProjectId).catch(() => null)
       : Promise.resolve(null),
@@ -99,14 +101,10 @@ export default async function PortalLayout({
     (j) => j.fields.title_status === "titled"
   ).length;
 
-  // Refresh jobs that have completed results awaiting portal approval
-  const refreshResultJobIds = new Set(
-    contentResults
-      .filter((r) => !r.fields.portal_approval)
-      .flatMap((r) => r.fields["Job ID"] ?? [])
-  );
-  const contentOptimizationCount = contentJobs.filter(
-    (j) => !!j.fields.refresh_url && refreshResultJobIds.has(j.id)
+  // Content refreshes awaiting portal approval (Supabase — completely separate
+  // from the Airtable Content Jobs/Results which are for n8n new-article flow).
+  const contentOptimizationCount = contentRefreshes.filter(
+    (r) => r.status === "completed" && !r.portal_approval
   ).length;
 
   return (

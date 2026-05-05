@@ -4,6 +4,7 @@ import { getClientByToken } from "@/lib/clients";
 import { getClientChanges } from "@/lib/changes";
 import { getClientReports } from "@/lib/reports";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
+import { getContentRefreshesForClient } from "@/lib/supabase";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getChangeTitle, normalizeType } from "@/lib/portal-labels";
@@ -42,11 +43,12 @@ export default async function ActivityPage({
 
   const companyName = client.fields.company_name || "";
 
-  const [changes, reports, contentJobs, contentResults] = await Promise.all([
+  const [changes, reports, contentJobs, contentResults, contentRefreshes] = await Promise.all([
     getClientChanges(clientId, recordId),
     getClientReports(clientId),
     getContentJobsForClient(companyName).catch(() => []),
     getContentResultsForClient(companyName).catch(() => []),
+    getContentRefreshesForClient(client.id).catch(() => []),
   ]);
 
   const entries: ChangelogEntry[] = [];
@@ -165,6 +167,23 @@ export default async function ActivityPage({
     const createdAt = result.createdTime || "";
     if (createdAt) {
       entries.push({ kind: "content", date: createdAt, title: blogTitle, event: "completed" });
+    }
+  }
+
+  // Content refreshes (Supabase) — separate pipeline from new-article writing
+  for (const r of contentRefreshes) {
+    const title = r.display_title || r.refresh_url;
+    if (r.proposed_at) {
+      entries.push({ kind: "content", date: r.proposed_at, title: `Refresh: ${title}`, event: "proposed" });
+    }
+    if (r.generated_at) {
+      entries.push({ kind: "content", date: r.generated_at, title: `Refresh: ${title}`, event: "completed" });
+    }
+    if (r.portal_approved_at) {
+      entries.push({ kind: "content", date: r.portal_approved_at, title: `Refresh: ${title}`, event: "approved" });
+    }
+    if (r.published_at) {
+      entries.push({ kind: "content", date: r.published_at, title: `Refresh: ${title}`, event: "published" });
     }
   }
 

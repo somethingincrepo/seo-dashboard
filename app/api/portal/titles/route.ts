@@ -4,7 +4,6 @@ import { requirePortalAuth } from "@/lib/portal-auth";
 import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate } from "@/lib/airtable";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { getPerTypeQuota, CONTENT_TYPE_CONFIG, type ContentTypeName } from "@/lib/content";
-import { getSupabase } from "@/lib/supabase";
 
 function startOfMonthISO(): string {
   const now = new Date();
@@ -144,12 +143,18 @@ export async function POST(request: NextRequest) {
     keyword_group?: string;
     search_intent?: string;
     content_type_name?: ContentTypeName;
-    refresh_url?: string;
-    page_type?: string;
   };
 
-  const { title, target_keyword, keyword_group, search_intent, content_type_name, refresh_url, page_type } = body;
+  const { title, target_keyword, keyword_group, search_intent, content_type_name } = body;
   if (!title?.trim()) return NextResponse.json({ error: "title required" }, { status: 400 });
+
+  // Refresh jobs live in Supabase and are scheduler-only — never created via this endpoint.
+  if (content_type_name === "refresh") {
+    return NextResponse.json(
+      { error: "Refresh jobs are scheduled automatically and cannot be created via title proposals" },
+      { status: 400 }
+    );
+  }
 
   const companyName = client.fields.company_name;
   let contentClientId = await getContentClientId(companyName);
@@ -169,9 +174,6 @@ export async function POST(request: NextRequest) {
   if (target_keyword) fields.target_keyword = target_keyword;
   if (keyword_group) fields.keyword_group = keyword_group;
   if (search_intent) fields["Search intent"] = search_intent;
-  // For refresh proposals, store URL and page type immediately
-  if (content_type_name === "refresh" && refresh_url) fields.refresh_url = refresh_url;
-  if (content_type_name === "refresh" && page_type) fields.page_type = page_type;
 
   const created = await contentAirtableCreate(CONTENT_JOBS_TABLE, fields);
 
@@ -193,8 +195,8 @@ export async function POST(request: NextRequest) {
       proposed_at: new Date().toISOString(),
       approved_at: null,
       content_type_name: typeName,
-      refresh_url: (content_type_name === "refresh" ? refresh_url : null) ?? null,
-      page_type: (content_type_name === "refresh" ? page_type : null) ?? null,
+      refresh_url: null,
+      page_type: null,
     },
   });
 }
@@ -221,8 +223,6 @@ export async function PATCH(request: NextRequest) {
     keyword_group?: string;
     action?: "approve" | "save";
     content_type_name?: ContentTypeName;
-    refresh_url?: string;
-    page_type?: string;
   };
   const {
     record_id,
@@ -231,11 +231,17 @@ export async function PATCH(request: NextRequest) {
     keyword_group,
     action = "approve",
     content_type_name,
-    refresh_url,
-    page_type,
   } = body;
 
   if (!record_id) return NextResponse.json({ error: "record_id required" }, { status: 400 });
+
+  // Refresh jobs live in Supabase — the titles endpoint only handles n8n articles.
+  if (content_type_name === "refresh") {
+    return NextResponse.json(
+      { error: "Refresh jobs are managed in Supabase, not via title proposals" },
+      { status: 400 }
+    );
+  }
 
   const pkg = ((client.fields as Record<string, unknown>).package ?? "growth") as PackageTier;
   const monthStart = startOfMonthISO();
@@ -308,11 +314,6 @@ export async function PATCH(request: NextRequest) {
     fields.Status = "Queued";
     fields["Content type"] = cfg.airtableContentType;
     fields["Desired length range"] = cfg.airtableLengthRange;
-
-    if (typeName === "refresh") {
-      if (refresh_url) fields.refresh_url = refresh_url;
-      if (page_type) fields.page_type = page_type;
-    }
   }
 
   if (title?.trim()) fields["Blog Title"] = title.trim();
@@ -344,31 +345,11 @@ export async function PATCH(request: NextRequest) {
 
   await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, fields);
 
-  // Route to the right job processor on approval
+  // Route to the right job processor on approval (n8n new-article writing only)
   if (action === "approve") {
     const typeName: ContentTypeName = content_type_name ?? "standard";
 
-    if (typeName === "refresh") {
-      // Content Refresh → queue Supabase job for Fly.io worker SOP
-      try {
-        const supabase = getSupabase();
-        await supabase.from("jobs").insert({
-          sop_name: "content_refresh",
-          runner: "fly",
-          client_id: client.id,
-          status: "pending",
-          payload: {
-            job_id: record_id,
-            refresh_url: refresh_url ?? null,
-            page_type: page_type ?? null,
-            client_id: client.id,
-          },
-        });
-      } catch (err) {
-        console.error("Failed to queue content_refresh job (non-fatal):", err);
-        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, { Status: "Webhook Failed" }).catch(() => {});
-      }
-    } else {
+    {
       // Standard / Long-Form → fire-and-forget n8n webhook (do not await — n8n latency
       // must not block the portal user's approval response).
       const cfg = CONTENT_TYPE_CONFIG[typeName];

@@ -247,6 +247,87 @@ export async function upsertGscSnapshot(
   }
 }
 
+// ─── Content Refreshes (on-page optimizations) ────────────────────────────────
+// Owns the entire refresh pipeline. Completely separate from Airtable Content
+// Jobs/Results (which are for n8n new-article writing).
+
+export type ContentRefreshStatus =
+  | "approved"
+  | "in_progress"
+  | "completed"
+  | "failed"
+  | "approved_for_publish"
+  | "published";
+
+export type ContentRefresh = {
+  id: string;
+  client_id: string;
+  company_name: string;
+  refresh_url: string;
+  target_keyword: string;
+  keyword_group: string | null;
+  search_intent: string | null;
+  page_type: string;
+  display_title: string;
+  status: ContentRefreshStatus;
+  proposed_at: string;
+  generated_at: string | null;
+  validation_errors: string[];
+  original_body: string;
+  original_meta_title: string;
+  original_meta_description: string;
+  original_word_count: number;
+  proposed_body: string;
+  proposed_meta_title: string;
+  proposed_meta_description: string;
+  proposed_excerpt: string;
+  proposed_outline: string;
+  proposed_word_count: number | null;
+  change_ratio: number | null;
+  body_rewrite_pct: number | null;
+  edits_count: number;
+  additions_count: number;
+  removals_count: number;
+  portal_approval: string | null;
+  portal_notes: string | null;
+  portal_approved_at: string | null;
+  published_at: string | null;
+  publish_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getContentRefreshesForClient(clientId: string): Promise<ContentRefresh[]> {
+  const { data } = await getSupabase()
+    .from("content_refreshes")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("proposed_at", { ascending: false })
+    .limit(200);
+  return (data ?? []) as ContentRefresh[];
+}
+
+export async function getContentRefreshById(id: string): Promise<ContentRefresh | null> {
+  const { data } = await getSupabase()
+    .from("content_refreshes")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return (data ?? null) as ContentRefresh | null;
+}
+
+export async function approveContentRefresh(id: string): Promise<void> {
+  await getSupabase()
+    .from("content_refreshes")
+    .update({
+      portal_approval: "approved",
+      portal_approved_at: new Date().toISOString(),
+      status: "approved_for_publish",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+}
+
 // Retrieve the last N weekly snapshots for a client, newest first
 export async function getGscSnapshots(clientId: string, weeks = 12): Promise<GscSnapshot[]> {
   const { data } = await getSupabase()

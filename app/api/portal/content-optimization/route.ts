@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { requirePortalAuth } from "@/lib/portal-auth";
-import { getContentJobsForClient, getContentResultsForClient, type ContentResult } from "@/lib/content";
-import { getSupabase } from "@/lib/supabase";
-import { contentAirtablePatch } from "@/lib/airtable";
+import {
+  getSupabase,
+  getContentRefreshesForClient,
+  approveContentRefresh,
+  type ContentRefresh,
+} from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/portal/content-optimization?token=xxx
-// Returns all refresh jobs joined with their results
+// Returns all content refreshes for this client (Supabase only — refreshes do
+// not live in the n8n Airtable tables).
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
@@ -19,46 +23,22 @@ export async function GET(request: NextRequest) {
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-  const companyName = client.fields.company_name || "";
+  const refreshes = await getContentRefreshesForClient(client.id).catch(() => [] as ContentRefresh[]);
 
-  const [allJobs, allResults] = await Promise.all([
-    getContentJobsForClient(companyName).catch(() => []),
-    getContentResultsForClient(companyName).catch(() => []),
-  ]);
+  const rank = (r: ContentRefresh) => {
+    if (r.status === "completed" && !r.portal_approval) return 0;
+    if (r.status === "in_progress" || r.status === "approved") return 1;
+    if (r.status === "failed") return 3;
+    return 2;
+  };
 
-  // Only jobs that are content refreshes
-  const refreshJobs = allJobs.filter((j) => !!j.fields.refresh_url);
+  refreshes.sort((a, b) => rank(a) - rank(b));
 
-  // Build jobId → result map (Job ID field returns linked record IDs)
-  const resultByJobId = new Map<string, ContentResult>();
-  for (const result of allResults) {
-    for (const jid of result.fields["Job ID"] ?? []) {
-      resultByJobId.set(jid, result);
-    }
-  }
-
-  const items = refreshJobs.map((job) => ({
-    job,
-    result: resultByJobId.get(job.id) ?? null,
-  }));
-
-  // Sort: ready-for-review first, then in-progress, then completed
-  items.sort((a, b) => {
-    const rank = (item: typeof a) => {
-      const ts = item.job.fields.title_status;
-      const approved = item.result?.fields.portal_approval;
-      if (ts === "completed" && !approved) return 0;   // ready to review
-      if (ts === "approved" && !item.result) return 1;  // SOP running
-      return 2;                                          // done
-    };
-    return rank(a) - rank(b);
-  });
-
-  return NextResponse.json({ items });
+  return NextResponse.json({ items: refreshes });
 }
 
 // POST /api/portal/content-optimization?token=xxx
-// body: { type: "approve", resultId } — approves refresh + queues publish SOP
+// body: { type: "approve", refreshId } — approves the refresh and queues publish.
 export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
@@ -69,15 +49,12 @@ export async function POST(request: NextRequest) {
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-  const body = await request.json() as { type: string; resultId?: string };
+  const body = (await request.json()) as { type: string; refreshId?: string };
 
-  if (body.type === "approve" && body.resultId) {
-    await contentAirtablePatch("Results", body.resultId, {
-      portal_approval: "approved",
-      portal_approved_at: new Date().toISOString(),
-    });
+  if (body.type === "approve" && body.refreshId) {
+    await approveContentRefresh(body.refreshId);
 
-    // Queue publish_article_wordpress SOP on the Fly.io worker
+    // Queue publish_article_wordpress against this refresh on the Fly.io worker
     try {
       const supabase = getSupabase();
       await supabase.from("jobs").insert({
@@ -85,7 +62,7 @@ export async function POST(request: NextRequest) {
         runner: "fly",
         client_id: client.id,
         status: "pending",
-        payload: { result_id: body.resultId },
+        payload: { content_refresh_id: body.refreshId },
       });
     } catch (err) {
       console.error("Failed to queue publish job (non-fatal):", err);

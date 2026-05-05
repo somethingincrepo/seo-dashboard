@@ -3,14 +3,7 @@
 import { useState, useCallback } from "react";
 import { bracketToHtml } from "@/lib/bracketToHtml";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
-import type { ContentJob, ContentResult } from "@/lib/content";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type RefreshItem = {
-  job: ContentJob;
-  result: ContentResult | null;
-};
+import type { ContentRefresh } from "@/lib/supabase";
 
 // ── Package allocation helper ─────────────────────────────────────────────────
 
@@ -18,22 +11,25 @@ function refreshLimit(pkg: string): number {
   return PACKAGES[(pkg as PackageTier) in PACKAGES ? (pkg as PackageTier) : "starter"].content_refreshes;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Status mapping ────────────────────────────────────────────────────────────
 
-function getItemStatus(item: RefreshItem): "review" | "running" | "approved" | "proposed" {
-  const ts = item.job.fields.title_status;
-  const approval = item.result?.fields.portal_approval;
-  if (ts === "completed" && !approval) return "review";
-  if (ts === "approved" && !item.result) return "running";
-  if (ts === "completed" && approval === "approved") return "approved";
+type UiStatus = "review" | "running" | "approved" | "proposed" | "failed";
+
+function getUiStatus(r: ContentRefresh): UiStatus {
+  if (r.status === "failed") return "failed";
+  if (r.status === "completed" && !r.portal_approval) return "review";
+  if (r.status === "in_progress") return "running";
+  if (r.portal_approval === "approved" || r.status === "approved_for_publish" || r.status === "published")
+    return "approved";
   return "proposed";
 }
 
-const STATUS_CONFIG = {
-  review:   { label: "Ready for Review", dot: "bg-indigo-400", badge: "bg-indigo-50 text-indigo-700 ring-indigo-200/60" },
-  running:  { label: "Update in Progress", dot: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 ring-amber-200/60" },
-  approved: { label: "Approved",          dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200/60" },
-  proposed: { label: "Scheduled",         dot: "bg-slate-300",   badge: "bg-slate-100 text-slate-500 ring-slate-200/60" },
+const STATUS_CONFIG: Record<UiStatus, { label: string; dot: string; badge: string }> = {
+  review:   { label: "Ready for Review",  dot: "bg-indigo-400",  badge: "bg-indigo-50 text-indigo-700 ring-indigo-200/60" },
+  running:  { label: "Update in Progress", dot: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 ring-amber-200/60" },
+  approved: { label: "Approved",           dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200/60" },
+  proposed: { label: "Scheduled",          dot: "bg-slate-300",   badge: "bg-slate-100 text-slate-500 ring-slate-200/60" },
+  failed:   { label: "Validation Failed",  dot: "bg-red-400",     badge: "bg-red-50 text-red-700 ring-red-200/60" },
 };
 
 const PAGE_TYPE_COLORS: Record<string, string> = {
@@ -43,26 +39,12 @@ const PAGE_TYPE_COLORS: Record<string, string> = {
   "Other":        "bg-slate-100 text-slate-600",
 };
 
-// ── Derive original body from article body ────────────────────────────────────
-// Reconstructs "before" state by substituting [CHANGED from="old"] back and
-// removing [ADDED] blocks entirely. Renders perfectly aligned with right panel.
-
-function deriveOriginalBody(body: string): string {
-  return body
-    // [CHANGED from="old text"]new text[/CHANGED] → "old text"
-    .replace(/\[CHANGED from="([^"]*)"\][\s\S]*?\[\/CHANGED\]/g, "$1")
-    // [ADDED]...[/ADDED] → remove entirely (these didn't exist before)
-    .replace(/\[ADDED\][\s\S]*?\[\/ADDED\]/g, "")
-    // [REMOVED]...[/REMOVED] → keep the content (it was there before)
-    .replace(/\[REMOVED\]([\s\S]*?)\[\/REMOVED\]/g, "$1");
-}
-
 // Strip bracket markup to count words
 function countWords(body: string): number {
   return body.replace(/\[\/?\w+[^\]]*\]/g, " ").split(/\s+/).filter((w) => w.length > 1).length;
 }
 
-// Extract the new (proposed) value from a meta field — strips change markers
+// Strip change markers, returning clean text
 function cleanMetaText(text: string): string {
   return text
     .replace(/\[CHANGED from="[^"]*"\]([\s\S]*?)\[\/CHANGED\]/g, "$1")
@@ -72,26 +54,13 @@ function cleanMetaText(text: string): string {
     .trim();
 }
 
-// Extract the original (before) value from a meta field
-function originalMetaText(text: string): string {
-  const match = text.match(/\[CHANGED from="([^"]*)"\]/);
-  if (match) return match[1].trim();
-  return cleanMetaText(text); // unchanged — original = new
-}
-
-// Whether a meta field has a change (so we can show an "Edited" indicator)
-function metaWasChanged(text: string): boolean {
-  return /\[CHANGED from="[^"]*"\]/.test(text);
-}
-
-// Inline change-marker CSS shared between meta boxes and body
+// Inline change-marker CSS
 const CT_INLINE = [
   "[&_.ct-changed]:inline [&_.ct-changed]:rounded-sm [&_.ct-changed]:bg-amber-50 [&_.ct-changed]:px-0.5 [&_.ct-changed]:ring-1 [&_.ct-changed]:ring-amber-300/60",
   "[&_.ct-del]:line-through [&_.ct-del]:text-red-500 [&_.ct-del]:mr-1.5 [&_.ct-del]:bg-red-100 [&_.ct-del]:px-0.5 [&_.ct-del]:rounded-sm",
   "[&_.ct-ins]:text-emerald-800 [&_.ct-ins]:bg-emerald-100 [&_.ct-ins]:px-0.5 [&_.ct-ins]:rounded-sm [&_.ct-ins]:font-semibold",
 ].join(" ");
 
-// Shared prose CSS applied to both left and right panels
 const PROSE_CLASSES = `
   text-[13px] text-slate-700 leading-relaxed
   [&_h1]:text-[18px] [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-4 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-slate-200
@@ -106,7 +75,7 @@ const PROSE_CLASSES = `
 
 // ── How it works strip ────────────────────────────────────────────────────────
 
-function HowItWorks({ status }: { status: ReturnType<typeof getItemStatus> }) {
+function HowItWorks({ status }: { status: UiStatus }) {
   const steps = [
     {
       label: "Opportunity identified",
@@ -164,45 +133,20 @@ function HowItWorks({ status }: { status: ReturnType<typeof getItemStatus> }) {
   );
 }
 
-// ── Original page panel (derived from article body) ───────────────────────────
+// ── Original page panel ───────────────────────────────────────────────────────
 
-function OriginalPanel({
-  body,
-  rawMetaTitle,
-  rawMetaDesc,
-  persistedOriginalBody,
-  persistedOriginalMetaTitle,
-  persistedOriginalMetaDesc,
-}: {
-  body: string;
-  rawMetaTitle: string;
-  rawMetaDesc: string;
-  persistedOriginalBody?: string;
-  persistedOriginalMetaTitle?: string;
-  persistedOriginalMetaDesc?: string;
-}) {
-  // Prefer the persisted snapshot captured at refresh time (deterministic ground truth).
-  // Fall back to deriving from change markers for legacy rows that pre-date persistence.
-  const originalBody = persistedOriginalBody && persistedOriginalBody.length > 0
-    ? persistedOriginalBody
-    : deriveOriginalBody(body);
-  const html = bracketToHtml(originalBody);
-  const origTitle = persistedOriginalMetaTitle && persistedOriginalMetaTitle.length > 0
-    ? persistedOriginalMetaTitle
-    : originalMetaText(rawMetaTitle);
-  const origDesc = persistedOriginalMetaDesc && persistedOriginalMetaDesc.length > 0
-    ? persistedOriginalMetaDesc
-    : originalMetaText(rawMetaDesc);
-  const titleChanged = persistedOriginalMetaTitle
-    ? persistedOriginalMetaTitle !== cleanMetaText(rawMetaTitle)
-    : metaWasChanged(rawMetaTitle);
-  const descChanged = persistedOriginalMetaDesc
-    ? persistedOriginalMetaDesc !== cleanMetaText(rawMetaDesc)
-    : metaWasChanged(rawMetaDesc);
+function OriginalPanel({ refresh }: { refresh: ContentRefresh }) {
+  const html = bracketToHtml(refresh.original_body);
+  const origTitle = refresh.original_meta_title;
+  const origDesc = refresh.original_meta_description;
+
+  const proposedTitle = cleanMetaText(refresh.proposed_meta_title);
+  const proposedDesc = cleanMetaText(refresh.proposed_meta_description);
+  const titleChanged = origTitle && origTitle !== proposedTitle;
+  const descChanged = origDesc && origDesc !== proposedDesc;
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
-      {/* Meta fields — original values */}
       {(origTitle || origDesc) && (
         <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5">
           {origTitle && (
@@ -236,30 +180,22 @@ function OriginalPanel({
         </div>
       )}
 
-      <div
-        className={PROSE_CLASSES}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      <div className={PROSE_CLASSES} dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }
 
 // ── Refreshed content panel ───────────────────────────────────────────────────
 
-function RefreshedPanel({
-  result,
-  origWordCount,
-}: {
-  result: ContentResult;
-  origWordCount: number;
-}) {
-  const body = result.fields["Article body"] ?? "";
+function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
+  const body = refresh.proposed_body;
   const html = bracketToHtml(body);
-  const wordCount = countWords(body);
-  const rawMetaTitle = result.fields["Meta title"] ?? "";
-  const rawMetaDesc  = result.fields["Meta description"] ?? "";
+  const wordCount = refresh.proposed_word_count ?? countWords(body);
+  const origWordCount = refresh.original_word_count;
+  const rawMetaTitle = refresh.proposed_meta_title;
+  const rawMetaDesc = refresh.proposed_meta_description;
   const newMetaTitle = cleanMetaText(rawMetaTitle);
-  const newMetaDesc  = cleanMetaText(rawMetaDesc);
+  const newMetaDesc = cleanMetaText(rawMetaDesc);
 
   const delta = wordCount - origWordCount;
   const deltaLabel = delta > 0
@@ -270,15 +206,13 @@ function RefreshedPanel({
   const deltaColor = delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-500" : "text-slate-400";
 
   const hasChangeMarkers = /\[ADDED\]|\[CHANGED |\[REMOVED\]/.test(body);
+  const hasChangeStats = typeof refresh.change_ratio === "number";
 
-  const changeRatio = result.fields["Change ratio"];
-  const editsCount = result.fields["Edits count"];
-  const additionsCount = result.fields["Additions count"];
-  const hasChangeStats = typeof changeRatio === "number";
+  const titleChanged = refresh.original_meta_title && refresh.original_meta_title !== newMetaTitle;
+  const descChanged = refresh.original_meta_description && refresh.original_meta_description !== newMetaDesc;
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
-      {/* Stats + legend */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
@@ -289,9 +223,9 @@ function RefreshedPanel({
           </span>
           {hasChangeStats && (
             <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 ring-1 ring-indigo-200/60 rounded px-1.5 py-0.5">
-              {Math.round((changeRatio ?? 0) * 100)}% changed
-              {typeof editsCount === "number" && ` · ${editsCount} edit${editsCount === 1 ? "" : "s"}`}
-              {typeof additionsCount === "number" && ` · ${additionsCount} added`}
+              {Math.round((refresh.change_ratio ?? 0) * 100)}% changed
+              {refresh.edits_count > 0 && ` · ${refresh.edits_count} edit${refresh.edits_count === 1 ? "" : "s"}`}
+              {refresh.additions_count > 0 && ` · ${refresh.additions_count} added`}
             </span>
           )}
         </div>
@@ -309,7 +243,6 @@ function RefreshedPanel({
         )}
       </div>
 
-      {/* Meta fields — render through bracketToHtml so [CHANGED] shows del/ins */}
       {(rawMetaTitle || rawMetaDesc) && (
         <div className={`bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5 ${CT_INLINE}`}>
           {rawMetaTitle && (
@@ -319,7 +252,7 @@ function RefreshedPanel({
                 <span className={newMetaTitle.length > 60 ? "text-red-500 font-bold" : "text-slate-400"}>
                   ({newMetaTitle.length}/60)
                 </span>
-                {metaWasChanged(rawMetaTitle) && (
+                {titleChanged && (
                   <span className="text-amber-600 normal-case font-medium">proposed</span>
                 )}
               </div>
@@ -336,7 +269,7 @@ function RefreshedPanel({
                 <span className={newMetaDesc.length > 155 ? "text-red-500 font-bold" : "text-slate-400"}>
                   ({newMetaDesc.length}/155)
                 </span>
-                {metaWasChanged(rawMetaDesc) && (
+                {descChanged && (
                   <span className="text-amber-600 normal-case font-medium">proposed</span>
                 )}
               </div>
@@ -349,7 +282,6 @@ function RefreshedPanel({
         </div>
       )}
 
-      {/* Article body with change markers */}
       <div
         className={`
           ${PROSE_CLASSES}
@@ -371,49 +303,34 @@ function RefreshedPanel({
 // ── Detail panel ─────────────────────────────────────────────────────────────
 
 function DetailPanel({
-  item,
-  token,
+  refresh,
   onApprove,
   approving,
 }: {
-  item: RefreshItem;
-  token: string;
+  refresh: ContentRefresh;
   onApprove: () => void;
   approving: boolean;
 }) {
-  const { job, result } = item;
-  const status = getItemStatus(item);
-  const pageType = job.fields.page_type;
-  const refreshUrl = job.fields.refresh_url!;
-  const keyword = job.fields.target_keyword;
-
-  const body         = result?.fields["Article body"] ?? "";
-  const rawMetaTitle = result?.fields["Meta title"] ?? "";
-  const rawMetaDesc  = result?.fields["Meta description"] ?? "";
-  const persistedOriginalBody = result?.fields["Original article body"] ?? "";
-  const persistedOriginalMetaTitle = result?.fields["Original meta title"] ?? "";
-  const persistedOriginalMetaDesc = result?.fields["Original meta description"] ?? "";
-  const origWordCount = result?.fields["Original word count"]
-    ?? countWords(persistedOriginalBody.length > 0 ? persistedOriginalBody : deriveOriginalBody(body));
+  const status = getUiStatus(refresh);
+  const refreshUrl = refresh.refresh_url;
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Header */}
       <div className="px-6 py-4 border-b border-slate-200 shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-[15px] font-semibold text-slate-900 leading-snug mb-1.5">
-              {job.fields["Blog Title"]}
+              {refresh.display_title || refreshUrl}
             </h2>
             <div className="flex flex-wrap items-center gap-1.5">
-              {pageType && (
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PAGE_TYPE_COLORS[pageType] ?? "bg-slate-100 text-slate-600"}`}>
-                  {pageType}
+              {refresh.page_type && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PAGE_TYPE_COLORS[refresh.page_type] ?? "bg-slate-100 text-slate-600"}`}>
+                  {refresh.page_type}
                 </span>
               )}
-              {keyword && (
+              {refresh.target_keyword && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium max-w-[200px] truncate">
-                  {keyword}
+                  {refresh.target_keyword}
                 </span>
               )}
               <a
@@ -430,8 +347,7 @@ function DetailPanel({
             </div>
           </div>
 
-          {/* Action */}
-          {status === "review" && result && (
+          {status === "review" && (
             <button
               onClick={onApprove}
               disabled={approving}
@@ -471,12 +387,10 @@ function DetailPanel({
         </div>
       </div>
 
-      {/* How it works */}
       <div className="px-6 pt-4 shrink-0">
         <HowItWorks status={status} />
       </div>
 
-      {/* Content — in-progress state */}
       {status === "running" && (
         <div className="flex-1 flex items-center justify-center text-center px-8">
           <div>
@@ -493,7 +407,6 @@ function DetailPanel({
         </div>
       )}
 
-      {/* Content — scheduled */}
       {status === "proposed" && (
         <div className="flex-1 flex items-center justify-center text-center px-8">
           <div>
@@ -507,17 +420,34 @@ function DetailPanel({
         </div>
       )}
 
-      {/* Side-by-side comparison */}
-      {(status === "review" || status === "approved") && result && (
+      {status === "failed" && (
+        <div className="flex-1 flex items-center justify-center text-center px-8">
+          <div>
+            <div className="text-3xl text-red-300 mb-3">!</div>
+            <div className="text-[14px] font-medium text-red-700 mb-1">Refresh did not pass validation</div>
+            <p className="text-[13px] text-slate-500 max-w-sm">
+              The proposed edits failed our deterministic checks. Our team has been alerted and the job will be retried.
+            </p>
+            {refresh.validation_errors.length > 0 && (
+              <ul className="mt-3 text-left text-[11px] text-red-600 max-w-sm mx-auto list-disc pl-5 space-y-0.5">
+                {refresh.validation_errors.slice(0, 5).map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {(status === "review" || status === "approved") && (
         <div className="flex-1 flex min-h-0 border-t border-slate-200">
-          {/* Left — current (derived from article body) */}
           <div className="flex flex-col w-1/2 border-r border-slate-200 min-h-0">
             <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-slate-400" />
                   <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
-                    Current ({origWordCount.toLocaleString()} words)
+                    Current ({refresh.original_word_count.toLocaleString()} words)
                   </span>
                 </div>
                 <a
@@ -530,17 +460,9 @@ function DetailPanel({
                 </a>
               </div>
             </div>
-            <OriginalPanel
-              body={body}
-              rawMetaTitle={rawMetaTitle}
-              rawMetaDesc={rawMetaDesc}
-              persistedOriginalBody={persistedOriginalBody}
-              persistedOriginalMetaTitle={persistedOriginalMetaTitle}
-              persistedOriginalMetaDesc={persistedOriginalMetaDesc}
-            />
+            <OriginalPanel refresh={refresh} />
           </div>
 
-          {/* Right — proposed */}
           <div className="flex flex-col w-1/2 min-h-0">
             <div className="px-6 py-3 border-b border-slate-100 bg-indigo-50/40 shrink-0">
               <div className="flex items-center gap-2">
@@ -550,7 +472,7 @@ function DetailPanel({
                 </span>
               </div>
             </div>
-            <RefreshedPanel result={result} origWordCount={origWordCount} />
+            <RefreshedPanel refresh={refresh} />
           </div>
         </div>
       )}
@@ -561,17 +483,16 @@ function DetailPanel({
 // ── Sidebar list item ─────────────────────────────────────────────────────────
 
 function RefreshListItem({
-  item,
+  refresh,
   selected,
   onClick,
 }: {
-  item: RefreshItem;
+  refresh: ContentRefresh;
   selected: boolean;
   onClick: () => void;
 }) {
-  const status = getItemStatus(item);
+  const status = getUiStatus(refresh);
   const cfg = STATUS_CONFIG[status];
-  const pageType = item.job.fields.page_type;
 
   return (
     <button
@@ -585,22 +506,20 @@ function RefreshListItem({
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ring-1 ring-inset ${cfg.badge}`}>
           {cfg.label}
         </span>
-        {pageType && (
-          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${PAGE_TYPE_COLORS[pageType] ?? "bg-slate-100 text-slate-500"}`}>
-            {pageType}
+        {refresh.page_type && (
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${PAGE_TYPE_COLORS[refresh.page_type] ?? "bg-slate-100 text-slate-500"}`}>
+            {refresh.page_type}
           </span>
         )}
       </div>
 
       <p className={`text-[13px] font-medium leading-snug line-clamp-2 ${selected ? "text-indigo-900" : "text-slate-800"}`}>
-        {item.job.fields["Blog Title"]}
+        {refresh.display_title || refresh.refresh_url}
       </p>
 
-      {item.job.fields.refresh_url && (
-        <p className="text-[11px] text-slate-400 truncate mt-1">
-          {item.job.fields.refresh_url.replace(/^https?:\/\//, "")}
-        </p>
-      )}
+      <p className="text-[11px] text-slate-400 truncate mt-1">
+        {refresh.refresh_url.replace(/^https?:\/\//, "")}
+      </p>
     </button>
   );
 }
@@ -658,42 +577,37 @@ export function ContentOptimization({
   token,
   clientPackage,
 }: {
-  items: RefreshItem[];
-  historicalItems?: RefreshItem[];
+  items: ContentRefresh[];
+  historicalItems?: ContentRefresh[];
   token: string;
   clientPackage: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
-    items.find((i) => getItemStatus(i) === "review")?.job.id ?? items[0]?.job.id ?? null
+    items.find((r) => getUiStatus(r) === "review")?.id ?? items[0]?.id ?? null
   );
   const [approving, setApproving] = useState(false);
-  const [localItems, setLocalItems] = useState<RefreshItem[]>(items);
+  const [localItems, setLocalItems] = useState<ContentRefresh[]>(items);
 
-  const selectedItem = localItems.find((i) => i.job.id === selectedId) ?? null;
+  const selectedItem = localItems.find((r) => r.id === selectedId) ?? historicalItems.find((r) => r.id === selectedId) ?? null;
 
   const handleApprove = useCallback(async () => {
-    if (!selectedItem?.result) return;
+    if (!selectedItem) return;
     setApproving(true);
     try {
       const res = await fetch(`/api/portal/content-optimization?token=${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "approve", resultId: selectedItem.result.id }),
+        body: JSON.stringify({ type: "approve", refreshId: selectedItem.id }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Failed to approve");
       }
       setLocalItems((prev) =>
-        prev.map((i) =>
-          i.job.id === selectedId
-            ? {
-                ...i,
-                result: i.result
-                  ? { ...i.result, fields: { ...i.result.fields, portal_approval: "approved" } }
-                  : i.result,
-              }
-            : i
+        prev.map((r) =>
+          r.id === selectedId
+            ? { ...r, portal_approval: "approved", status: "approved_for_publish" as const }
+            : r
         )
       );
     } catch (e) {
@@ -703,7 +617,7 @@ export function ContentOptimization({
     }
   }, [selectedItem, selectedId, token]);
 
-  if (localItems.length === 0) {
+  if (localItems.length === 0 && historicalItems.length === 0) {
     return (
       <div className="flex-1 flex flex-col px-10">
         <EmptyState clientPackage={clientPackage} />
@@ -711,17 +625,16 @@ export function ContentOptimization({
     );
   }
 
-  const readyCount    = localItems.filter((i) => getItemStatus(i) === "review").length;
-  const runningCount  = localItems.filter((i) => getItemStatus(i) === "running").length;
-  const approvedCount = localItems.filter((i) => getItemStatus(i) === "approved").length;
-  const scheduledCount= localItems.filter((i) => getItemStatus(i) === "proposed").length;
+  const readyCount    = localItems.filter((r) => getUiStatus(r) === "review").length;
+  const runningCount  = localItems.filter((r) => getUiStatus(r) === "running").length;
+  const approvedCount = localItems.filter((r) => getUiStatus(r) === "approved").length;
+  const scheduledCount= localItems.filter((r) => getUiStatus(r) === "proposed").length;
   const refreshCount  = refreshLimit(clientPackage);
   const packageLabel  = clientPackage.charAt(0).toUpperCase() + clientPackage.slice(1);
   const progressPct   = Math.min(100, Math.round((approvedCount / refreshCount) * 100));
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Monthly tracker */}
       <div className="px-10 pb-5">
         <div className="bg-white border border-slate-200 rounded-xl px-5 py-4">
           <div className="flex items-center justify-between mb-3">
@@ -762,9 +675,7 @@ export function ContentOptimization({
         </div>
       </div>
 
-      {/* Master-detail */}
       <div className="flex flex-1 min-h-0" style={{ height: "calc(100vh - 18rem)" }}>
-        {/* Left sidebar list */}
         <div className="w-[280px] shrink-0 border-r border-slate-200 flex flex-col bg-white overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
             <div className="flex items-center justify-between">
@@ -780,17 +691,15 @@ export function ContentOptimization({
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {/* This month */}
-            {localItems.map((item) => (
+            {localItems.map((refresh) => (
               <RefreshListItem
-                key={item.job.id}
-                item={item}
-                selected={selectedId === item.job.id}
-                onClick={() => setSelectedId(item.job.id)}
+                key={refresh.id}
+                refresh={refresh}
+                selected={selectedId === refresh.id}
+                onClick={() => setSelectedId(refresh.id)}
               />
             ))}
 
-            {/* Previous months */}
             {historicalItems.length > 0 && (
               <>
                 <div className="px-4 py-2 border-t border-b border-slate-100 bg-slate-50">
@@ -798,12 +707,12 @@ export function ContentOptimization({
                     Previous months
                   </span>
                 </div>
-                {historicalItems.map((item) => (
+                {historicalItems.map((refresh) => (
                   <RefreshListItem
-                    key={item.job.id}
-                    item={item}
-                    selected={selectedId === item.job.id}
-                    onClick={() => setSelectedId(item.job.id)}
+                    key={refresh.id}
+                    refresh={refresh}
+                    selected={selectedId === refresh.id}
+                    onClick={() => setSelectedId(refresh.id)}
                   />
                 ))}
               </>
@@ -811,12 +720,10 @@ export function ContentOptimization({
           </div>
         </div>
 
-        {/* Right detail */}
         <div className="flex-1 min-w-0 flex flex-col bg-white overflow-hidden">
           {selectedItem ? (
             <DetailPanel
-              item={selectedItem}
-              token={token}
+              refresh={selectedItem}
               onApprove={handleApprove}
               approving={approving}
             />
