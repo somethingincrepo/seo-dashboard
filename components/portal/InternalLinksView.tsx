@@ -17,10 +17,31 @@ interface InternalLinksViewProps {
 }
 
 interface LinkProposal {
-  source_url: string;
-  anchor_text: string;
-  target_url: string;
-  context: string;
+  // Common across legacy and v1
+  source_url?: string;
+  anchor_text?: string;
+  target_url?: string;
+  // Legacy (LLM SOP) shape
+  context?: string;
+  // v1 deterministic generator shape — see lib/audit/internal-links/types.ts
+  version?: 1;
+  anchor_text_display?: string;
+  source_paragraph_text?: string;
+  source_paragraph_html?: string;
+  source_section_heading?: string | null;
+  anchor_text_start?: number;
+  anchor_text_end?: number;
+  rationale?: string;
+}
+
+function isV1Proposal(p: LinkProposal | null): p is LinkProposal & {
+  version: 1;
+  source_paragraph_text: string;
+  anchor_text_start: number;
+  anchor_text_end: number;
+} {
+  return !!p && p.version === 1 && typeof p.source_paragraph_text === "string"
+    && typeof p.anchor_text_start === "number" && typeof p.anchor_text_end === "number";
 }
 
 function parsePath(url: string): string {
@@ -36,8 +57,12 @@ function parsePath(url: string): string {
 function parseProposal(raw: string): LinkProposal | null {
   if (!raw) return null;
   try {
-    const p = JSON.parse(raw.trim());
-    if (p && (p.anchor_text || p.target_url)) return p as LinkProposal;
+    const trimmed = raw.trim();
+    const parsed = JSON.parse(trimmed);
+    // R047 may emit an array of proposals — we surface the first one in the
+    // portal card. Admin views show all entries.
+    const obj = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (obj && (obj.anchor_text || obj.target_url)) return obj as LinkProposal;
   } catch {
     // not JSON
   }
@@ -94,8 +119,8 @@ function LinkCard({
 }) {
   const proposal = parseProposal(change.fields.proposed_value ?? "");
   const sourcePath = parsePath(change.fields.page_url ?? proposal?.source_url ?? "");
-  const targetPath = proposal ? parsePath(proposal.target_url) : "";
-  const anchor = proposal?.anchor_text ?? "";
+  const targetPath = proposal?.target_url ? parsePath(proposal.target_url) : "";
+  const anchor = proposal?.anchor_text_display ?? proposal?.anchor_text ?? "";
   const confidence = change.fields.confidence ?? "";
   const effectiveApproval = localApproval ?? change.fields.approval;
   const isDone = effectiveApproval && effectiveApproval !== "pending";
@@ -183,21 +208,52 @@ function DetailPanel({
 
   const proposal = parseProposal(change.fields.proposed_value ?? "");
   const sourcePath = parsePath(change.fields.page_url ?? proposal?.source_url ?? "");
-  const targetPath = proposal ? parsePath(proposal.target_url) : "";
-  const anchor = proposal?.anchor_text ?? "";
-  const context = proposal?.context ?? "";
+  const targetPath = proposal?.target_url ? parsePath(proposal.target_url) : "";
+  const anchorDisplay = proposal?.anchor_text_display ?? proposal?.anchor_text ?? "";
 
-  let contextNodes: React.ReactNode = context;
-  if (context && anchor) {
-    const idx = context.indexOf(anchor);
+  // v1 proposals carry the live paragraph + anchor offsets so we can render
+  // the actual on-page content with the proposed link in place. This is the
+  // deterministic-generator path; legacy proposals fall back to the old
+  // `context` sentence display below.
+  const v1 = isV1Proposal(proposal);
+  const paragraphText = v1 ? proposal.source_paragraph_text : "";
+  const start = v1 ? proposal.anchor_text_start : -1;
+  const end = v1 ? proposal.anchor_text_end : -1;
+  const sectionHeading = v1 ? proposal?.source_section_heading ?? null : null;
+
+  const beforeNodes: React.ReactNode = v1 && start >= 0 && end > start ? (
+    <>
+      {paragraphText.slice(0, start)}
+      <mark className="bg-amber-100 text-amber-900 rounded px-0.5">
+        {paragraphText.slice(start, end)}
+      </mark>
+      {paragraphText.slice(end)}
+    </>
+  ) : null;
+
+  const afterNodes: React.ReactNode = v1 && start >= 0 && end > start && proposal?.target_url ? (
+    <>
+      {paragraphText.slice(0, start)}
+      <a className="text-indigo-700 font-semibold underline decoration-indigo-400 underline-offset-2" href={proposal.target_url}>
+        {paragraphText.slice(start, end)}
+      </a>
+      {paragraphText.slice(end)}
+    </>
+  ) : null;
+
+  // Legacy fallback rendering (single context sentence with anchor highlighted).
+  const legacyContext = !v1 ? proposal?.context ?? "" : "";
+  let legacyContextNodes: React.ReactNode = legacyContext;
+  if (legacyContext && anchorDisplay) {
+    const idx = legacyContext.indexOf(anchorDisplay);
     if (idx !== -1) {
-      contextNodes = (
+      legacyContextNodes = (
         <>
-          {context.slice(0, idx)}
+          {legacyContext.slice(0, idx)}
           <strong className="text-indigo-800 font-semibold underline decoration-indigo-300 underline-offset-2">
-            {anchor}
+            {anchorDisplay}
           </strong>
-          {context.slice(idx + anchor.length)}
+          {legacyContext.slice(idx + anchorDisplay.length)}
         </>
       );
     }
@@ -300,7 +356,7 @@ function DetailPanel({
           </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-400 text-[10px] uppercase tracking-wider w-8 shrink-0">Link</span>
-            <span className="text-indigo-600 font-medium truncate">&ldquo;{anchor}&rdquo;</span>
+            <span className="text-indigo-600 font-medium truncate">&ldquo;{anchorDisplay}&rdquo;</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-400 text-[10px] uppercase tracking-wider w-8 shrink-0">To</span>
@@ -394,15 +450,43 @@ function DetailPanel({
 
       {/* Body — context, rationale, and impact, scrollable below the actions */}
       <div className="flex-1 px-6 py-5 space-y-5 overflow-y-auto">
-        {context && (
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Where the link goes in the page</div>
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
-              <p className="text-[13px] text-slate-700 leading-relaxed italic">
-                &ldquo;{contextNodes}&rdquo;
+        {v1 ? (
+          <>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                Currently on the page{sectionHeading ? ` — ${sectionHeading}` : ""}
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <p className="text-[13px] text-slate-700 leading-relaxed">{beforeNodes}</p>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                This is the exact paragraph already on your page. We don&rsquo;t rewrite anything — we only turn the highlighted words into a link.
               </p>
             </div>
-          </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">After this change</div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                <p className="text-[13px] text-slate-700 leading-relaxed">{afterNodes}</p>
+              </div>
+            </div>
+            {proposal?.rationale && (
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Why we recommend this</div>
+                <p className="text-[13px] text-slate-600 leading-relaxed">{proposal.rationale}</p>
+              </div>
+            )}
+          </>
+        ) : (
+          legacyContext && (
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Where the link goes in the page</div>
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+                <p className="text-[13px] text-slate-700 leading-relaxed italic">
+                  &ldquo;{legacyContextNodes}&rdquo;
+                </p>
+              </div>
+            </div>
+          )
         )}
         {change.fields.plain_english_explanation && (
           <div>
@@ -438,8 +522,8 @@ function DetailPanel({
 function ImplementedRow({ change }: { change: Change }) {
   const proposal = parseProposal(change.fields.proposed_value ?? "");
   const sourcePath = parsePath(change.fields.page_url ?? proposal?.source_url ?? "");
-  const targetPath = proposal ? parsePath(proposal.target_url) : "";
-  const anchor = proposal?.anchor_text ?? "";
+  const targetPath = proposal?.target_url ? parsePath(proposal.target_url) : "";
+  const anchor = proposal?.anchor_text_display ?? proposal?.anchor_text ?? "";
   const date = change.fields.implemented_at ? formatDate(change.fields.implemented_at) : "";
 
   return (

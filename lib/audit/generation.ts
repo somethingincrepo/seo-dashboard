@@ -62,7 +62,10 @@ export const RULE_TO_FIX_TYPE: Record<string, FixType> = {
   R046: "content_expand",
   R056: "content_expand",
 
-  // Internal link recommendations — agent picks specific source/target pages (Sonnet)
+  // Internal link recommendations — handled deterministically in
+  // lib/audit/internal-links/generator.ts (called synchronously from the
+  // diagnose route). Kept in the table for category lookups; the diagnose
+  // route filters R047–R050 out of the agent enqueue.
   R047: "internal_links",
   R048: "internal_links",
   R049: "internal_links",

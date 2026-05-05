@@ -143,8 +143,9 @@ function ChecksSection({ group, rows, token }: { group: HealthCheck["group"]; ro
 
 function CheckRow({ token, row }: { token: string; row: HealthCheck }) {
   const ui = STATUS_UI[row.status];
+  const isClickable = !!(row.rule_id && (row.status === "fail" || row.status === "warn"));
   const inner = (
-    <div className="flex items-start gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors">
+    <div className={`flex items-start gap-4 px-5 py-3.5 transition-colors ${isClickable ? "hover:bg-indigo-50/40 cursor-pointer" : ""}`}>
       <div className="mt-0.5 shrink-0">{ui.icon}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
@@ -158,16 +159,19 @@ function CheckRow({ token, row }: { token: string; row: HealthCheck }) {
           </p>
         )}
       </div>
-      {row.rule_id && (row.status === "fail" || row.status === "warn") && (
-        <div className="text-[11px] text-indigo-600 hover:underline whitespace-nowrap shrink-0 self-center">
-          View affected pages →
+      {isClickable && (
+        <div className="flex items-center gap-1.5 shrink-0 self-center text-[11.5px] font-medium text-indigo-600 group-hover:text-indigo-700 whitespace-nowrap">
+          <span>View issues</span>
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </div>
       )}
     </div>
   );
-  if (row.rule_id && (row.status === "fail" || row.status === "warn")) {
+  if (isClickable) {
     return (
-      <Link href={`/portal/${token}/audit?rule=${row.rule_id}`} className="block">
+      <Link href={`/portal/${token}/audit?rule=${row.rule_id}`} className="block group">
         {inner}
       </Link>
     );

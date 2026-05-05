@@ -5,6 +5,9 @@ import { buildFixGuidance } from "@/lib/audit/rules/fix-guidance";
 import { getRuleDescription } from "@/lib/audit/rules/rule-descriptions";
 import { generateMechanicalFix, MECHANICAL_RULE_IDS } from "@/lib/audit/mechanical-fixes";
 import { RULE_TO_FIX_TYPE, FIX_TYPE_TO_SOP, groupByFixType, chunk, ISSUES_PER_JOB } from "@/lib/audit/generation";
+import { runInternalLinksGeneration } from "@/lib/audit/internal-links/run";
+
+const INTERNAL_LINK_RULES = new Set(["R047", "R048", "R049", "R050"]);
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // up to 5 minutes for very large sites
@@ -202,9 +205,41 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Path C — synchronous deterministic internal-link proposals (R047–R050)
+    // Replaces the LLM SOP `generate_fix_internal_links` for these rules with
+    // a pure-TS generator that fetches each candidate source page, scans for
+    // exact-match anchor candidates derived from target page metadata, and
+    // ranks with stable tiebreaks. The output JSON includes the live
+    // paragraph text + HTML so the portal can show the user the actual
+    // on-page content where the link will be inserted.
+    const internalLinkIssues = allIssues.filter(
+      (i) => i.scope === "page" && INTERNAL_LINK_RULES.has(i.rule_id),
+    );
+    let internalLinkProposalsWritten = 0;
+    let internalLinkFailures = 0;
+    let internalLinkChangesWritten = 0;
+    if (internalLinkIssues.length > 0) {
+      try {
+        const linksResult = await runInternalLinksGeneration({
+          clientId: run.client_id,
+          auditRunId,
+        });
+        internalLinkProposalsWritten = linksResult.proposals_generated;
+        internalLinkFailures = linksResult.proposal_failures;
+        internalLinkChangesWritten = linksResult.changes_written;
+      } catch (e) {
+        console.error("[diagnose] internal-links pipeline threw:", e instanceof Error ? e.message : String(e));
+      }
+    }
+
     // Path B — enqueue agent jobs for the per-fix-type rules
+    // Internal-link rules are excluded — they were handled synchronously in
+    // Path C above by the deterministic TS generator.
     const agentIssues = allIssues.filter(
-      (i) => i.scope === "page" && RULE_TO_FIX_TYPE[i.rule_id],
+      (i) =>
+        i.scope === "page" &&
+        RULE_TO_FIX_TYPE[i.rule_id] &&
+        !INTERNAL_LINK_RULES.has(i.rule_id),
     );
     const grouped = groupByFixType(agentIssues);
     let jobsCreated = 0;
@@ -238,14 +273,17 @@ export async function POST(request: NextRequest) {
     // titles, internal-link suggestions, refresh picks, and keyword groups
     // queued up immediately after the audit lands. Subsequent weeks fire on
     // the worker's scheduler ticks.
+    // First-batch SOPs. The internal-links first batch is now produced
+    // synchronously by the deterministic TS generator above (Path C), so
+    // `audit_internal_links` is intentionally NOT enqueued here — keeping
+    // it would race with the TS generator and produce LLM-rewritten copy
+    // that conflicts with the deterministic proposals.
     const firstBatchSops = [
       // Foundational keyword research feeds title generation downstream.
       { sop_name: "keyword_research", payload: { client_id: run.client_id } },
       // First batch of content title proposals — content_scheduler fans out
       // title_generation children sized to one week's quota per package.
       { sop_name: "content_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
-      // First batch of internal-link Change suggestions — quota-bounded.
-      { sop_name: "audit_internal_links", payload: { client_id: run.client_id, weekly_run: true } },
       // First batch of content refresh picks — refresh_scheduler fans out
       // content_refresh children sized to one week's quota.
       { sop_name: "refresh_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
@@ -277,6 +315,9 @@ export async function POST(request: NextRequest) {
       pages: pages.length,
       issues: issueRows.length,
       mechanical_fixes: mechanicalUpdates.length,
+      internal_link_proposals: internalLinkProposalsWritten,
+      internal_link_changes_written: internalLinkChangesWritten,
+      internal_link_failures: internalLinkFailures,
       agent_jobs_enqueued: jobsCreated,
       first_batch_jobs_enqueued: firstBatchSops.length,
     });

@@ -188,6 +188,14 @@ export type ContentResultFields = {
   portal_notes: string | null;
   portal_approved_at: string | null;
   DocumentUrl: string | null;
+  "Original article body"?: string;
+  "Original meta title"?: string;
+  "Original meta description"?: string;
+  "Original word count"?: number;
+  "Change ratio"?: number;
+  "Edits count"?: number;
+  "Additions count"?: number;
+  "Removals count"?: number;
 };
 
 export type ContentResult = {

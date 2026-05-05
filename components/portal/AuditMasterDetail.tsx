@@ -197,34 +197,38 @@ function AuditMasterDetailInner({ run, issues, token }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hide dismissed issues from the main view unless toggled on.
-  const pageIssues = useMemo(() => issues.filter((i) => {
-    if (i.scope !== "page") return false;
+  // Issues visible in the panel — both page-scope and site-scope, hiding dismissed unless toggled.
+  // (Header total uses `issues_found` from audit_runs which counts both scopes; we count both
+  // here too so the donut + sidebar match the header.)
+  const visibleIssues = useMemo(() => issues.filter((i) => {
     const d = localDecisions.get(i.id) ?? i.decision;
     if (d === "dismissed" && !showDismissed) return false;
     return true;
   }), [issues, localDecisions, showDismissed]);
 
+  // Page issues only — used where rendering per-URL detail (rule cards) needs a page_url.
+  const pageIssues = useMemo(() => visibleIssues.filter((i) => i.scope === "page"), [visibleIssues]);
+
   const dismissedCount = useMemo(
-    () => issues.filter((i) => i.scope === "page" && (localDecisions.get(i.id) ?? i.decision) === "dismissed").length,
+    () => issues.filter((i) => (localDecisions.get(i.id) ?? i.decision) === "dismissed").length,
     [issues, localDecisions],
   );
   const approvedCount = useMemo(
-    () => issues.filter((i) => i.scope === "page" && (localDecisions.get(i.id) ?? i.decision) === "approved").length,
+    () => issues.filter((i) => (localDecisions.get(i.id) ?? i.decision) === "approved").length,
     [issues, localDecisions],
   );
 
   const severityCounts = useMemo(() => {
     const c: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0 };
-    for (const i of pageIssues) c[i.severity as Severity] = (c[i.severity as Severity] ?? 0) + 1;
+    for (const i of visibleIssues) c[i.severity as Severity] = (c[i.severity as Severity] ?? 0) + 1;
     return c;
-  }, [pageIssues]);
+  }, [visibleIssues]);
 
   const categoryCounts = useMemo(() => {
     const c: Record<Category, number> = { technical: 0, "on-page": 0, content: 0, "ai-geo": 0 };
-    for (const i of pageIssues) c[i.category as Category] = (c[i.category as Category] ?? 0) + 1;
+    for (const i of visibleIssues) c[i.category as Category] = (c[i.category as Category] ?? 0) + 1;
     return c;
-  }, [pageIssues]);
+  }, [visibleIssues]);
 
   const affectedPages = useMemo(() => {
     const set = new Set<string>();
@@ -1195,6 +1199,25 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 
 // ─── Current vs Proposed (side-by-side, read-only by default) ─────────
 
+/**
+ * Mechanical fixes emit code/markup (HTML tags, nginx blocks, JSON, etc.)
+ * which read better in mono. Agentic fixes are mostly prose with small
+ * structured blocks — they read better in sans, with the structured part
+ * inheriting that font (still legible, less noisy).
+ */
+function looksLikeCode(value: string): boolean {
+  if (!value) return false;
+  // HTML/JSON/CSS markers, leading-# config lines, or the section dividers
+  // we emit in mechanical-fixes.ts (── ... ── headers).
+  return (
+    /<\w[^>]*>/.test(value) ||                       // HTML tags
+    /[{}][\s\S]*[{}]/.test(value) ||                 // JSON or CSS-like blocks
+    /^#\s+\w/m.test(value) ||                        // # nginx, # comment
+    /(?:^|\n)\s{2,}\S/m.test(value) ||               // indented lines (config / pre)
+    /location\s*=|return\s+30[12]|RewriteRule|Redirect\s+30[12]/.test(value)
+  );
+}
+
 function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string }) {
   const [draft, setDraft] = useState<string>(issue.proposed_value ?? "");
   const [editing, setEditing] = useState(false);
@@ -1280,6 +1303,7 @@ function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string 
     // generated
     if (editing) {
       const isMultiline = (draft ?? "").includes("\n") || (draft ?? "").length > 80;
+      const editIsCode = looksLikeCode(draft);
       return (
         <div>
           {isMultiline ? (
@@ -1287,9 +1311,9 @@ function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string 
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
-              className="w-full font-mono text-[12px] text-slate-800 bg-white border border-indigo-300 rounded-md px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+              className={`w-full bg-white border border-indigo-300 rounded-md px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 ${editIsCode ? "font-mono text-[12px] text-slate-800" : "font-sans text-[13.5px] text-slate-800"}`}
               rows={Math.min(16, Math.max(4, draft.split("\n").length + 1))}
-              spellCheck={false}
+              spellCheck={!editIsCode}
             />
           ) : (
             <input
@@ -1322,9 +1346,10 @@ function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string 
       );
     }
     // read-only generated
+    const proposedIsCode = looksLikeCode(draft);
     return (
       <div>
-        <pre className="font-mono text-[12.5px] text-slate-800 whitespace-pre-wrap break-words leading-relaxed">
+        <pre className={`whitespace-pre-wrap break-words leading-relaxed ${proposedIsCode ? "font-mono text-[12px] text-slate-800" : "font-sans text-[13.5px] text-slate-800"}`}>
           {draft || "—"}
         </pre>
         {draft && (
@@ -1345,7 +1370,7 @@ function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string 
         {/* Current */}
         <div className="bg-slate-50/40 px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">Current</div>
-          <pre className="font-mono text-[12.5px] text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
+          <pre className={`whitespace-pre-wrap break-words leading-relaxed ${looksLikeCode(current) ? "font-mono text-[12px] text-slate-700" : "font-sans text-[13.5px] text-slate-700"}`}>
             {current}
           </pre>
         </div>

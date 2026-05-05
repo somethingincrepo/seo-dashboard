@@ -170,15 +170,35 @@ function OriginalPanel({
   body,
   rawMetaTitle,
   rawMetaDesc,
+  persistedOriginalBody,
+  persistedOriginalMetaTitle,
+  persistedOriginalMetaDesc,
 }: {
   body: string;
   rawMetaTitle: string;
   rawMetaDesc: string;
+  persistedOriginalBody?: string;
+  persistedOriginalMetaTitle?: string;
+  persistedOriginalMetaDesc?: string;
 }) {
-  const originalBody = deriveOriginalBody(body);
+  // Prefer the persisted snapshot captured at refresh time (deterministic ground truth).
+  // Fall back to deriving from change markers for legacy rows that pre-date persistence.
+  const originalBody = persistedOriginalBody && persistedOriginalBody.length > 0
+    ? persistedOriginalBody
+    : deriveOriginalBody(body);
   const html = bracketToHtml(originalBody);
-  const origTitle = originalMetaText(rawMetaTitle);
-  const origDesc = originalMetaText(rawMetaDesc);
+  const origTitle = persistedOriginalMetaTitle && persistedOriginalMetaTitle.length > 0
+    ? persistedOriginalMetaTitle
+    : originalMetaText(rawMetaTitle);
+  const origDesc = persistedOriginalMetaDesc && persistedOriginalMetaDesc.length > 0
+    ? persistedOriginalMetaDesc
+    : originalMetaText(rawMetaDesc);
+  const titleChanged = persistedOriginalMetaTitle
+    ? persistedOriginalMetaTitle !== cleanMetaText(rawMetaTitle)
+    : metaWasChanged(rawMetaTitle);
+  const descChanged = persistedOriginalMetaDesc
+    ? persistedOriginalMetaDesc !== cleanMetaText(rawMetaDesc)
+    : metaWasChanged(rawMetaDesc);
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -192,7 +212,7 @@ function OriginalPanel({
                 <span className={origTitle.length > 60 ? "text-red-500 font-bold" : "text-slate-400"}>
                   ({origTitle.length}/60)
                 </span>
-                {metaWasChanged(rawMetaTitle) && (
+                {titleChanged && (
                   <span className="text-amber-600 normal-case font-medium">current</span>
                 )}
               </div>
@@ -206,7 +226,7 @@ function OriginalPanel({
                 <span className={origDesc.length > 155 ? "text-red-500 font-bold" : "text-slate-400"}>
                   ({origDesc.length}/155)
                 </span>
-                {metaWasChanged(rawMetaDesc) && (
+                {descChanged && (
                   <span className="text-amber-600 normal-case font-medium">current</span>
                 )}
               </div>
@@ -251,17 +271,29 @@ function RefreshedPanel({
 
   const hasChangeMarkers = /\[ADDED\]|\[CHANGED |\[REMOVED\]/.test(body);
 
+  const changeRatio = result.fields["Change ratio"];
+  const editsCount = result.fields["Edits count"];
+  const additionsCount = result.fields["Additions count"];
+  const hasChangeStats = typeof changeRatio === "number";
+
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
       {/* Stats + legend */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
             ~{wordCount.toLocaleString()} words
           </span>
           <span className={`text-[10px] font-semibold ${deltaColor}`}>
             ({deltaLabel})
           </span>
+          {hasChangeStats && (
+            <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 ring-1 ring-indigo-200/60 rounded px-1.5 py-0.5">
+              {Math.round((changeRatio ?? 0) * 100)}% changed
+              {typeof editsCount === "number" && ` · ${editsCount} edit${editsCount === 1 ? "" : "s"}`}
+              {typeof additionsCount === "number" && ` · ${additionsCount} added`}
+            </span>
+          )}
         </div>
         {hasChangeMarkers && (
           <div className="flex items-center gap-2.5 shrink-0">
@@ -358,7 +390,11 @@ function DetailPanel({
   const body         = result?.fields["Article body"] ?? "";
   const rawMetaTitle = result?.fields["Meta title"] ?? "";
   const rawMetaDesc  = result?.fields["Meta description"] ?? "";
-  const origWordCount = countWords(deriveOriginalBody(body));
+  const persistedOriginalBody = result?.fields["Original article body"] ?? "";
+  const persistedOriginalMetaTitle = result?.fields["Original meta title"] ?? "";
+  const persistedOriginalMetaDesc = result?.fields["Original meta description"] ?? "";
+  const origWordCount = result?.fields["Original word count"]
+    ?? countWords(persistedOriginalBody.length > 0 ? persistedOriginalBody : deriveOriginalBody(body));
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -494,7 +530,14 @@ function DetailPanel({
                 </a>
               </div>
             </div>
-            <OriginalPanel body={body} rawMetaTitle={rawMetaTitle} rawMetaDesc={rawMetaDesc} />
+            <OriginalPanel
+              body={body}
+              rawMetaTitle={rawMetaTitle}
+              rawMetaDesc={rawMetaDesc}
+              persistedOriginalBody={persistedOriginalBody}
+              persistedOriginalMetaTitle={persistedOriginalMetaTitle}
+              persistedOriginalMetaDesc={persistedOriginalMetaDesc}
+            />
           </div>
 
           {/* Right — proposed */}

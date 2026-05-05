@@ -773,24 +773,142 @@ function AltTextPreview({ proposed, current }: { proposed: string; current: stri
 
 // ─── Internal Link: JSON Preview ───────────────────────────────
 
+interface InternalLinkProposalV1 {
+  version: 1;
+  rule_id?: string;
+  source_url?: string;
+  target_url?: string;
+  anchor_text?: string;
+  anchor_text_display?: string;
+  source_section_heading?: string | null;
+  source_paragraph_text?: string;
+  source_paragraph_html?: string;
+  anchor_text_start?: number;
+  anchor_text_end?: number;
+  rationale?: string;
+  confidence?: string;
+}
+
+interface InternalLinkProposalLegacy {
+  source_url?: string;
+  anchor_text?: string;
+  target_url?: string;
+  context?: string;
+}
+
+function isV1(p: unknown): p is InternalLinkProposalV1 {
+  return !!p && typeof p === "object" && (p as { version?: unknown }).version === 1;
+}
+
 function InternalLinkPreview({ proposed, current }: { proposed: string; current: string }) {
-  let parsed: { source_url?: string; anchor_text?: string; target_url?: string; context?: string } = {};
+  let parsed: unknown = null;
   try {
-    if (proposed.trim().startsWith("{")) {
+    if (proposed.trim().startsWith("{") || proposed.trim().startsWith("[")) {
       parsed = JSON.parse(proposed.trim());
     }
   } catch {
     return <ElementPreview current={current} proposed={proposed} type="Internal Link" />;
   }
 
-  if (!parsed.anchor_text && !parsed.target_url) {
+  // Multiple proposals (R047 emits up to 3) come through as an array
+  const items: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+  const renderable = items.filter(Boolean);
+  if (renderable.length === 0) {
     return <ElementPreview current={current} proposed={proposed} type="Internal Link" />;
   }
 
-  const { anchor_text, target_url, context } = parsed;
+  return (
+    <div className="mt-4 space-y-4">
+      {renderable.map((item, idx) => (
+        <SingleInternalLinkPreview key={idx} item={item} index={idx} total={renderable.length} />
+      ))}
+    </div>
+  );
+}
 
-  // Highlight anchor_text within context sentence
-  let contextParts: React.ReactNode = null;
+function SingleInternalLinkPreview({ item, index, total }: { item: unknown; index: number; total: number }) {
+  if (isV1(item)) return <InternalLinkV1Preview p={item} index={index} total={total} />;
+  return <InternalLinkLegacyPreview p={item as InternalLinkProposalLegacy} />;
+}
+
+function InternalLinkV1Preview({ p, index, total }: { p: InternalLinkProposalV1; index: number; total: number }) {
+  const paragraphHtml = p.source_paragraph_html ?? "";
+  const paragraphText = p.source_paragraph_text ?? "";
+  const display = p.anchor_text_display ?? p.anchor_text ?? "";
+  const start = p.anchor_text_start ?? -1;
+  const end = p.anchor_text_end ?? -1;
+
+  const beforeBlock: React.ReactNode = paragraphText && start >= 0 && end > start
+    ? (
+      <>
+        {paragraphText.slice(0, start)}
+        <mark className="bg-amber-100 text-amber-900 rounded px-0.5">{paragraphText.slice(start, end)}</mark>
+        {paragraphText.slice(end)}
+      </>
+    ) : paragraphText;
+
+  const afterBlock: React.ReactNode = paragraphText && start >= 0 && end > start && p.target_url
+    ? (
+      <>
+        {paragraphText.slice(0, start)}
+        <a href={p.target_url} className="text-emerald-700 underline decoration-emerald-400">
+          {paragraphText.slice(start, end)}
+        </a>
+        {paragraphText.slice(end)}
+      </>
+    ) : paragraphText;
+
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      {total > 1 && (
+        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          Suggestion {index + 1} of {total}
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Currently on the page</div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-sm leading-relaxed text-slate-700" style={{ overflowWrap: "anywhere" }}>{beforeBlock}</p>
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">After this change</div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <p className="text-sm leading-relaxed text-slate-700" style={{ overflowWrap: "anywhere" }}>{afterBlock}</p>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-2">
+        <div style={{ overflowWrap: "anywhere" }}>
+          <span className="font-medium text-slate-600">Anchor:</span> &ldquo;{display}&rdquo;
+        </div>
+        <div style={{ overflowWrap: "anywhere" }}>
+          <span className="font-medium text-slate-600">Links to:</span> {p.target_url ?? ""}
+        </div>
+        {p.source_section_heading && (
+          <div className="sm:col-span-2" style={{ overflowWrap: "anywhere" }}>
+            <span className="font-medium text-slate-600">Section:</span> {p.source_section_heading}
+          </div>
+        )}
+        {p.rationale && (
+          <p className="sm:col-span-2 text-slate-500 leading-relaxed">{p.rationale}</p>
+        )}
+      </div>
+      {/* Hidden field — verify the proposed paragraph matches the live source HTML */}
+      {paragraphHtml && (
+        <details className="text-[11px] text-slate-400">
+          <summary className="cursor-pointer hover:text-slate-600">View source HTML snippet</summary>
+          <pre className="mt-2 overflow-x-auto rounded bg-slate-50 px-3 py-2 text-[11px] text-slate-600">{paragraphHtml}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function InternalLinkLegacyPreview({ p }: { p: InternalLinkProposalLegacy }) {
+  const { anchor_text, target_url, context } = p;
+  let contextParts: React.ReactNode = context ?? null;
   if (context && anchor_text) {
     const idx = context.indexOf(anchor_text);
     if (idx !== -1) {
@@ -801,20 +919,15 @@ function InternalLinkPreview({ proposed, current }: { proposed: string; current:
           {context.slice(idx + anchor_text.length)}
         </>
       );
-    } else {
-      contextParts = context;
     }
   }
-
   return (
-    <div className="mt-4 space-y-3">
+    <div className="space-y-3">
       {context && (
         <div>
           <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Context</div>
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-            <p className="text-sm text-slate-700 leading-relaxed" style={{ overflowWrap: "anywhere" }}>
-              {contextParts || context}
-            </p>
+            <p className="text-sm text-slate-700 leading-relaxed" style={{ overflowWrap: "anywhere" }}>{contextParts}</p>
           </div>
         </div>
       )}
