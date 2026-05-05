@@ -41,6 +41,25 @@ export async function triggerAudit(args: TriggerAuditArgs): Promise<TriggerAudit
 
   const auditRunId = (run as { id: string }).id;
 
+  // Kick off the content-profile generator in parallel with the crawl.
+  // It only needs the main Clients record + a homepage scrape, no audit
+  // results, so it can run from the moment the audit is triggered. By the
+  // time titles/refreshes start being produced, the brand voice + style
+  // rules are already populated in the content base.
+  // Idempotent on the SOP side — re-running for a client whose profile
+  // is already populated is a no-op.
+  const { error: profileErr } = await supabase.from("jobs").insert({
+    sop_name: "generate_content_profile",
+    client_id: args.client_id,
+    payload: { client_id: args.client_id },
+    status: "pending",
+    runner: "fly",
+  });
+  if (profileErr) {
+    // Non-fatal — the audit can still proceed. Log and move on.
+    console.error(`[triggerAudit] generate_content_profile enqueue failed (non-fatal): ${profileErr.message}`);
+  }
+
   const crawlerUrl = process.env.CRAWLER_SERVICE_URL;
   const crawlerToken = process.env.CRAWLER_SERVICE_TOKEN;
   if (!crawlerUrl || !crawlerToken) {
