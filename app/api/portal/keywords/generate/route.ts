@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // OpenRouter via Anthropic SDK — see lib/agent-runner.ts for the same pattern.
 const anthropic = new Anthropic({
   apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: "https://openrouter.ai/api/v1",
+  baseURL: "https://openrouter.ai/api",
   defaultHeaders: {
     "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://seo-dashboard-teal-phi.vercel.app",
     "X-Title": "seo-dashboard:keywords",

@@ -234,7 +234,8 @@ export async function runJob(job: SupabaseJob): Promise<RunResult> {
   if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
   const client = new Anthropic({
     apiKey,
-    baseURL: "https://openrouter.ai/api/v1",
+    // SDK appends /v1/messages, so baseURL is .../api (NOT .../api/v1)
+    baseURL: "https://openrouter.ai/api",
     defaultHeaders: {
       "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://seo-dashboard-teal-phi.vercel.app",
       "X-Title": "seo-dashboard",
