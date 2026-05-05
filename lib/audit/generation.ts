@@ -9,7 +9,16 @@
  * fix_guidance and need editorial judgment from the user.
  */
 
-export type FixType = "title" | "meta_description" | "h1" | "alt_text" | "anchor" | "schema";
+export type FixType =
+  | "title"
+  | "meta_description"
+  | "h1"
+  | "alt_text"
+  | "anchor"
+  | "schema"
+  | "content_expand"
+  | "internal_links"
+  | "link_prune";
 
 export const RULE_TO_FIX_TYPE: Record<string, FixType> = {
   // Title (Haiku)
@@ -47,6 +56,20 @@ export const RULE_TO_FIX_TYPE: Record<string, FixType> = {
   R071: "schema",
   R072: "schema",
   R075: "schema",
+
+  // Content expansion — agent writes the missing body copy (Sonnet)
+  R045: "content_expand",
+  R046: "content_expand",
+  R056: "content_expand",
+
+  // Internal link recommendations — agent picks specific source/target pages (Sonnet)
+  R047: "internal_links",
+  R048: "internal_links",
+  R049: "internal_links",
+  R050: "internal_links",
+
+  // Link pruning — agent ranks + selects which links to remove (Sonnet)
+  R062: "link_prune",
 };
 
 export const FIX_TYPE_TO_SOP: Record<FixType, string> = {
@@ -56,6 +79,9 @@ export const FIX_TYPE_TO_SOP: Record<FixType, string> = {
   alt_text: "generate_fix_alt_text",
   anchor: "generate_fix_anchor",
   schema: "generate_fix_schema",
+  content_expand: "generate_fix_content_expand",
+  internal_links: "generate_fix_internal_links",
+  link_prune: "generate_fix_link_prune",
 };
 
 /** Group issues by fix-type so we can emit one job per chunk per fix-type. */
