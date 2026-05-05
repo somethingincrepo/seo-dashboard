@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R047_zeroOutboundInternalLinks: PageRule = {
   id: "R047",
-  name: "Page has no outbound internal links",
+  name: "Page is a dead end (links nowhere on your site)",
   severity: "medium",
   category: "content",
   scope: "page",
@@ -15,7 +15,7 @@ export const R047_zeroOutboundInternalLinks: PageRule = {
     if (out === null || out > 0) return null;
     return {
       rule_id: "R047",
-      rule_name: "Page has no outbound internal links",
+      rule_name: "Page is a dead end (links nowhere on your site)",
       severity: "medium",
       category: "content",
       scope: "page",

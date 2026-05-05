@@ -2,7 +2,7 @@ import type { SiteRule } from "./types";
 
 export const R009_robotsTxtMissing: SiteRule = {
   id: "R009",
-  name: "robots.txt is missing",
+  name: "Site is missing robots.txt",
   severity: "medium",
   category: "technical",
   scope: "site",
@@ -12,7 +12,7 @@ export const R009_robotsTxtMissing: SiteRule = {
     if (site.robots_txt_present === true) return null;
     return {
       rule_id: "R009",
-      rule_name: "robots.txt is missing",
+      rule_name: "Site is missing robots.txt",
       severity: "medium",
       category: "technical",
       scope: "site",

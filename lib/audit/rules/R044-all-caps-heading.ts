@@ -7,7 +7,7 @@ function isAllCaps(s: string): boolean {
 
 export const R044_allCapsHeading: PageRule = {
   id: "R044",
-  name: "Heading uses all-caps text",
+  name: "Heading is in ALL CAPS",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -20,7 +20,7 @@ export const R044_allCapsHeading: PageRule = {
     if (offenders.length === 0) return null;
     return {
       rule_id: "R044",
-      rule_name: "Heading uses all-caps text",
+      rule_name: "Heading is in ALL CAPS",
       severity: "low",
       category: "on-page",
       scope: "page",

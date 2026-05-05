@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R028_metaDescriptionMissing: PageRule = {
   id: "R028",
-  name: "Meta description is missing",
+  name: "Page is missing its meta description",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -13,7 +13,7 @@ export const R028_metaDescriptionMissing: PageRule = {
     if (page.meta_description && page.meta_description.trim().length > 0) return null;
     return {
       rule_id: "R028",
-      rule_name: "Meta description is missing",
+      rule_name: "Page is missing its meta description",
       severity: "medium",
       category: "on-page",
       scope: "page",

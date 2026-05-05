@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R053_genericAnchorExcessive: PageRule = {
   id: "R053",
-  name: "Page uses generic anchor text excessively",
+  name: "Page uses too many vague \"click here\" / \"read more\" links",
   severity: "medium",
   category: "content",
   scope: "page",
@@ -14,7 +14,7 @@ export const R053_genericAnchorExcessive: PageRule = {
     if (generic < 3) return null;
     return {
       rule_id: "R053",
-      rule_name: "Page uses generic anchor text excessively",
+      rule_name: "Page uses too many vague \"click here\" / \"read more\" links",
       severity: "medium",
       category: "content",
       scope: "page",

@@ -1,8 +1,9 @@
 import type { PageRule } from "./types";
+import { isBotChallengePage } from "./_helpers";
 
 export const R055_duplicateContent: PageRule = {
   id: "R055",
-  name: "Page is an exact duplicate of another page",
+  name: "Two pages have identical content",
   severity: "high",
   category: "content",
   scope: "page",
@@ -11,9 +12,10 @@ export const R055_duplicateContent: PageRule = {
   check: (page) => {
     if (page.status_code !== 200) return null;
     if (!page.duplicate_of_url) return null;
+    if (isBotChallengePage(page)) return null; // bot-blocked pages share boilerplate; not real duplicates
     return {
       rule_id: "R055",
-      rule_name: "Page is an exact duplicate of another page",
+      rule_name: "Two pages have identical content",
       severity: "high",
       category: "content",
       scope: "page",

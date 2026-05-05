@@ -2,7 +2,7 @@ import type { SiteRule } from "./types";
 
 export const R014_hstsMissing: SiteRule = {
   id: "R014",
-  name: "HSTS header is not present",
+  name: "Site is missing the HSTS security header",
   severity: "low",
   category: "technical",
   scope: "site",
@@ -12,7 +12,7 @@ export const R014_hstsMissing: SiteRule = {
     if (site.hsts_header_present !== false) return null;
     return {
       rule_id: "R014",
-      rule_name: "HSTS header is not present",
+      rule_name: "Site is missing the HSTS security header",
       severity: "low",
       category: "technical",
       scope: "site",

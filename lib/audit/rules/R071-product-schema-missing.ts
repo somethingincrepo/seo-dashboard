@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R071_productSchemaMissing: PageRule = {
   id: "R071",
-  name: "Product page missing Product schema",
+  name: "Product page isn't tagged as a product for search engines",
   severity: "high",
   category: "ai-geo",
   scope: "page",
@@ -14,7 +14,7 @@ export const R071_productSchemaMissing: PageRule = {
     if (types.includes("Product")) return null;
     return {
       rule_id: "R071",
-      rule_name: "Product page missing Product schema",
+      rule_name: "Product page isn't tagged as a product for search engines",
       severity: "high",
       category: "ai-geo",
       scope: "page",

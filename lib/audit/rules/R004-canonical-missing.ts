@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R004_canonicalMissing: PageRule = {
   id: "R004",
-  name: "Canonical tag is missing",
+  name: "Page is missing its canonical tag",
   severity: "medium",
   category: "technical",
   scope: "page",
@@ -14,7 +14,7 @@ export const R004_canonicalMissing: PageRule = {
     if (page.canonical_url && page.canonical_url.trim().length > 0) return null;
     return {
       rule_id: "R004",
-      rule_name: "Canonical tag is missing",
+      rule_name: "Page is missing its canonical tag",
       severity: "medium",
       category: "technical",
       scope: "page",

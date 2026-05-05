@@ -2,7 +2,7 @@ import type { SiteRule } from "./types";
 
 export const R010_sitemapMissing: SiteRule = {
   id: "R010",
-  name: "XML sitemap is missing",
+  name: "Site is missing an XML sitemap",
   severity: "high",
   category: "technical",
   scope: "site",
@@ -12,7 +12,7 @@ export const R010_sitemapMissing: SiteRule = {
     if (site.sitemap_present === true) return null;
     return {
       rule_id: "R010",
-      rule_name: "XML sitemap is missing",
+      rule_name: "Site is missing an XML sitemap",
       severity: "high",
       category: "technical",
       scope: "site",

@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R039_jsonldInvalid: PageRule = {
   id: "R039",
-  name: "JSON-LD block fails to parse",
+  name: "Page's structured data has syntax errors",
   severity: "high",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R039_jsonldInvalid: PageRule = {
     if (n === 0) return null;
     return {
       rule_id: "R039",
-      rule_name: "JSON-LD block fails to parse",
+      rule_name: "Page's structured data has syntax errors",
       severity: "high",
       category: "on-page",
       scope: "page",

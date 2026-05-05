@@ -38,14 +38,19 @@ export async function runSiteChecks(rootUrl: string): Promise<SiteChecksResult> 
 }
 
 async function fetchText(url: string): Promise<{ ok: boolean; body: string | null }> {
-  try {
-    const r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000) });
-    if (!r.ok) return { ok: false, body: null };
-    const body = await r.text();
-    return { ok: true, body };
-  } catch {
-    return { ok: false, body: null };
+  // Retry once on transient failure so a single network blip doesn't change the
+  // discovered sitemap set across reruns.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000) });
+      if (!r.ok) return { ok: false, body: null };
+      const body = await r.text();
+      return { ok: true, body };
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 500));
+    }
   }
+  return { ok: false, body: null };
 }
 
 async function checkHttpsEnforced(origin: string): Promise<boolean> {
@@ -84,7 +89,8 @@ async function discoverSitemap(origin: string, robotsBody: string | null): Promi
 
   const urls = new Set<string>();
   const seen = new Set<string>();
-  const queue: string[] = Array.from(candidates);
+  // Sort the candidate queue so traversal order is deterministic across reruns.
+  const queue: string[] = Array.from(candidates).sort();
   while (queue.length > 0) {
     const next = queue.shift()!;
     if (seen.has(next)) continue;
@@ -93,12 +99,12 @@ async function discoverSitemap(origin: string, robotsBody: string | null): Promi
     if (!r.ok || !r.body) continue;
     const parsed = parseSitemap(r.body);
     for (const u of parsed.urls) urls.add(u);
-    for (const s of parsed.sitemaps) {
+    for (const s of [...parsed.sitemaps].sort()) {
       if (!seen.has(s)) queue.push(s);
     }
     if (urls.size > 50_000) break; // safety cap
   }
-  return Array.from(urls);
+  return Array.from(urls).sort();
 }
 
 function parseSitemap(xml: string): { urls: string[]; sitemaps: string[] } {

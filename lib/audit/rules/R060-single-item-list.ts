@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R060_singleItemList: PageRule = {
   id: "R060",
-  name: "List element contains only one item",
+  name: "Page has a list with only one item",
   severity: "low",
   category: "content",
   scope: "page",
@@ -13,7 +13,7 @@ export const R060_singleItemList: PageRule = {
     if (page.has_single_item_list !== true) return null;
     return {
       rule_id: "R060",
-      rule_name: "List element contains only one item",
+      rule_name: "Page has a list with only one item",
       severity: "low",
       category: "content",
       scope: "page",

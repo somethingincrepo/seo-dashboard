@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R023_titleMissing: PageRule = {
   id: "R023",
-  name: "Title tag is missing or empty",
+  name: "Page is missing its title",
   severity: "high",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R023_titleMissing: PageRule = {
     if (page.title && page.title.trim().length > 0) return null;
     return {
       rule_id: "R023",
-      rule_name: "Title tag is missing or empty",
+      rule_name: "Page is missing its title",
       severity: "high",
       category: "on-page",
       scope: "page",

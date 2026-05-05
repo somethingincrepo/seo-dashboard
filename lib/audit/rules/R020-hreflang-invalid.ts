@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R020_hreflangInvalid: PageRule = {
   id: "R020",
-  name: "Hreflang configuration is invalid",
+  name: "Hreflang tags are misconfigured",
   severity: "medium",
   category: "technical",
   scope: "page",
@@ -13,7 +13,7 @@ export const R020_hreflangInvalid: PageRule = {
     if (page.hreflang_invalid !== true) return null;
     return {
       rule_id: "R020",
-      rule_name: "Hreflang configuration is invalid",
+      rule_name: "Hreflang tags are misconfigured",
       severity: "medium",
       category: "technical",
       scope: "page",

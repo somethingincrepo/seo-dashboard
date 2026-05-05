@@ -2,7 +2,7 @@ import type { SiteRule } from "./types";
 
 export const R011_sitemapContainsBrokenUrls: SiteRule = {
   id: "R011",
-  name: "Sitemap contains URLs returning non-200",
+  name: "Sitemap lists broken URLs",
   severity: "high",
   category: "technical",
   scope: "site",
@@ -19,7 +19,7 @@ export const R011_sitemapContainsBrokenUrls: SiteRule = {
     if (broken.length === 0) return null;
     return {
       rule_id: "R011",
-      rule_name: "Sitemap contains URLs returning non-200",
+      rule_name: "Sitemap lists broken URLs",
       severity: "high",
       category: "technical",
       scope: "site",

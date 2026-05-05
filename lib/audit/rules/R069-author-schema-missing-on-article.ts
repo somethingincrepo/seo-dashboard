@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R069_authorSchemaMissingOnArticle: PageRule = {
   id: "R069",
-  name: "Article schema missing author",
+  name: "Article doesn't credit an author in its schema",
   severity: "medium",
   category: "ai-geo",
   scope: "page",
@@ -22,7 +22,7 @@ export const R069_authorSchemaMissingOnArticle: PageRule = {
     if (hasAuthor) return null;
     return {
       rule_id: "R069",
-      rule_name: "Article schema missing author",
+      rule_name: "Article doesn't credit an author in its schema",
       severity: "medium",
       category: "ai-geo",
       scope: "page",

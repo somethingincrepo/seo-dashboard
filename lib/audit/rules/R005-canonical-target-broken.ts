@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R005_canonicalTargetBroken: PageRule = {
   id: "R005",
-  name: "Canonical points to a non-200 URL",
+  name: "Canonical tag points to a broken page",
   severity: "high",
   category: "technical",
   scope: "page",
@@ -15,7 +15,7 @@ export const R005_canonicalTargetBroken: PageRule = {
     if (tgt === null || tgt === 200) return null;
     return {
       rule_id: "R005",
-      rule_name: "Canonical points to a non-200 URL",
+      rule_name: "Canonical tag points to a broken page",
       severity: "high",
       category: "technical",
       scope: "page",

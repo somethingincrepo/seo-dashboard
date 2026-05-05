@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R041_altTextMissing: PageRule = {
   id: "R041",
-  name: "Images missing alt text",
+  name: "Images are missing alt text",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R041_altTextMissing: PageRule = {
     if (missing === 0) return null;
     return {
       rule_id: "R041",
-      rule_name: "Images missing alt text",
+      rule_name: "Images are missing alt text",
       severity: "medium",
       category: "on-page",
       scope: "page",

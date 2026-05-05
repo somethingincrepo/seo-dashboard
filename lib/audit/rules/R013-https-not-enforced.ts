@@ -2,7 +2,7 @@ import type { SiteRule } from "./types";
 
 export const R013_httpsNotEnforced: SiteRule = {
   id: "R013",
-  name: "HTTPS is not enforced site-wide",
+  name: "Site allows insecure HTTP connections",
   severity: "critical",
   category: "technical",
   scope: "site",
@@ -13,7 +13,7 @@ export const R013_httpsNotEnforced: SiteRule = {
     if (site.https_enforced === null) return null;
     return {
       rule_id: "R013",
-      rule_name: "HTTPS is not enforced site-wide",
+      rule_name: "Site allows insecure HTTP connections",
       severity: "critical",
       category: "technical",
       scope: "site",

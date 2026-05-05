@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R042_altTextTooLong: PageRule = {
   id: "R042",
-  name: "Alt text exceeds 125 characters",
+  name: "Image alt text is too long",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R042_altTextTooLong: PageRule = {
     if (n === 0) return null;
     return {
       rule_id: "R042",
-      rule_name: "Alt text exceeds 125 characters",
+      rule_name: "Image alt text is too long",
       severity: "low",
       category: "on-page",
       scope: "page",

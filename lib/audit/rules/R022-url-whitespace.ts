@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R022_urlWhitespace: PageRule = {
   id: "R022",
-  name: "URL contains whitespace or unsafe characters",
+  name: "URL has spaces or special characters",
   severity: "medium",
   category: "technical",
   scope: "page",
@@ -15,7 +15,7 @@ export const R022_urlWhitespace: PageRule = {
     if (!/%20| |[^a-zA-Z0-9\-_/.]/.test(path)) return null;
     return {
       rule_id: "R022",
-      rule_name: "URL contains whitespace or unsafe characters",
+      rule_name: "URL has spaces or special characters",
       severity: "medium",
       category: "technical",
       scope: "page",

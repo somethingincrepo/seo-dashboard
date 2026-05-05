@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R040_organizationSchemaMissingOnHome: PageRule = {
   id: "R040",
-  name: "Organization schema missing on homepage",
+  name: "Homepage isn't introducing your brand to search engines",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -15,7 +15,7 @@ export const R040_organizationSchemaMissingOnHome: PageRule = {
     if (types.includes("Organization") || types.includes("LocalBusiness")) return null;
     return {
       rule_id: "R040",
-      rule_name: "Organization schema missing on homepage",
+      rule_name: "Homepage isn't introducing your brand to search engines",
       severity: "medium",
       category: "on-page",
       scope: "page",

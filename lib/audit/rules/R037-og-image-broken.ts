@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R037_ogImageBroken: PageRule = {
   id: "R037",
-  name: "Open Graph image returns non-200",
+  name: "Social-share image is broken",
   severity: "high",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R037_ogImageBroken: PageRule = {
     if (s === null || s === 200) return null;
     return {
       rule_id: "R037",
-      rule_name: "Open Graph image returns non-200",
+      rule_name: "Social-share image is broken",
       severity: "high",
       category: "on-page",
       scope: "page",

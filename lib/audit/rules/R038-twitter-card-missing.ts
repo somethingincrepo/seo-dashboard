@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R038_twitterCardMissing: PageRule = {
   id: "R038",
-  name: "Twitter card meta is missing",
+  name: "Page has no Twitter/X share card",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -13,7 +13,7 @@ export const R038_twitterCardMissing: PageRule = {
     if (page.twitter_card && page.twitter_card.trim().length > 0) return null;
     return {
       rule_id: "R038",
-      rule_name: "Twitter card meta is missing",
+      rule_name: "Page has no Twitter/X share card",
       severity: "low",
       category: "on-page",
       scope: "page",

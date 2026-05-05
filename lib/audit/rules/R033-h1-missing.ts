@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R033_h1Missing: PageRule = {
   id: "R033",
-  name: "H1 tag is missing",
+  name: "Page is missing its main heading (H1)",
   severity: "high",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R033_h1Missing: PageRule = {
     if (count >= 1) return null;
     return {
       rule_id: "R033",
-      rule_name: "H1 tag is missing",
+      rule_name: "Page is missing its main heading (H1)",
       severity: "high",
       category: "on-page",
       scope: "page",

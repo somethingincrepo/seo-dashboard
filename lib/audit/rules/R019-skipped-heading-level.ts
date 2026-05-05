@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R019_skippedHeadingLevel: PageRule = {
   id: "R019",
-  name: "Heading levels are skipped",
+  name: "Heading hierarchy skips levels",
   severity: "low",
   category: "technical",
   scope: "page",
@@ -13,7 +13,7 @@ export const R019_skippedHeadingLevel: PageRule = {
     if (page.has_skipped_heading_level !== true) return null;
     return {
       rule_id: "R019",
-      rule_name: "Heading levels are skipped",
+      rule_name: "Heading hierarchy skips levels",
       severity: "low",
       category: "technical",
       scope: "page",

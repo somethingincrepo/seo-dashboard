@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R032_metaDescriptionMatchesTitle: PageRule = {
   id: "R032",
-  name: "Meta description is identical to the title",
+  name: "Meta description duplicates the title",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -15,7 +15,7 @@ export const R032_metaDescriptionMatchesTitle: PageRule = {
     if (!t || !d || t !== d) return null;
     return {
       rule_id: "R032",
-      rule_name: "Meta description is identical to the title",
+      rule_name: "Meta description duplicates the title",
       severity: "low",
       category: "on-page",
       scope: "page",

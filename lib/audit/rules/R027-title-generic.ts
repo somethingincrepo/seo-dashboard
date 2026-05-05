@@ -7,7 +7,7 @@ const GENERIC_TITLES = new Set([
 
 export const R027_titleGeneric: PageRule = {
   id: "R027",
-  name: "Title is generic boilerplate",
+  name: "Title is generic (Home, Welcome, etc.)",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -19,7 +19,7 @@ export const R027_titleGeneric: PageRule = {
     if (!GENERIC_TITLES.has(t)) return null;
     return {
       rule_id: "R027",
-      rule_name: "Title is generic boilerplate",
+      rule_name: "Title is generic (Home, Welcome, etc.)",
       severity: "medium",
       category: "on-page",
       scope: "page",

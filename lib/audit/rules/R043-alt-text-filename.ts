@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R043_altTextFilename: PageRule = {
   id: "R043",
-  name: "Alt text matches the image filename",
+  name: "Image alt text is just the filename",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R043_altTextFilename: PageRule = {
     if (n === 0) return null;
     return {
       rule_id: "R043",
-      rule_name: "Alt text matches the image filename",
+      rule_name: "Image alt text is just the filename",
       severity: "medium",
       category: "on-page",
       scope: "page",

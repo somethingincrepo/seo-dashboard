@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R070_articleSchemaMissing: PageRule = {
   id: "R070",
-  name: "Article page missing Article schema",
+  name: "Article isn't tagged as an article for search engines",
   severity: "medium",
   category: "ai-geo",
   scope: "page",
@@ -14,7 +14,7 @@ export const R070_articleSchemaMissing: PageRule = {
     if (types.some((t) => t === "Article" || t === "BlogPosting" || t === "NewsArticle")) return null;
     return {
       rule_id: "R070",
-      rule_name: "Article page missing Article schema",
+      rule_name: "Article isn't tagged as an article for search engines",
       severity: "medium",
       category: "ai-geo",
       scope: "page",

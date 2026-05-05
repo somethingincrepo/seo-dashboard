@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R066_sameAsThin: PageRule = {
   id: "R066",
-  name: "Organization schema has fewer than 2 sameAs entries",
+  name: "Homepage isn't linking to your social profiles in schema",
   severity: "low",
   category: "ai-geo",
   scope: "page",
@@ -23,7 +23,7 @@ export const R066_sameAsThin: PageRule = {
     if (sameAsCount >= 2) return null;
     return {
       rule_id: "R066",
-      rule_name: "Organization schema has fewer than 2 sameAs entries",
+      rule_name: "Homepage isn't linking to your social profiles in schema",
       severity: "low",
       category: "ai-geo",
       scope: "page",

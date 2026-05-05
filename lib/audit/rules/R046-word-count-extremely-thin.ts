@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R046_wordCountExtremelyThin: PageRule = {
   id: "R046",
-  name: "Page has fewer than 100 words of content",
+  name: "Page is nearly empty (under 100 words)",
   severity: "high",
   category: "content",
   scope: "page",
@@ -16,7 +16,7 @@ export const R046_wordCountExtremelyThin: PageRule = {
     if (wc === 0 || wc >= 100) return null;
     return {
       rule_id: "R046",
-      rule_name: "Page has fewer than 100 words of content",
+      rule_name: "Page is nearly empty (under 100 words)",
       severity: "high",
       category: "content",
       scope: "page",

@@ -4,7 +4,7 @@ const FIVE_MB = 5 * 1024 * 1024;
 
 export const R017_renderedHtmlOversized: PageRule = {
   id: "R017",
-  name: "Rendered HTML exceeds 5 MB",
+  name: "Page is huge (over 5 MB of HTML)",
   severity: "medium",
   category: "technical",
   scope: "page",
@@ -15,7 +15,7 @@ export const R017_renderedHtmlOversized: PageRule = {
     if (size === null || size <= FIVE_MB) return null;
     return {
       rule_id: "R017",
-      rule_name: "Rendered HTML exceeds 5 MB",
+      rule_name: "Page is huge (over 5 MB of HTML)",
       severity: "medium",
       category: "technical",
       scope: "page",

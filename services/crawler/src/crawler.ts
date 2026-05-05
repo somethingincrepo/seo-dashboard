@@ -17,7 +17,9 @@ export interface CrawlOutput {
 export async function crawlSite(opts: CrawlOptions): Promise<CrawlOutput> {
   const { rootUrl } = opts;
   const maxPages = opts.maxPages ?? 5000;
-  const concurrency = opts.concurrency ?? 5;
+  // concurrency=1 by default: same URL list across reruns means same audit results.
+  // Higher concurrency caused order-of-arrival drift in dup-content + inbound-link counts.
+  const concurrency = opts.concurrency ?? 1;
   const pageTimeoutMs = opts.pageTimeoutMs ?? 30_000;
   const origin = rootOrigin(rootUrl);
 

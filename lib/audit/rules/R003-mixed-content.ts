@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R003_mixedContent: PageRule = {
   id: "R003",
-  name: "HTTPS page loads HTTP resources",
+  name: "Page mixes secure and insecure content",
   severity: "high",
   category: "technical",
   scope: "page",
@@ -15,7 +15,7 @@ export const R003_mixedContent: PageRule = {
     if (count === 0) return null;
     return {
       rule_id: "R003",
-      rule_name: "HTTPS page loads HTTP resources",
+      rule_name: "Page mixes secure and insecure content",
       severity: "high",
       category: "technical",
       scope: "page",

@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R075_aggregateRatingMissing: PageRule = {
   id: "R075",
-  name: "Product schema missing AggregateRating",
+  name: "Product page isn't showing star ratings in search",
   severity: "medium",
   category: "ai-geo",
   scope: "page",
@@ -21,7 +21,7 @@ export const R075_aggregateRatingMissing: PageRule = {
     if (hasRating) return null;
     return {
       rule_id: "R075",
-      rule_name: "Product schema missing AggregateRating",
+      rule_name: "Product page isn't showing star ratings in search",
       severity: "medium",
       category: "ai-geo",
       scope: "page",

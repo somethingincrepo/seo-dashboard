@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R002_redirectChainTooLong: PageRule = {
   id: "R002",
-  name: "Redirect chain has more than 2 hops",
+  name: "Page goes through too many redirects",
   severity: "high",
   category: "technical",
   scope: "page",
@@ -13,7 +13,7 @@ export const R002_redirectChainTooLong: PageRule = {
     if (!chain || chain.length <= 2) return null;
     return {
       rule_id: "R002",
-      rule_name: "Redirect chain has more than 2 hops",
+      rule_name: "Page goes through too many redirects",
       severity: "high",
       category: "technical",
       scope: "page",

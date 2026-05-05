@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R025_titleTooShort: PageRule = {
   id: "R025",
-  name: "Title tag is shorter than 30 characters",
+  name: "Title is too short to be useful",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -15,7 +15,7 @@ export const R025_titleTooShort: PageRule = {
     if (len >= 30) return null;
     return {
       rule_id: "R025",
-      rule_name: "Title tag is shorter than 30 characters",
+      rule_name: "Title is too short to be useful",
       severity: "low",
       category: "on-page",
       scope: "page",

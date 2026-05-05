@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R016_responseTimeCritical: PageRule = {
   id: "R016",
-  name: "Page response time exceeds 5 seconds",
+  name: "Page takes more than 5 seconds to respond",
   severity: "high",
   category: "technical",
   scope: "page",
@@ -13,7 +13,7 @@ export const R016_responseTimeCritical: PageRule = {
     if (ms === null || ms < 5000) return null;
     return {
       rule_id: "R016",
-      rule_name: "Page response time exceeds 5 seconds",
+      rule_name: "Page takes more than 5 seconds to respond",
       severity: "high",
       category: "technical",
       scope: "page",

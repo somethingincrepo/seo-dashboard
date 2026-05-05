@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R048_orphanPage: PageRule = {
   id: "R048",
-  name: "Orphan page (zero inbound internal links)",
+  name: "Page is orphaned (nothing links to it)",
   severity: "high",
   category: "content",
   scope: "page",
@@ -15,7 +15,7 @@ export const R048_orphanPage: PageRule = {
     if (inbound === null || inbound > 0) return null;
     return {
       rule_id: "R048",
-      rule_name: "Orphan page (zero inbound internal links)",
+      rule_name: "Page is orphaned (nothing links to it)",
       severity: "high",
       category: "content",
       scope: "page",

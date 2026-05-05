@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R052_brokenExternalLinks: PageRule = {
   id: "R052",
-  name: "Page contains broken external links",
+  name: "Page links to broken external sites",
   severity: "medium",
   category: "content",
   scope: "page",
@@ -18,7 +18,7 @@ export const R052_brokenExternalLinks: PageRule = {
     if (broken.length === 0) return null;
     return {
       rule_id: "R052",
-      rule_name: "Page contains broken external links",
+      rule_name: "Page links to broken external sites",
       severity: "medium",
       category: "content",
       scope: "page",

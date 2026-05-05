@@ -7,7 +7,7 @@ const GENERIC_H1S = new Set([
 
 export const R034_h1Generic: PageRule = {
   id: "R034",
-  name: "H1 is generic boilerplate",
+  name: "Main heading is generic (Welcome, Home, etc.)",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -19,7 +19,7 @@ export const R034_h1Generic: PageRule = {
     if (!h1 || !GENERIC_H1S.has(h1)) return null;
     return {
       rule_id: "R034",
-      rule_name: "H1 is generic boilerplate",
+      rule_name: "Main heading is generic (Welcome, Home, etc.)",
       severity: "medium",
       category: "on-page",
       scope: "page",

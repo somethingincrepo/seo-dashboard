@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R030_metaDescriptionTooShort: PageRule = {
   id: "R030",
-  name: "Meta description is shorter than 70 characters",
+  name: "Meta description is too short",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -15,7 +15,7 @@ export const R030_metaDescriptionTooShort: PageRule = {
     if (len >= 70) return null;
     return {
       rule_id: "R030",
-      rule_name: "Meta description is shorter than 70 characters",
+      rule_name: "Meta description is too short",
       severity: "low",
       category: "on-page",
       scope: "page",

@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R072_localBusinessSchemaMissing: PageRule = {
   id: "R072",
-  name: "Homepage with address but no LocalBusiness schema",
+  name: "Homepage shows an address but isn't tagged as a local business",
   severity: "medium",
   category: "ai-geo",
   scope: "page",
@@ -23,7 +23,7 @@ export const R072_localBusinessSchemaMissing: PageRule = {
     if (types.includes("LocalBusiness")) return null;
     return {
       rule_id: "R072",
-      rule_name: "Homepage with address but no LocalBusiness schema",
+      rule_name: "Homepage shows an address but isn't tagged as a local business",
       severity: "medium",
       category: "ai-geo",
       scope: "page",

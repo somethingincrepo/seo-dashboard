@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R057_placeholderText: PageRule = {
   id: "R057",
-  name: "Page contains placeholder or filler text",
+  name: "Page still has placeholder text (lorem ipsum, TODO, etc.)",
   severity: "high",
   category: "content",
   scope: "page",
@@ -14,7 +14,7 @@ export const R057_placeholderText: PageRule = {
     if (found.length === 0) return null;
     return {
       rule_id: "R057",
-      rule_name: "Page contains placeholder or filler text",
+      rule_name: "Page still has placeholder text (lorem ipsum, TODO, etc.)",
       severity: "high",
       category: "content",
       scope: "page",

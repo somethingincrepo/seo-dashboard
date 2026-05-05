@@ -2,7 +2,7 @@ import type { SiteRule } from "./types";
 
 export const R063_llmsTxtMissing: SiteRule = {
   id: "R063",
-  name: "/llms.txt is missing",
+  name: "Site is missing /llms.txt for AI assistants",
   severity: "low",
   category: "ai-geo",
   scope: "site",
@@ -12,7 +12,7 @@ export const R063_llmsTxtMissing: SiteRule = {
     if (site.llms_txt_present === true) return null;
     return {
       rule_id: "R063",
-      rule_name: "/llms.txt is missing",
+      rule_name: "Site is missing /llms.txt for AI assistants",
       severity: "low",
       category: "ai-geo",
       scope: "site",

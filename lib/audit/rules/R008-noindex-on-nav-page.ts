@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R008_noindexOnNavPage: PageRule = {
   id: "R008",
-  name: "Noindex set on a primary nav page",
+  name: "Nav page is hidden from search",
   severity: "critical",
   category: "technical",
   scope: "page",
@@ -13,7 +13,7 @@ export const R008_noindexOnNavPage: PageRule = {
     if (page.noindex !== true) return null;
     return {
       rule_id: "R008",
-      rule_name: "Noindex set on a primary nav page",
+      rule_name: "Nav page is hidden from search",
       severity: "critical",
       category: "technical",
       scope: "page",

@@ -10,7 +10,7 @@ function blocksContain(blocks: unknown[] | null, predicate: (b: Record<string, u
 
 export const R065_websiteSearchActionMissing: PageRule = {
   id: "R065",
-  name: "WebSite schema lacks SearchAction",
+  name: "Homepage isn't telling Google about its search box",
   severity: "low",
   category: "ai-geo",
   scope: "page",
@@ -30,7 +30,7 @@ export const R065_websiteSearchActionMissing: PageRule = {
     if (hasSearch) return null;
     return {
       rule_id: "R065",
-      rule_name: "WebSite schema lacks SearchAction",
+      rule_name: "Homepage isn't telling Google about its search box",
       severity: "low",
       category: "ai-geo",
       scope: "page",

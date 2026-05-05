@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R007_noindexInSitemap: PageRule = {
   id: "R007",
-  name: "Noindex page is included in sitemap",
+  name: "Sitemap includes a hidden (noindex) page",
   severity: "medium",
   category: "technical",
   scope: "page",
@@ -13,7 +13,7 @@ export const R007_noindexInSitemap: PageRule = {
     if (page.noindex !== true) return null;
     return {
       rule_id: "R007",
-      rule_name: "Noindex page is included in sitemap",
+      rule_name: "Sitemap includes a hidden (noindex) page",
       severity: "medium",
       category: "technical",
       scope: "page",

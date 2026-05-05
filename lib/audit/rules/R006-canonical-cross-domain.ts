@@ -6,7 +6,7 @@ function host(url: string): string | null {
 
 export const R006_canonicalCrossDomain: PageRule = {
   id: "R006",
-  name: "Canonical points to a different domain",
+  name: "Canonical tag points to a different website",
   severity: "high",
   category: "technical",
   scope: "page",
@@ -20,7 +20,7 @@ export const R006_canonicalCrossDomain: PageRule = {
     if (!a || !b || a === b) return null;
     return {
       rule_id: "R006",
-      rule_name: "Canonical points to a different domain",
+      rule_name: "Canonical tag points to a different website",
       severity: "high",
       category: "technical",
       scope: "page",

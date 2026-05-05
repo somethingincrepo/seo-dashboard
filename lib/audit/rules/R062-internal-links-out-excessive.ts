@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R062_internalLinksOutExcessive: PageRule = {
   id: "R062",
-  name: "Page has more than 200 outbound internal links",
+  name: "Page links out to too many other pages",
   severity: "low",
   category: "content",
   scope: "page",
@@ -14,7 +14,7 @@ export const R062_internalLinksOutExcessive: PageRule = {
     if (out <= 200) return null;
     return {
       rule_id: "R062",
-      rule_name: "Page has more than 200 outbound internal links",
+      rule_name: "Page links out to too many other pages",
       severity: "low",
       category: "content",
       scope: "page",

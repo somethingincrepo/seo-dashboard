@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R001_pageNonOkStatus: PageRule = {
   id: "R001",
-  name: "Page returns non-OK status",
+  name: "Page is broken or missing (4xx/5xx error)",
   severity: "critical",
   category: "technical",
   scope: "page",
@@ -13,7 +13,7 @@ export const R001_pageNonOkStatus: PageRule = {
     if (code === null || code === 200 || (code >= 300 && code < 400)) return null;
     return {
       rule_id: "R001",
-      rule_name: "Page returns non-OK status",
+      rule_name: "Page is broken or missing (4xx/5xx error)",
       severity: "critical",
       category: "technical",
       scope: "page",

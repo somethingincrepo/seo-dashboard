@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R035_ogTitleMissing: PageRule = {
   id: "R035",
-  name: "Open Graph title is missing",
+  name: "Page has no social-share title",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -13,7 +13,7 @@ export const R035_ogTitleMissing: PageRule = {
     if (page.og_title && page.og_title.trim().length > 0) return null;
     return {
       rule_id: "R035",
-      rule_name: "Open Graph title is missing",
+      rule_name: "Page has no social-share title",
       severity: "low",
       category: "on-page",
       scope: "page",

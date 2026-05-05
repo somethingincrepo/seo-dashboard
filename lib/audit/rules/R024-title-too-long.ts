@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R024_titleTooLong: PageRule = {
   id: "R024",
-  name: "Title tag exceeds 60 characters",
+  name: "Title is too long for search results",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R024_titleTooLong: PageRule = {
     if (len <= 60) return null;
     return {
       rule_id: "R024",
-      rule_name: "Title tag exceeds 60 characters",
+      rule_name: "Title is too long for search results",
       severity: "medium",
       category: "on-page",
       scope: "page",

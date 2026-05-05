@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R074_articleNoToc: PageRule = {
   id: "R074",
-  name: "Long-form article has no table of contents",
+  name: "Long article is missing a table of contents",
   severity: "low",
   category: "ai-geo",
   scope: "page",
@@ -15,7 +15,7 @@ export const R074_articleNoToc: PageRule = {
     if (page.has_table_of_contents === true) return null;
     return {
       rule_id: "R074",
-      rule_name: "Long-form article has no table of contents",
+      rule_name: "Long article is missing a table of contents",
       severity: "low",
       category: "ai-geo",
       scope: "page",

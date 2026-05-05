@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R049_singleInboundLink: PageRule = {
   id: "R049",
-  name: "Page has only one inbound internal link",
+  name: "Only one page links to this one",
   severity: "low",
   category: "content",
   scope: "page",
@@ -14,7 +14,7 @@ export const R049_singleInboundLink: PageRule = {
     if (page.internal_links_in !== 1) return null;
     return {
       rule_id: "R049",
-      rule_name: "Page has only one inbound internal link",
+      rule_name: "Only one page links to this one",
       severity: "low",
       category: "content",
       scope: "page",

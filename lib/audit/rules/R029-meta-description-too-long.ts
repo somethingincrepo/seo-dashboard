@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R029_metaDescriptionTooLong: PageRule = {
   id: "R029",
-  name: "Meta description exceeds 160 characters",
+  name: "Meta description is too long for search results",
   severity: "low",
   category: "on-page",
   scope: "page",
@@ -14,7 +14,7 @@ export const R029_metaDescriptionTooLong: PageRule = {
     if (len <= 160) return null;
     return {
       rule_id: "R029",
-      rule_name: "Meta description exceeds 160 characters",
+      rule_name: "Meta description is too long for search results",
       severity: "low",
       category: "on-page",
       scope: "page",

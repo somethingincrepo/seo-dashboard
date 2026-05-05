@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R050_clickDepthExcessive: PageRule = {
   id: "R050",
-  name: "Page is more than 4 clicks from the homepage",
+  name: "Page is buried too deep in the site",
   severity: "medium",
   category: "content",
   scope: "page",
@@ -15,7 +15,7 @@ export const R050_clickDepthExcessive: PageRule = {
     if (d === null || d <= 4) return null;
     return {
       rule_id: "R050",
-      rule_name: "Page is more than 4 clicks from the homepage",
+      rule_name: "Page is buried too deep in the site",
       severity: "medium",
       category: "content",
       scope: "page",

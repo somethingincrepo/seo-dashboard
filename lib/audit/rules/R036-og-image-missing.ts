@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R036_ogImageMissing: PageRule = {
   id: "R036",
-  name: "Open Graph image is missing",
+  name: "Page has no social-share image",
   severity: "medium",
   category: "on-page",
   scope: "page",
@@ -13,7 +13,7 @@ export const R036_ogImageMissing: PageRule = {
     if (page.og_image && page.og_image.trim().length > 0) return null;
     return {
       rule_id: "R036",
-      rule_name: "Open Graph image is missing",
+      rule_name: "Page has no social-share image",
       severity: "medium",
       category: "on-page",
       scope: "page",

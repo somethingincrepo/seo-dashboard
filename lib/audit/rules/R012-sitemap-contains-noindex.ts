@@ -2,7 +2,7 @@ import type { SiteRule } from "./types";
 
 export const R012_sitemapContainsNoindex: SiteRule = {
   id: "R012",
-  name: "Sitemap contains noindex pages",
+  name: "Sitemap lists pages set to noindex",
   severity: "medium",
   category: "technical",
   scope: "site",
@@ -19,7 +19,7 @@ export const R012_sitemapContainsNoindex: SiteRule = {
     if (offenders.length === 0) return null;
     return {
       rule_id: "R012",
-      rule_name: "Sitemap contains noindex pages",
+      rule_name: "Sitemap lists pages set to noindex",
       severity: "medium",
       category: "technical",
       scope: "site",

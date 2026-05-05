@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R054_unsafeBlankTarget: PageRule = {
   id: "R054",
-  name: "target=\"_blank\" links missing rel=\"noopener\"",
+  name: "Links opening in new tabs lack the rel=noopener security attribute",
   severity: "low",
   category: "content",
   scope: "page",
@@ -14,7 +14,7 @@ export const R054_unsafeBlankTarget: PageRule = {
     if (n === 0) return null;
     return {
       rule_id: "R054",
-      rule_name: "target=\"_blank\" links missing rel=\"noopener\"",
+      rule_name: "Links opening in new tabs lack the rel=noopener security attribute",
       severity: "low",
       category: "content",
       scope: "page",

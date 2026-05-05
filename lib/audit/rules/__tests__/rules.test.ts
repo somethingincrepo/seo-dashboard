@@ -801,8 +801,12 @@ describe("R067 faq_schema_not_used", () => {
   it("does not fire when no FAQ format", () => {
     expect(R067_faqSchemaNotUsed.check(makePage(), ctxFor(makePage()))).toBeNull();
   });
-  it("fires when FAQ format detected without schema", () => {
+  it("does not fire when FAQ format alone but no title/slug signal", () => {
     const p = makePage({ has_faq_format: true });
+    expect(R067_faqSchemaNotUsed.check(p, ctxFor(p))).toBeNull();
+  });
+  it("fires when FAQ format + title says FAQ", () => {
+    const p = makePage({ has_faq_format: true, title: "Customer FAQ" });
     expect(R067_faqSchemaNotUsed.check(p, ctxFor(p))?.rule_id).toBe("R067");
   });
 });
@@ -811,8 +815,16 @@ describe("R068 howto_schema_not_used", () => {
   it("does not fire when no numbered steps", () => {
     expect(R068_howToSchemaNotUsed.check(makePage(), ctxFor(makePage()))).toBeNull();
   });
-  it("fires when steps detected without schema", () => {
+  it("does not fire when steps alone but no title/article signal", () => {
     const p = makePage({ has_numbered_steps: true });
+    expect(R068_howToSchemaNotUsed.check(p, ctxFor(p))).toBeNull();
+  });
+  it("fires when steps detected on an article page", () => {
+    const p = makePage({ has_numbered_steps: true, page_type: "article" });
+    expect(R068_howToSchemaNotUsed.check(p, ctxFor(p))?.rule_id).toBe("R068");
+  });
+  it("fires when title says 'How to'", () => {
+    const p = makePage({ has_numbered_steps: true, title: "How to bake bread" });
     expect(R068_howToSchemaNotUsed.check(p, ctxFor(p))?.rule_id).toBe("R068");
   });
 });

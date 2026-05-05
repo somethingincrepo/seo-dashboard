@@ -1033,7 +1033,6 @@ function IssueDetail({
 }) {
   const sev = issue.severity as Severity;
   const ev = issue.evidence as { fix_guidance?: string; rule_description?: string; [k: string]: unknown } | null;
-  const fixGuidance = ev?.fix_guidance;
   const ruleDescription = ev?.rule_description;
   const evidenceForDisplay = ((): Record<string, unknown> | null => {
     if (!ev || typeof ev !== "object") return null;
@@ -1043,10 +1042,12 @@ function IssueDetail({
     return Object.keys(rest).length > 0 ? rest : null;
   })();
   const decision = decisionFor(issue.id);
+  const [showDetails, setShowDetails] = useState(false);
 
   return (
     <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
-      <div className="p-7 space-y-6">
+      <div className="p-7 space-y-5">
+        {/* 1. Header: severity/category pills, rule name, page URL */}
         <div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ring-inset ${SEVERITY_PILL[sev]} font-semibold uppercase tracking-wider`}>
@@ -1084,23 +1085,15 @@ function IssueDetail({
           )}
         </div>
 
-        {/* Plain-English lead — combines what + why */}
+        {/* 2. Lead paragraph — plain-English description (what + why) */}
         {ruleDescription && (
           <p className="text-[14px] text-slate-700 leading-relaxed">{ruleDescription}</p>
         )}
 
-        {/* Proposed fix — the actual generated copy */}
-        <ProposedFixSection issue={issue} token={token} />
+        {/* 3. Current vs Proposed — side-by-side, read-only by default */}
+        <CurrentVsProposed issue={issue} token={token} />
 
-        {/* Why-it-matters / fix approach in a small helper callout */}
-        {fixGuidance && (
-          <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">More about this fix</div>
-            <p className="text-[13px] text-slate-700 leading-relaxed">{fixGuidance}</p>
-          </div>
-        )}
-
-        {/* Approve / dismiss action bar */}
+        {/* 4. Approve / dismiss action bar */}
         <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
           {decision === null && (
             <>
@@ -1149,23 +1142,38 @@ function IssueDetail({
           )}
         </div>
 
-        <Section label="What we found on this page">
-          <pre className="font-mono text-[13px] text-slate-700 bg-slate-50 border border-slate-200/80 rounded-lg px-3.5 py-2.5 whitespace-pre-wrap break-words">
-            {issue.current_value ?? "—"}
-          </pre>
-        </Section>
-        <Section label="What's expected">
-          <p className="text-[13.5px] text-slate-700 leading-relaxed">{issue.expected_value ?? "—"}</p>
-        </Section>
-        {evidenceForDisplay && (
-          <Section label="Evidence">
-            <pre className="font-mono text-[12px] text-slate-600 bg-slate-50 border border-slate-200/80 rounded-lg px-3.5 py-2.5 whitespace-pre-wrap break-words overflow-x-auto">
-              {JSON.stringify(evidenceForDisplay, null, 2)}
-            </pre>
-          </Section>
-        )}
-        <div className="text-[12px] text-slate-400 pt-4 border-t border-slate-100">
-          Detected {new Date(issue.detected_at).toLocaleString()}
+        {/* 5. Collapsible technical details */}
+        <div className="border-t border-slate-100 pt-3">
+          <button
+            onClick={() => setShowDetails((s) => !s)}
+            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400 hover:text-slate-700 transition-colors"
+          >
+            <svg className={`w-3 h-3 transition-transform ${showDetails ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            Technical details
+          </button>
+          {showDetails && (
+            <div className="mt-3 space-y-4">
+              {issue.expected_value && (
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">What's expected</div>
+                  <p className="text-[13px] text-slate-700 leading-relaxed">{issue.expected_value}</p>
+                </div>
+              )}
+              {evidenceForDisplay && (
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Evidence</div>
+                  <pre className="font-mono text-[11.5px] text-slate-600 bg-slate-50 border border-slate-200/80 rounded-md px-3 py-2 whitespace-pre-wrap break-words overflow-x-auto">
+                    {JSON.stringify(evidenceForDisplay, null, 2)}
+                  </pre>
+                </div>
+              )}
+              <div className="text-[11px] text-slate-400 tabular-nums">
+                Rule {issue.rule_id} · detected {new Date(issue.detected_at).toLocaleString()}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1181,77 +1189,30 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-// ─── Proposed fix (renders generation status + edit + retry) ──────────
+// ─── Current vs Proposed (side-by-side, read-only by default) ─────────
 
-function ProposedFixSection({ issue, token }: { issue: AuditIssue; token: string }) {
+function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string }) {
   const [draft, setDraft] = useState<string>(issue.proposed_value ?? "");
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  // Sync draft when the issue id changes (user picks a different page)
+  // Reset on issue change
   useEffect(() => {
     setDraft(issue.proposed_value ?? "");
+    setEditing(false);
     setSavedAt(null);
   }, [issue.id, issue.proposed_value]);
 
   const status = issue.fix_status;
-
-  // Out-of-scope (no auto-fix planned for this rule)
-  if (status === null) {
-    return null;
-  }
-
-  // Queued or running
-  if (status === "queued" || status === "generating") {
-    return (
-      <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-4 flex items-center gap-3">
-        <span className="inline-flex w-5 h-5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin shrink-0" />
-        <div className="min-w-0">
-          <div className="text-[12px] font-semibold uppercase tracking-widest text-indigo-700">Proposed fix</div>
-          <p className="text-[13.5px] text-slate-700 mt-0.5">
-            {status === "queued" ? "Queued for generation…" : "Generating fix…"}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Failed
-  if (status === "failed") {
-    return (
-      <div className="rounded-lg border border-rose-200/70 bg-rose-50/50 px-4 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-rose-700 mb-1">Proposed fix — generation failed</div>
-        {issue.fix_error && (
-          <p className="text-[12px] text-rose-700 mb-2 font-mono">{issue.fix_error}</p>
-        )}
-        <button
-          onClick={async () => {
-            setRetrying(true);
-            try {
-              await fetch(`/api/portal/audit-regenerate?token=${encodeURIComponent(token)}`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ issue_ids: [issue.id] }),
-              });
-            } finally {
-              setRetrying(false);
-            }
-          }}
-          disabled={retrying}
-          className="px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-500 text-white text-[12.5px] font-medium disabled:opacity-50"
-        >
-          {retrying ? "Retrying…" : "Retry generation"}
-        </button>
-      </div>
-    );
-  }
-
-  // Generated — render editable proposed_value
-  const isMultiline = (draft ?? "").includes("\n") || (draft ?? "").length > 120;
+  const current = issue.current_value ?? "—";
 
   const persist = async () => {
-    if (draft === (issue.proposed_value ?? "")) return; // no-op
+    if (draft === (issue.proposed_value ?? "")) {
+      setEditing(false);
+      return;
+    }
     setSaving(true);
     try {
       const r = await fetch(`/api/portal/audit-edit-fix?token=${encodeURIComponent(token)}`, {
@@ -1262,59 +1223,155 @@ function ProposedFixSection({ issue, token }: { issue: AuditIssue; token: string
       if (r.ok) setSavedAt(Date.now());
     } finally {
       setSaving(false);
+      setEditing(false);
     }
   };
 
-  return (
-    <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 px-4 py-3">
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700">Proposed fix</div>
-        <div className="flex items-center gap-2 text-[10px] text-slate-500">
-          {saving && <span>Saving…</span>}
-          {!saving && savedAt && <span className="text-emerald-600">Saved</span>}
+  const regenerate = async () => {
+    setRetrying(true);
+    try {
+      await fetch(`/api/portal/audit-regenerate?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ issue_ids: [issue.id] }),
+      });
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  // Render the right-hand "Proposed" cell based on status
+  const renderProposed = () => {
+    if (status === null) {
+      return (
+        <p className="text-[13px] text-slate-500 italic leading-relaxed">
+          No auto-fix for this rule — needs editorial judgment.
+        </p>
+      );
+    }
+    if (status === "queued" || status === "generating") {
+      return (
+        <div className="flex items-center gap-2 text-[13px] text-slate-600">
+          <span className="inline-flex w-3.5 h-3.5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin shrink-0" />
+          <span>{status === "queued" ? "Queued…" : "Generating…"}</span>
+        </div>
+      );
+    }
+    if (status === "failed") {
+      return (
+        <div>
+          <p className="text-[12px] text-rose-700 mb-2">
+            Generation failed{issue.fix_error ? `: ${issue.fix_error}` : ""}.
+          </p>
           <button
-            onClick={async () => {
-              setRetrying(true);
-              try {
-                await fetch(`/api/portal/audit-regenerate?token=${encodeURIComponent(token)}`, {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ issue_ids: [issue.id] }),
-                });
-              } finally {
-                setRetrying(false);
-              }
-            }}
+            onClick={regenerate}
             disabled={retrying}
-            className="text-slate-500 hover:text-slate-900 underline underline-offset-2 disabled:opacity-50"
+            className="px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white text-[11.5px] font-medium disabled:opacity-50"
           >
-            {retrying ? "Regenerating…" : "Regenerate"}
+            {retrying ? "Retrying…" : "Retry"}
           </button>
         </div>
-      </div>
-      {isMultiline ? (
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={persist}
-          className="w-full font-mono text-[12.5px] text-slate-800 bg-white border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
-          rows={Math.min(20, Math.max(4, draft.split("\n").length + 1))}
-          spellCheck={false}
-        />
-      ) : (
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={persist}
-          className="w-full text-[14px] text-slate-900 bg-white border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
-        />
-      )}
-      {draft && (
-        <div className="text-[10px] text-slate-400 mt-1.5 tabular-nums">
-          {draft.length} characters
+      );
+    }
+    // generated
+    if (editing) {
+      const isMultiline = (draft ?? "").includes("\n") || (draft ?? "").length > 80;
+      return (
+        <div>
+          {isMultiline ? (
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoFocus
+              className="w-full font-mono text-[12px] text-slate-800 bg-white border border-indigo-300 rounded-md px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+              rows={Math.min(16, Math.max(4, draft.split("\n").length + 1))}
+              spellCheck={false}
+            />
+          ) : (
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoFocus
+              className="w-full text-[13.5px] text-slate-900 bg-white border border-indigo-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+            />
+          )}
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={persist}
+              disabled={saving}
+              className="px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-[11.5px] font-medium disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              onClick={() => {
+                setDraft(issue.proposed_value ?? "");
+                setEditing(false);
+              }}
+              className="text-[11.5px] text-slate-500 hover:text-slate-900"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-      )}
+      );
+    }
+    // read-only generated
+    return (
+      <div>
+        <pre className="font-mono text-[12.5px] text-slate-800 whitespace-pre-wrap break-words leading-relaxed">
+          {draft || "—"}
+        </pre>
+        {draft && (
+          <div className="text-[10px] text-slate-400 mt-1.5 tabular-nums">
+            {draft.length} characters
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Right-side action buttons (only when generated + not editing)
+  const showRightActions = status === "generated" && !editing;
+
+  return (
+    <div className="rounded-lg border border-slate-200/80 overflow-hidden">
+      <div className="grid grid-cols-2 divide-x divide-slate-200/80">
+        {/* Current */}
+        <div className="bg-slate-50/40 px-4 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">Current</div>
+          <pre className="font-mono text-[12.5px] text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
+            {current}
+          </pre>
+        </div>
+        {/* Proposed */}
+        <div className="bg-indigo-50/30 px-4 py-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-indigo-700">Proposed</div>
+            {showRightActions && (
+              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                {savedAt && <span className="text-emerald-600">Saved</span>}
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-slate-500 hover:text-slate-900 underline underline-offset-2"
+                >
+                  Edit
+                </button>
+                <span className="text-slate-300">·</span>
+                <button
+                  onClick={regenerate}
+                  disabled={retrying}
+                  className="text-slate-500 hover:text-slate-900 underline underline-offset-2 disabled:opacity-50"
+                >
+                  {retrying ? "…" : "Regenerate"}
+                </button>
+              </div>
+            )}
+          </div>
+          {renderProposed()}
+        </div>
+      </div>
     </div>
   );
 }

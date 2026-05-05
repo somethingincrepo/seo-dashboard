@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R021_urlUppercase: PageRule = {
   id: "R021",
-  name: "URL contains uppercase characters",
+  name: "URL has uppercase letters",
   severity: "low",
   category: "technical",
   scope: "page",
@@ -15,7 +15,7 @@ export const R021_urlUppercase: PageRule = {
     if (path === path.toLowerCase()) return null;
     return {
       rule_id: "R021",
-      rule_name: "URL contains uppercase characters",
+      rule_name: "URL has uppercase letters",
       severity: "low",
       category: "technical",
       scope: "page",

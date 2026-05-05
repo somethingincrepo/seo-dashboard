@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R018_multipleH1: PageRule = {
   id: "R018",
-  name: "Page has multiple H1 tags",
+  name: "Page has more than one H1",
   severity: "medium",
   category: "technical",
   scope: "page",
@@ -14,7 +14,7 @@ export const R018_multipleH1: PageRule = {
     if (count <= 1) return null;
     return {
       rule_id: "R018",
-      rule_name: "Page has multiple H1 tags",
+      rule_name: "Page has more than one H1",
       severity: "medium",
       category: "technical",
       scope: "page",

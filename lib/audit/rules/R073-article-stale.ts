@@ -4,7 +4,7 @@ const EIGHTEEN_MONTHS_MS = 18 * 30 * 24 * 60 * 60 * 1000;
 
 export const R073_articleStale: PageRule = {
   id: "R073",
-  name: "Article older than 18 months without an updated date",
+  name: "Article is over 18 months old and hasn't been refreshed",
   severity: "low",
   category: "ai-geo",
   scope: "page",
@@ -23,7 +23,7 @@ export const R073_articleStale: PageRule = {
     }
     return {
       rule_id: "R073",
-      rule_name: "Article older than 18 months without an updated date",
+      rule_name: "Article is over 18 months old and hasn't been refreshed",
       severity: "low",
       category: "ai-geo",
       scope: "page",

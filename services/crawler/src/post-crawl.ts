@@ -59,9 +59,12 @@ export async function postCrawl({ pages, rootUrl, sitemapUrls, navUrls, statusOf
   }
 
   // ---- Duplicate content detection: identical hash across two indexable 200 pages ----
+  // Iterate in URL order so the "first seen" / "duplicate of" assignment is stable
+  // across reruns — otherwise the same pair may swap roles run-to-run.
   const hashToUrl = new Map<string, string>();
   const dupOf = new Map<string, string>();
-  for (const p of pages) {
+  const dupOrdered = [...pages].sort((a, b) => a.url.localeCompare(b.url));
+  for (const p of dupOrdered) {
     if (p.status_code !== 200 || !p.is_indexable || !p.content_hash) continue;
     const existing = hashToUrl.get(p.content_hash);
     if (existing && existing !== p.url) {
@@ -86,7 +89,9 @@ export async function postCrawl({ pages, rootUrl, sitemapUrls, navUrls, statusOf
   }
 
   const out: PostCrawlOutput[] = [];
-  for (const p of pages) {
+  // Iterate pages in stable URL order so the rerun's probe sequence is identical.
+  const orderedPages = [...pages].sort((a, b) => a.url.localeCompare(b.url));
+  for (const p of orderedPages) {
     const norm = normalizeUrl(p.url);
 
     let canonStatus: number | null = null;
@@ -96,7 +101,12 @@ export async function postCrawl({ pages, rootUrl, sitemapUrls, navUrls, statusOf
     if (p.og_image) ogStatus = await probe(p.og_image, ogStatusCache);
 
     // Broken links: only flag a small bounded sample of distinct internal+external targets per page.
-    const linkSample = [...p.internal_link_targets.slice(0, 50), ...p.external_link_targets.slice(0, 50)];
+    // Sorted alphabetically so the slice is deterministic — page-level link order from the
+    // extractor matches DOM order which is itself stable, but sorting guards against any
+    // upstream churn (and makes the probe cache hit pattern identical across runs).
+    const sortedInternal = [...p.internal_link_targets].sort();
+    const sortedExternal = [...p.external_link_targets].sort();
+    const linkSample = [...sortedInternal.slice(0, 50), ...sortedExternal.slice(0, 50)];
     const broken: { url: string; status: number }[] = [];
     for (const u of linkSample) {
       const s = await probe(u, canonStatusCache);
@@ -119,17 +129,21 @@ export async function postCrawl({ pages, rootUrl, sitemapUrls, navUrls, statusOf
   return out;
 }
 
-/** Default statusOf using HEAD with a short timeout. Resolves to null on error. */
+/** Default statusOf using HEAD with a short timeout. Retries once on transient
+ * failure to avoid a network blip flipping a link from "broken" → "ok" run-to-run. */
 export async function defaultStatusOf(url: string): Promise<number | null> {
-  try {
-    const r = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(8_000) });
-    return r.status;
-  } catch {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const r = await fetch(url, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(8_000) });
+      const r = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(8_000) });
       return r.status;
     } catch {
-      return null;
+      try {
+        const r = await fetch(url, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(8_000) });
+        return r.status;
+      } catch {
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 500));
+      }
     }
   }
+  return null;
 }

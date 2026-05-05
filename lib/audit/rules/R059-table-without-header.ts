@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R059_tableWithoutHeader: PageRule = {
   id: "R059",
-  name: "Table is missing a header row",
+  name: "Data table has no column headers",
   severity: "low",
   category: "content",
   scope: "page",
@@ -13,7 +13,7 @@ export const R059_tableWithoutHeader: PageRule = {
     if (page.has_table_without_header !== true) return null;
     return {
       rule_id: "R059",
-      rule_name: "Table is missing a header row",
+      rule_name: "Data table has no column headers",
       severity: "low",
       category: "content",
       scope: "page",

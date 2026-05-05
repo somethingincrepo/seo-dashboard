@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R058_unsubstitutedTemplateVars: PageRule = {
   id: "R058",
-  name: "Page contains unsubstituted template variables",
+  name: "Page is leaking template code (unrendered variables)",
   severity: "critical",
   category: "content",
   scope: "page",
@@ -14,7 +14,7 @@ export const R058_unsubstitutedTemplateVars: PageRule = {
     if (found.length === 0) return null;
     return {
       rule_id: "R058",
-      rule_name: "Page contains unsubstituted template variables",
+      rule_name: "Page is leaking template code (unrendered variables)",
       severity: "critical",
       category: "content",
       scope: "page",

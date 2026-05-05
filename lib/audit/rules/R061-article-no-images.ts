@@ -2,7 +2,7 @@ import type { PageRule } from "./types";
 
 export const R061_articleNoImages: PageRule = {
   id: "R061",
-  name: "Long-form article has no images",
+  name: "Long article has no supporting images",
   severity: "low",
   category: "content",
   scope: "page",
@@ -16,7 +16,7 @@ export const R061_articleNoImages: PageRule = {
     if ((page.images_count ?? 0) > 0) return null;
     return {
       rule_id: "R061",
-      rule_name: "Long-form article has no images",
+      rule_name: "Long article has no supporting images",
       severity: "low",
       category: "content",
       scope: "page",
