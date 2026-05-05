@@ -375,8 +375,19 @@ export async function PATCH(request: NextRequest) {
         // latency must not block the portal user's approval response). 10s
         // abort guards against a hung n8n holding the JS event loop.
         const blogTitle = title?.trim() || jobRecord?.fields["Blog Title"] || "";
-        const clientIds = (jobRecord?.fields["Client ID"] ?? []).map((id) => ({ id }));
+        const rawClientIds = jobRecord?.fields["Client ID"] ?? [];
+        const clientIds = rawClientIds.map((id) => ({ id }));
         const searchIntent = jobRecord?.fields["Search intent"] || "informational";
+
+        // Guard: never fire the webhook with an empty Client ID array. The n8n
+        // workflow's Get Client node looks up `Client ID[0].id`, which 404s on
+        // an empty array. Surfacing a hard error here is better than dispatching
+        // a payload that's guaranteed to fail downstream.
+        if (clientIds.length === 0) {
+          console.error(`[portal/titles] refusing to fire n8n webhook — Client ID array empty for record ${record_id}`);
+          await markWebhookFailed(record_id, "Client ID linked field empty on Content Job; cannot fire content webhook");
+          return NextResponse.json({ ok: true, warning: "approved but content webhook skipped — Client ID missing on Content Job" });
+        }
         fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -56,14 +56,21 @@ async function handleJobTitle(recordId: string, action: string) {
     // n8n's Get Client node reads fields['Client ID'][0].id, so we must convert to [{ id }] objects.
     const rawFields = jobRecord.fields as Record<string, unknown>;
     const clientIds = ((rawFields["Client ID"] as string[] | undefined) ?? []).map((id) => ({ id }));
-    const webhookFields = { ...rawFields, "Client ID": clientIds };
 
-    const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recordId, fields: webhookFields }),
-    }).catch(() => {/* non-fatal */});
+    // Guard: skip webhook when Client ID is empty. The n8n Get Client node
+    // looks up `Client ID[0].id` and 404s on an empty array. Surfacing the
+    // skip in logs is better than dispatching a guaranteed-failed payload.
+    if (clientIds.length === 0) {
+      console.error(`[content-approval] skipping webhook — Client ID empty on Content Job ${recordId}`);
+    } else {
+      const webhookFields = { ...rawFields, "Client ID": clientIds };
+      const webhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || "https://somethingincorporated.app.n8n.cloud/webhook/status-update";
+      fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId, fields: webhookFields }),
+      }).catch(() => {/* non-fatal */});
+    }
   }
 }
 
