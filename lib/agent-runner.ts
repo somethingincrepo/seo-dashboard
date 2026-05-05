@@ -32,18 +32,39 @@ export type RunResult = {
 };
 
 // ---------------------------------------------------------------------------
-// Cost table  (USD per million tokens)
+// Cost table  (USD per million tokens — OpenRouter passthrough pricing)
 // ---------------------------------------------------------------------------
 
 const COST_PER_M: Record<string, { input: number; output: number }> = {
   "claude-haiku-4-5-20251001": { input: 0.8, output: 4.0 },
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-opus-4-6": { input: 15.0, output: 75.0 },
+  "claude-opus-4-7": { input: 15.0, output: 75.0 },
 };
 
 function calcCost(model: string, inputT: number, outputT: number): number {
   const rates = COST_PER_M[model] ?? { input: 3.0, output: 15.0 };
   return (inputT * rates.input + outputT * rates.output) / 1_000_000;
+}
+
+// ---------------------------------------------------------------------------
+// OpenRouter model-name mapping
+//
+// SOP frontmatter still uses the canonical Anthropic model name (e.g.
+// "claude-haiku-4-5-20251001"). OpenRouter expects its own slug format
+// (e.g. "anthropic/claude-haiku-4.5"). We translate at the call site so
+// SOP files stay portable.
+// ---------------------------------------------------------------------------
+
+const OR_MODEL_MAP: Record<string, string> = {
+  "claude-haiku-4-5-20251001": "anthropic/claude-haiku-4.5",
+  "claude-sonnet-4-6": "anthropic/claude-sonnet-4.6",
+  "claude-opus-4-6": "anthropic/claude-opus-4.6",
+  "claude-opus-4-7": "anthropic/claude-opus-4.7",
+};
+
+function toOpenRouterModelId(model: string): string {
+  return OR_MODEL_MAP[model] ?? (model.includes("/") ? model : `anthropic/${model}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -208,8 +229,17 @@ export async function runJob(job: SupabaseJob): Promise<RunResult> {
     return { success: false, result: null, error: msg, input_tokens: 0, output_tokens: 0, cost_usd: 0, model };
   }
 
-  // --- Build Anthropic client ---
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // --- Build OpenRouter client (Anthropic SDK pointed at OR's Anthropic-compat endpoint) ---
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
+  const client = new Anthropic({
+    apiKey,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://seo-dashboard-teal-phi.vercel.app",
+      "X-Title": "seo-dashboard",
+    },
+  });
 
   // --- Initial message ---
   const messages: Anthropic.Messages.MessageParam[] = [
@@ -239,7 +269,7 @@ export async function runJob(job: SupabaseJob): Promise<RunResult> {
 
       const response = await callWithRetry(() =>
         client.messages.create({
-          model,
+          model: toOpenRouterModelId(model),
           max_tokens: 4096,
           system: sop.body,
           tools: toolDefs.length > 0 ? toolDefs : undefined,

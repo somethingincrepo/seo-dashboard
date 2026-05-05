@@ -7,7 +7,15 @@ import { airtablePatch } from "@/lib/airtable";
 
 export const dynamic = "force-dynamic";
 
-const anthropic = new Anthropic();
+// OpenRouter via Anthropic SDK — see lib/agent-runner.ts for the same pattern.
+const anthropic = new Anthropic({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+  defaultHeaders: {
+    "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://seo-dashboard-teal-phi.vercel.app",
+    "X-Title": "seo-dashboard:keywords",
+  },
+});
 
 type GeneratedGroup = {
   group: string;
@@ -155,7 +163,7 @@ Respond with ONLY a valid JSON object (not an array), no markdown, no explanatio
 }`;
 
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "anthropic/claude-sonnet-4.6",
     max_tokens: 800,
     messages: [{ role: "user", content: prompt }],
   });

@@ -7,7 +7,15 @@ import { buildStylesPromptBlock, parseStyles } from "@/lib/content-styles";
 
 export const dynamic = "force-dynamic";
 
-const anthropic = new Anthropic();
+// OpenRouter via Anthropic SDK — see lib/agent-runner.ts for the same pattern.
+const anthropic = new Anthropic({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+  defaultHeaders: {
+    "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://seo-dashboard-teal-phi.vercel.app",
+    "X-Title": "seo-dashboard:titles",
+  },
+});
 
 export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -95,7 +103,7 @@ ${isLongform ? `- This is a LONG-FORM GUIDE — the title must signal depth and 
 Output ONLY the title text. No quotes, no markdown, no explanation, no commentary.`;
 
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "anthropic/claude-sonnet-4.6",
     max_tokens: 120,
     system: "You are a blog title writer. You ALWAYS output exactly one blog post title and nothing else — no explanations, no refusals, no commentary, no punctuation other than what belongs in the title itself. If inputs seem mismatched, do your best with what you have and write a title anyway.",
     messages: [{ role: "user", content: prompt }],
