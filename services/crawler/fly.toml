@@ -11,6 +11,14 @@ primary_region = "iad"
 [env]
   PORT = "8080"
   NODE_ENV = "production"
+  # Tell Crawlee the real available RAM. Inside containers it sometimes
+  # reads ~1 GB from procfs/cgroup and OOM-kills Chromium when it crosses
+  # 97% of that phantom limit, even though the VM has 4 GB. 3500 leaves
+  # ~500 MB headroom for the OS and Node.
+  CRAWLEE_MEMORY_MBYTES = "3500"
+  CRAWLEE_AVAILABLE_MEMORY_RATIO = "0.9"
+  # Same crash class hits Node when V8 thinks heap is small. Raise to 3 GB.
+  NODE_OPTIONS = "--max-old-space-size=3072"
 
 [http_service]
   internal_port = 8080
@@ -24,12 +32,25 @@ primary_region = "iad"
   min_machines_running = 1
   processes = ["app"]
 
+  # Cheap TCP-style liveness — does the process answer at all?
   [[http_service.checks]]
     grace_period = "10s"
     interval = "30s"
     method = "GET"
     timeout = "5s"
     path = "/health"
+
+  # Deep readiness — actually launches Chromium. If this fails three times
+  # in a row Fly recycles the machine, which is exactly what should have
+  # happened the first time we hit the SIGSEGV launch failure. Probe runs
+  # every 5 minutes so it doesn't compete with active crawls; the in-flight
+  # mutex in /ready also makes it a no-op during a crawl.
+  [[http_service.checks]]
+    grace_period = "60s"
+    interval = "5m"
+    method = "GET"
+    timeout = "45s"
+    path = "/ready"
 
 [[vm]]
   size = "performance-2x"

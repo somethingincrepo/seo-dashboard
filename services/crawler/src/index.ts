@@ -1,4 +1,5 @@
 import express from "express";
+import { chromium } from "playwright";
 import { crawlSite } from "./crawler.js";
 import { runSiteChecks } from "./site-checks.js";
 import { defaultStatusOf, postCrawl } from "./post-crawl.js";
@@ -12,8 +13,39 @@ const VERCEL_URL = process.env.VERCEL_BASE_URL; // e.g. https://something.com
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
+// Fast liveness — used by Fly's basic TCP probe.
 app.get("/health", (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
+});
+
+// Deep readiness — actually spins up a Chromium and tears it back down.
+// Wired to Fly's http_service.checks block in fly.toml so when Chromium
+// can't launch (OOM, missing binary, broken image), the machine gets
+// recycled instead of sitting in a degraded state. A dedicated mutex
+// prevents readiness probes from running during an active crawl.
+let probeInFlight = false;
+app.get("/ready", async (_req, res) => {
+  if (probeInFlight) {
+    res.json({ ok: true, ts: Date.now(), skipped: "concurrent_probe" });
+    return;
+  }
+  probeInFlight = true;
+  const t0 = Date.now();
+  try {
+    const browser = await chromium.launch({
+      headless: true,
+      args: ["--disable-dev-shm-usage", "--no-sandbox"],
+      timeout: 30_000,
+    });
+    await browser.close();
+    res.json({ ok: true, launch_ms: Date.now() - t0 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[ready] chromium launch failed after ${Date.now() - t0}ms:`, msg);
+    res.status(503).json({ ok: false, error: msg, launch_ms: Date.now() - t0 });
+  } finally {
+    probeInFlight = false;
+  }
 });
 
 app.post("/crawl", async (req, res) => {
