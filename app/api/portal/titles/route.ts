@@ -282,17 +282,18 @@ export async function PATCH(request: NextRequest) {
       const nextMonth = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, "0")}`;
       const nextMonthLabel = nextMonthDate.toLocaleString("en-US", { month: "long", year: "numeric" });
 
-      // Neither "next_month" (title_status select) nor "scheduled_for_month" exist in the
-      // Airtable schema yet. Only save inline edits if supplied — skip status/scheduling
-      // fields until the schema is extended.
-      const nextMonthFields: Record<string, unknown> = {};
+      // Persist the next-month queue state. Worker's monthlyActivatorTick reads
+      // these fields and flips the title_status to "approved" when the
+      // scheduled month rolls around. Schema added 2026-05-05.
+      const nextMonthFields: Record<string, unknown> = {
+        title_status: "next_month",
+        scheduled_for_month: nextMonth,
+      };
       if (title?.trim()) nextMonthFields["Blog Title"] = title.trim();
       if (target_keyword !== undefined) nextMonthFields.target_keyword = target_keyword;
       if (keyword_group !== undefined) nextMonthFields.keyword_group = keyword_group;
 
-      if (Object.keys(nextMonthFields).length > 0) {
-        await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, nextMonthFields);
-      }
+      await contentAirtablePatch(CONTENT_JOBS_TABLE, record_id, nextMonthFields);
 
       return NextResponse.json({
         ok: true,
