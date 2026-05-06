@@ -7,7 +7,6 @@ interface Props {
     articles: number;
     faq_sections: number;
     content_refreshes: number;
-    pages_optimized: number;
     internal_links: number;
     reddit_comments: number;
   }>;
@@ -40,14 +39,6 @@ export function WeeklyTargetsCard({ packageTier, delivered = {} }: Props) {
       delivered: delivered.content_refreshes ?? 0,
       icon: <Icon path="M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />,
       tone: "sky",
-    },
-    {
-      key: "pages_optimized",
-      label: "Pages optimized",
-      target: targets.pages_optimized,
-      delivered: delivered.pages_optimized ?? 0,
-      icon: <Icon path="M12 20h9 M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />,
-      tone: "emerald",
     },
     {
       key: "internal_links",

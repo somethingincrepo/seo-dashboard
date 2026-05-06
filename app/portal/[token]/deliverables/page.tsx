@@ -11,7 +11,6 @@ type DeliverableKey =
   | "articles_standard"
   | "articles_longform"
   | "content_refreshes"
-  | "pages_optimized"
   | "internal_links"
   | "faq_sections"
   | "reddit_comments";
@@ -56,22 +55,11 @@ const DELIVERABLE_META: Record<
     singularLabel: "Content Refresh",
     unit: "per month",
     description:
-      "Existing pages on your site that have lost rankings or are underperforming are rewritten to improve keyword coverage and strengthen on-page signals. Updated drafts appear in your portal for approval before anything goes live.",
+      "Existing pages on your site are improved as needed — keyword coverage, copy edits, header restructuring, metadata updates. Pages are picked in priority order by traffic, nav importance, age, and thinness. Updated drafts appear in your portal for approval before anything goes live.",
     color: "text-amber-600",
     bg: "bg-amber-50",
     border: "border-amber-100",
     icon: "↺",
-  },
-  pages_optimized: {
-    label: "Pages Optimized",
-    singularLabel: "Page Optimized",
-    unit: "per month",
-    description:
-      "Existing pages are improved through title tag updates, meta description rewrites, heading restructuring, and content edits — all surfaced in your Approvals queue with clear before-and-after previews.",
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    border: "border-emerald-100",
-    icon: "◈",
   },
   internal_links: {
     label: "Internal Links",
@@ -139,7 +127,6 @@ const DELIVERABLE_ORDER: DeliverableKey[] = [
   "articles_standard",
   "articles_longform",
   "content_refreshes",
-  "pages_optimized",
   "internal_links",
   "faq_sections",
   "reddit_comments",

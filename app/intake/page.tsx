@@ -882,9 +882,6 @@ export default function IntakePage() {
                       </div>
                       <div>{pkg.faq_sections} FAQ section{pkg.faq_sections !== 1 ? "s" : ""}/mo</div>
                       <div>{pkg.content_refreshes} content refresh{pkg.content_refreshes !== 1 ? "es" : ""}/mo</div>
-                      <div>
-                        {pkg.pages_optimized > 0 ? `${pkg.pages_optimized} pages optimized/mo` : "Refresh rotation"}
-                      </div>
                       <div>{pkg.internal_links} internal links/mo</div>
                     </div>
                   </button>

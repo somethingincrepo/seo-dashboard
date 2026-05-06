@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getPendingApprovals, getClientChanges } from "@/lib/changes";
 import { isoMondayUTC, type PackageTier } from "@/lib/packages";
+import { getLatestAuditRun, getLatestIssueCount } from "@/lib/audit/queries";
+import { getContentJobsForClient } from "@/lib/content";
 import { DashboardHero } from "@/components/portal/DashboardHero";
 import { PipelineBoard } from "@/components/portal/PipelineBoard";
 import { WeeklyTargetsCard } from "@/components/portal/WeeklyTargetsCard";
@@ -15,10 +17,14 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
 
   const clientId = client.fields.client_id || client.id;
   const recordId = client.id;
+  const companyName = client.fields.company_name || "";
 
-  const [pending, allChanges] = await Promise.all([
+  const [pending, allChanges, auditRun, auditIssueCount, contentJobs] = await Promise.all([
     getPendingApprovals(clientId, recordId),
     getClientChanges(clientId, recordId),
+    getLatestAuditRun(recordId).catch(() => null),
+    getLatestIssueCount(recordId).catch(() => 0),
+    getContentJobsForClient(companyName).catch(() => []),
   ]);
 
   const status = client.fields.status || client.fields.plan_status || "form_submitted";
@@ -32,6 +38,10 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
   const implementedCount = allChanges.filter(
     (c) => c.fields.execution_status === "complete" || !!c.fields.implemented_at
   ).length;
+  const pendingTitleCount = contentJobs.filter(
+    (j) => j.fields.title_status === "titled"
+  ).length;
+  const auditStatus = auditRun?.status ?? null;
 
   // ─── This-week deliverables ──────────────────────────────────────────
   const tier = (client.fields.package as PackageTier | undefined) ?? "growth";
@@ -47,19 +57,8 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
             (c.fields.execution_status === "complete" || !!c.fields.implemented_at) &&
             isThisWeek(c.fields.implemented_at as string | undefined),
   ).length;
-  const pagesOptimizedThisWeek = new Set(
-    allChanges
-      .filter(
-        (c) =>
-          (c.fields.type ?? "").toLowerCase() !== "internal link" &&
-          (c.fields.execution_status === "complete" || !!c.fields.implemented_at) &&
-          isThisWeek(c.fields.implemented_at as string | undefined),
-      )
-      .map((c) => c.fields.page_url ?? ""),
-  ).size;
   const deliveredThisWeek = {
     internal_links: internalLinksThisWeek,
-    pages_optimized: pagesOptimizedThisWeek,
   };
 
   return (
@@ -70,6 +69,9 @@ export default async function PortalDashboard({ params }: { params: Promise<{ to
           pendingCount={pendingCount}
           approvedCount={approvedCount}
           implementedCount={implementedCount}
+          pendingTitleCount={pendingTitleCount}
+          auditIssueCount={auditIssueCount}
+          auditStatus={auditStatus}
           token={token}
           contactName={contactName}
           status={status}

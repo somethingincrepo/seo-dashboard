@@ -7,11 +7,15 @@ import { PACKAGES, type PackageTier, type PackageDeliverables } from "@/lib/pack
 import { submitUrlToIndexingAPI } from "@/lib/tools/google-indexing";
 import { requirePortalAuth } from "@/lib/portal-auth";
 
-// Change types that consume a monthly quota slot
+// Change types that consume a monthly quota slot.
+// "Page Optimization" used to map to a separate `pages_optimized` quota; that
+// concept was unified into `content_refreshes` (handled by the content_refresh
+// SOP, which writes Supabase content_refreshes rows — not Airtable Changes).
+// Any historical "Page Optimization" Changes still in the queue are not
+// quota-checked anymore (they predate the unified flow).
 const TYPE_QUOTAS: Record<string, keyof PackageDeliverables> = {
   "Internal Link":      "internal_links",
   "Internal Links":     "internal_links",
-  "Page Optimization":  "pages_optimized",
 };
 
 function startOfMonthISO(): string {

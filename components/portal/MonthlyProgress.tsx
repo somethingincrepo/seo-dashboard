@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { airtableFetch, contentAirtableFetch } from "@/lib/airtable";
 import { PACKAGES, PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
+import { getSupabase } from "@/lib/supabase";
 import type { Client } from "@/lib/clients";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -71,12 +72,8 @@ type ContentJobRecord = {
     title_status?: string;
     "Client ID"?: string[];
     proposed_at?: string;
+    "Desired length range"?: string;
   };
-};
-
-type ContentClientRecord = {
-  id: string;
-  fields: { "Client Name"?: string };
 };
 
 async function fetchActuals(
@@ -99,44 +96,62 @@ async function fetchActuals(
 
   // Count by type
   const typeCount: Record<string, number> = {};
-  const implementedPageUrls = new Set<string>();
   for (const c of changes) {
     const type = c.fields.type ?? "";
     typeCount[type] = (typeCount[type] ?? 0) + 1;
-    if (c.fields.page_url) implementedPageUrls.add(c.fields.page_url);
   }
 
-  // Fetch published articles from content base
-  let articlesPublished = 0;
+  // Count content_refreshes from Supabase (the canonical source — content_refresh
+  // SOP writes there, not Airtable Changes). Anything proposed/in-flight/done
+  // in the current month counts toward the monthly quota.
+  let contentRefreshCount = 0;
   try {
-    const contentClients = await contentAirtableFetch<ContentClientRecord>(
-      "Clients",
-      { filterByFormula: `{Client Name}="${companyName}"` }
+    const { data } = await getSupabase()
+      .from("content_refreshes")
+      .select("id")
+      .eq("client_id", clientRecordId)
+      .gte("proposed_at", `${monthStart}T00:00:00Z`)
+      .limit(200);
+    contentRefreshCount = (data ?? []).length;
+  } catch {
+    // non-fatal — fall back to 0
+  }
+
+  // Fetch published articles from content base.
+  //
+  // We filter Content Jobs by the {Client Name (from Client ID)} lookup field
+  // rather than the linked {Client ID} field, because {Client ID} ARRAYJOIN's
+  // to the linked-client primary field — which is an autoNumber on the
+  // Content Base Clients table, not an Airtable record ID. Same pattern as
+  // app/api/portal/titles/route.ts.
+  let articlesStandardThisMonth = 0;
+  let articlesLongformThisMonth = 0;
+  try {
+    const escapedName = companyName.replace(/"/g, '\\"');
+    const jobs = await contentAirtableFetch<ContentJobRecord>(
+      "Content Jobs",
+      {
+        filterByFormula:
+          `AND(FIND("${escapedName}",ARRAYJOIN({Client Name (from Client ID)},",")),{Status}="Completed")`,
+      }
     );
-    if (contentClients.length > 0) {
-      const contentClientId = contentClients[0].id;
-      const jobs = await contentAirtableFetch<ContentJobRecord>(
-        "Content Jobs",
-        {
-          filterByFormula: `AND(FIND("${contentClientId}",ARRAYJOIN({Client ID},",")),{Status}="Completed")`,
-        }
-      );
-      // Filter to current month by proposed_at (best proxy we have)
-      articlesPublished = jobs.filter((j) => {
-        const d = j.fields.proposed_at;
-        return d && d >= monthStart;
-      }).length;
-    }
+    const thisMonthJobs = jobs.filter((j) => {
+      const d = j.fields.proposed_at;
+      return d && d >= monthStart;
+    });
+    articlesLongformThisMonth = thisMonthJobs.filter((j) =>
+      (j.fields["Desired length range"] ?? "").includes("3,000")
+    ).length;
+    articlesStandardThisMonth = thisMonthJobs.length - articlesLongformThisMonth;
   } catch {
     // non-fatal
   }
 
   return {
-    articles_standard: articlesPublished, // all published articles (standard + longform combined for now)
-    articles_longform: 0,                 // tracked separately once content base has article type field
+    articles_standard: articlesStandardThisMonth,
+    articles_longform: articlesLongformThisMonth,
     faq_sections: typeCount["FAQ"] ?? 0,
-    content_refreshes: typeCount["Content Refresh"] ?? typeCount["Refresh"] ?? 0,
-    pages_optimized: implementedPageUrls.size,
+    content_refreshes: contentRefreshCount,
     internal_links: typeCount["Internal Link"] ?? typeCount["Internal Links"] ?? 0,
     reddit_comments: typeCount["Reddit"] ?? typeCount["Reddit Comment"] ?? 0,
   };
@@ -217,11 +232,6 @@ export async function MonthlyProgressSidebar({ client }: { client: Client }) {
       {/* On-Page */}
       <SidebarSectionLabel>On-Page</SidebarSectionLabel>
       <div className="space-y-2">
-        {targets.pages_optimized > 0 ? (
-          <SidebarProgressRow label="Pages optimized" actual={actuals.pages_optimized} target={targets.pages_optimized} />
-        ) : (
-          <p className="text-[11px] text-slate-400 italic">Refresh rotation</p>
-        )}
         <SidebarProgressRow label="Internal links" actual={actuals.internal_links} target={targets.internal_links} />
       </div>
 

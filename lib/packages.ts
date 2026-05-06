@@ -4,8 +4,11 @@ export type PackageDeliverables = {
   articles_standard: number;   // per month
   articles_longform: number;   // per month
   faq_sections: number;        // per month
+  // Page-level optimization of existing pages (rewrites, header restructuring,
+  // keyword coverage, metadata, internal-link insertions). Selection is
+  // priority-ordered by nav importance + traffic + age + thinness. Replaces
+  // the former separate `pages_optimized` deliverable.
   content_refreshes: number;   // per month
-  pages_optimized: number;     // per month
   internal_links: number;      // per month
   reddit_comments: number;     // per month
 };
@@ -15,8 +18,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_standard: 8,
     articles_longform: 0,
     faq_sections: 1,
-    content_refreshes: 1,
-    pages_optimized: 2,
+    content_refreshes: 2,
     internal_links: 4,
     reddit_comments: 2,
   },
@@ -24,8 +26,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_standard: 14,
     articles_longform: 2,
     faq_sections: 3,
-    content_refreshes: 4,
-    pages_optimized: 6,
+    content_refreshes: 6,
     internal_links: 10,
     reddit_comments: 5,
   },
@@ -33,8 +34,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_standard: 26,
     articles_longform: 4,
     faq_sections: 6,
-    content_refreshes: 8,
-    pages_optimized: 12,
+    content_refreshes: 12,
     internal_links: 20,
     reddit_comments: 10,
   },
@@ -83,7 +83,6 @@ export type WeeklyVolumes = {
   articles_longform: number[];
   faq_sections: number[];
   content_refreshes: number[];
-  pages_optimized: number[];
   internal_links: number[];
   reddit_comments: number[];
 };
@@ -109,7 +108,6 @@ export function getWeeklyVolumes(tier: PackageTier): WeeklyVolumes {
     articles_longform: splitMonthlyToWeekly(m.articles_longform),
     faq_sections: splitMonthlyToWeekly(m.faq_sections),
     content_refreshes: splitMonthlyToWeekly(m.content_refreshes),
-    pages_optimized: splitMonthlyToWeekly(m.pages_optimized),
     internal_links: splitMonthlyToWeekly(m.internal_links),
     reddit_comments: splitMonthlyToWeekly(m.reddit_comments),
   };
@@ -142,7 +140,6 @@ export interface WeeklyTargets {
   articles: number;     // articles_standard + articles_longform combined
   faq_sections: number;
   content_refreshes: number;
-  pages_optimized: number;
   internal_links: number;
   reddit_comments: number;
 }
@@ -157,7 +154,6 @@ export function getWeeklyTargets(tier: PackageTier, date = new Date()): WeeklyTa
     articles: w.articles_standard[idx] + w.articles_longform[idx],
     faq_sections: w.faq_sections[idx],
     content_refreshes: w.content_refreshes[idx],
-    pages_optimized: w.pages_optimized[idx],
     internal_links: w.internal_links[idx],
     reddit_comments: w.reddit_comments[idx],
   };
