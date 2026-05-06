@@ -402,15 +402,18 @@ export async function PATCH(request: NextRequest) {
               "Desired length range": cfg.airtableLengthRange,
             },
           }),
-          signal: AbortSignal.timeout(10_000),
+          signal: AbortSignal.timeout(30_000),
         }).then(async (webhookRes) => {
           if (!webhookRes.ok) {
             const errBody = await webhookRes.text().catch(() => "");
             await markWebhookFailed(record_id, `n8n responded ${webhookRes.status}: ${errBody.slice(0, 500)}`);
           }
         }).catch((err: unknown) => {
+          // Timeout / network error: leave Status="Queued" so contentJobWatchdog
+          // retries from the worker (different egress path). Only markWebhookFailed
+          // on explicit non-2xx above — those are real n8n rejections.
           const msg = err instanceof Error ? err.message : String(err);
-          markWebhookFailed(record_id, `webhook fetch failed: ${msg.slice(0, 500)}`);
+          console.error(`[portal/titles] webhook fetch failed (will retry via watchdog) for ${record_id}: ${msg}`);
         });
       }
     }
