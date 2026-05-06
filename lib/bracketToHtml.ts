@@ -59,11 +59,14 @@ export function bracketToHtml(text: string): string {
   );
 
   // ── Pre-pass 2: collapse multi-line [ADDED]...[/ADDED] into block ──────────
+  // Subtle styling — a thin left border + a small "New" pill at the top.
+  // No background fill (was overwhelming when the LLM added a whole new
+  // section, the entire right panel went green).
   processed = processed.replace(
     /\[ADDED\]([\s\S]*?)\[\/ADDED\]/g,
     (_match, inner: string) => {
       const innerHtml = bracketToHtml(inner.trim());
-      return `<div class="ct-added"><span class="ct-label ct-label-added">+ Added</span>${innerHtml}</div>`;
+      return `<div class="ct-added"><span class="ct-label ct-label-added">New</span>${innerHtml}</div>`;
     }
   );
 

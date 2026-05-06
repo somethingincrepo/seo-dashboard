@@ -54,22 +54,15 @@ function cleanMetaText(text: string): string {
  .trim();
 }
 
-// Inline change-marker CSS
-const CT_INLINE = [
- "[&_.ct-changed]:inline [&_.ct-changed]:rounded-sm [&_.ct-changed]:bg-amber-50 [&_.ct-changed]:px-0.5 [&_.ct-changed]:ring-1 [&_.ct-changed]:ring-amber-300/60",
- "[&_.ct-del]:line-through [&_.ct-del]:text-red-500 [&_.ct-del]:mr-1.5 [&_.ct-del]:bg-red-100 [&_.ct-del]:px-0.5 [&_.ct-del]:rounded-sm",
- "[&_.ct-ins]:text-emerald-800 [&_.ct-ins]:bg-emerald-100 [&_.ct-ins]:px-0.5 [&_.ct-ins]:rounded-sm [&_.ct-ins]:font-semibold",
-].join(" ");
-
 const PROSE_CLASSES = `
- text-[13px] text-slate-700 leading-relaxed
- [&_h1]:text-[18px] [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-4 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-slate-200
- [&_h2]:text-[15px] [&_h2]:font-semibold [&_h2]:text-slate-800 [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:pb-1.5 [&_h2]:border-b [&_h2]:border-slate-100
- [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:text-slate-700 [&_h3]:mt-4 [&_h3]:mb-1.5
- [&_p]:mb-3 [&_p]:leading-relaxed
- [&_ul]:pl-5 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:space-y-1
- [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:space-y-1
- [&_li]:text-[13px]
+ text-[15px] text-slate-700 leading-[1.7]
+ [&_h1]:text-[24px] [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-5 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-slate-200 [&_h1]:leading-tight
+ [&_h2]:text-[19px] [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:leading-snug
+ [&_h3]:text-[16px] [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mt-5 [&_h3]:mb-2
+ [&_p]:mb-4 [&_p]:leading-[1.7]
+ [&_ul]:pl-5 [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:space-y-1.5
+ [&_ol]:pl-5 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:space-y-1.5
+ [&_li]:text-[15px] [&_li]:leading-[1.65]
  [&_strong]:font-semibold [&_strong]:text-slate-900
 `.trim().replace(/\s+/g, " ");
 
@@ -136,45 +129,35 @@ function HowItWorks({ status }: { status: UiStatus }) {
 // ── Original page panel ───────────────────────────────────────────────────────
 
 function OriginalPanel({ refresh }: { refresh: ContentRefresh }) {
+ // Original body has no change markers, so the standard bracket renderer is fine.
  const html = bracketToHtml(refresh.original_body);
  const origTitle = refresh.original_meta_title;
  const origDesc = refresh.original_meta_description;
 
- const proposedTitle = cleanMetaText(refresh.proposed_meta_title);
- const proposedDesc = cleanMetaText(refresh.proposed_meta_description);
- const titleChanged = origTitle && origTitle !== proposedTitle;
- const descChanged = origDesc && origDesc !== proposedDesc;
-
  return (
  <div className="flex-1 overflow-y-auto px-6 py-5">
  {(origTitle || origDesc) && (
- <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5">
+ <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mb-6 space-y-3">
  {origTitle && (
  <div>
- <div className="text-[10px] font-semibold tracking-widest flex items-center gap-1.5">
- <span className="text-slate-400">Meta title</span>
- <span className={origTitle.length > 60 ? "text-red-500 font-bold" : "text-slate-400"}>
- ({origTitle.length}/60)
+ <div className="flex items-center gap-2 mb-1">
+ <span className="text-[12px] font-medium text-slate-500">Meta title</span>
+ <span className={`text-[11px] ${origTitle.length > 60 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+ {origTitle.length}/60
  </span>
- {titleChanged && (
- <span className="text-amber-600 normal-case font-medium">current</span>
- )}
  </div>
- <p className="text-[12px] text-slate-700 font-medium mt-0.5">{origTitle}</p>
+ <p className="text-[14px] text-slate-800 font-medium leading-snug">{origTitle}</p>
  </div>
  )}
  {origDesc && (
  <div>
- <div className="text-[10px] font-semibold tracking-widest flex items-center gap-1.5">
- <span className="text-slate-400">Meta description</span>
- <span className={origDesc.length > 155 ? "text-red-500 font-bold" : "text-slate-400"}>
- ({origDesc.length}/155)
+ <div className="flex items-center gap-2 mb-1">
+ <span className="text-[12px] font-medium text-slate-500">Meta description</span>
+ <span className={`text-[11px] ${origDesc.length > 155 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+ {origDesc.length}/155
  </span>
- {descChanged && (
- <span className="text-amber-600 normal-case font-medium">current</span>
- )}
  </div>
- <p className="text-[12px] text-slate-600 italic mt-0.5">{origDesc}</p>
+ <p className="text-[14px] text-slate-700 leading-relaxed">{origDesc}</p>
  </div>
  )}
  </div>
@@ -243,33 +226,33 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  </div>
 
  {(rawMetaTitle || rawMetaDesc) && (
- <div className={`bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-5 space-y-1.5 ${CT_INLINE}`}>
+ <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mb-6 space-y-3">
  {rawMetaTitle && (
  <div>
- <div className="text-[10px] font-semibold tracking-widest flex items-center gap-1.5">
- <span className="text-slate-400">Meta title</span>
- <span className={newMetaTitle.length > 60 ? "text-red-500 font-bold" : "text-slate-400"}>
- ({newMetaTitle.length}/60)
+ <div className="flex items-center gap-2 mb-1">
+ <span className="text-[12px] font-medium text-slate-500">Meta title</span>
+ <span className={`text-[11px] ${newMetaTitle.length > 60 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+ {newMetaTitle.length}/60
  </span>
  {titleChanged && (
- <span className="text-amber-600 normal-case font-medium">proposed</span>
+ <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200/60 rounded px-1.5 py-0.5">Updated</span>
  )}
  </div>
- <div className="text-[12px] text-slate-700 font-medium mt-0.5">{newMetaTitle}</div>
+ <div className="text-[14px] text-slate-800 font-medium leading-snug">{newMetaTitle}</div>
  </div>
  )}
  {rawMetaDesc && (
  <div>
- <div className="text-[10px] font-semibold tracking-widest flex items-center gap-1.5">
- <span className="text-slate-400">Meta description</span>
- <span className={newMetaDesc.length > 155 ? "text-red-500 font-bold" : "text-slate-400"}>
- ({newMetaDesc.length}/155)
+ <div className="flex items-center gap-2 mb-1">
+ <span className="text-[12px] font-medium text-slate-500">Meta description</span>
+ <span className={`text-[11px] ${newMetaDesc.length > 155 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+ {newMetaDesc.length}/155
  </span>
  {descChanged && (
- <span className="text-amber-600 normal-case font-medium">proposed</span>
+ <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200/60 rounded px-1.5 py-0.5">Updated</span>
  )}
  </div>
- <div className="text-[12px] text-slate-600 italic mt-0.5">{newMetaDesc}</div>
+ <div className="text-[14px] text-slate-700 leading-relaxed">{newMetaDesc}</div>
  </div>
  )}
  </div>
@@ -278,9 +261,8 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  <div
  className={`
  ${PROSE_CLASSES}
- [&_.ct-added]:block [&_.ct-added]:bg-emerald-50 [&_.ct-added]:border-l-[3px] [&_.ct-added]:border-emerald-500 [&_.ct-added]:pl-3 [&_.ct-added]:my-4 [&_.ct-added]:rounded-r-md [&_.ct-added]:py-1
- [&_.ct-label]:inline-block [&_.ct-label]:text-[9px] [&_.ct-label]:font-bold [&_.ct-label]:tracking-widest [&_.ct-label]:px-1.5 [&_.ct-label]:py-0.5 [&_.ct-label]:rounded [&_.ct-label]:mb-2
- [&_.ct-label-added]:bg-emerald-200 [&_.ct-label-added]:text-emerald-800
+ [&_.ct-added]:relative [&_.ct-added]:block [&_.ct-added]:border-l-2 [&_.ct-added]:border-emerald-400 [&_.ct-added]:pl-4 [&_.ct-added]:my-5
+ [&_.ct-label-added]:absolute [&_.ct-label-added]:-top-2 [&_.ct-label-added]:left-3 [&_.ct-label-added]:bg-white [&_.ct-label-added]:px-1.5 [&_.ct-label-added]:text-[10px] [&_.ct-label-added]:font-medium [&_.ct-label-added]:text-emerald-600
  `}
  dangerouslySetInnerHTML={{ __html: html }}
  />
