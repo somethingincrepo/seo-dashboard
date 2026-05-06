@@ -349,10 +349,15 @@ export async function POST(request: NextRequest) {
     // titles, internal-link suggestions, refresh picks, and keyword groups
     // queued up immediately after the audit lands.
     //
-    // Internal-link first batch is produced synchronously above (Path C), so
-    // `audit_internal_links` is intentionally NOT enqueued — it would race
-    // with the deterministic TS generator and overwrite the proposals with
-    // LLM-rewritten copy.
+    // Internal-link first batch normally comes from the deterministic TS
+    // generator (Path C above). When the rules engine raised zero R047-R050
+    // issues — common for small sites — Path C produces nothing and the
+    // /internal-links portal page is empty for the customer's entire month-1
+    // window. To avoid that, fall back to the LLM-driven `audit_internal_links`
+    // SOP in `first_batch_llm` mode, which surfaces 3-5 proposals with
+    // relaxed thresholds. Only fires when the deterministic generator
+    // produced no_demand AND the site has at least 5 pages (below that we
+    // genuinely don't have enough surface area to link).
     //
     // We enqueue keyword_research AND refresh_scheduler directly (with
     // single-client + force=true). keyword_research's fan_out also produces
@@ -360,12 +365,22 @@ export async function POST(request: NextRequest) {
     // SOP fails for any reason (OpenRouter blip, DataForSEO quota, prompt
     // drift) the refreshes never get scheduled. Enqueueing refresh_scheduler
     // directly here makes it independent of keyword_research succeeding.
-    // Both SOPs are idempotent in single-client mode so duplicate work is
+    // All SOPs are idempotent in single-client mode so duplicate work is
     // a no-op.
-    const firstBatchSops = [
+    const firstBatchSops: Array<{ sop_name: string; payload: Record<string, unknown> }> = [
       { sop_name: "keyword_research", payload: { client_id: run.client_id } },
       { sop_name: "refresh_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
     ];
+    if (internalLinksSummary.status === "no_demand" && pages.length >= 5) {
+      firstBatchSops.push({
+        sop_name: "audit_internal_links",
+        payload: {
+          client_id: run.client_id,
+          audit_run_id: auditRunId,
+          mode: "first_batch_llm",
+        },
+      });
+    }
     for (const job of firstBatchSops) {
       const { error: deliverableErr } = await supabase.from("jobs").insert({
         sop_name: job.sop_name,

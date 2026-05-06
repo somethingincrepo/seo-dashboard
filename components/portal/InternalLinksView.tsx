@@ -731,9 +731,9 @@ export function InternalLinksView({
             </>
           ) : (
             <>
-              <h3 className="text-[15px] font-semibold text-slate-800 mb-2">No link recommendations yet</h3>
+              <h3 className="text-[15px] font-semibold text-slate-800 mb-2">First-batch recommendations on the way</h3>
               <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
-                We scan your site monthly and generate recommendations based on your keyword research. Check back after your next scheduled analysis.
+                We scan your site at audit time and again every week to surface internal-link opportunities. If your audit just finished, the first batch usually appears here within an hour.
               </p>
             </>
           )}
