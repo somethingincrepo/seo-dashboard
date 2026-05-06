@@ -173,6 +173,8 @@ type FormState = {
   report_day: string;
   approval_turnaround: string;
   package: PackageTier;
+  is_local_business: boolean;
+  service_areas: string;
 };
 
 const INITIAL_FORM: FormState = {
@@ -200,6 +202,8 @@ const INITIAL_FORM: FormState = {
   report_day: "",
   approval_turnaround: "",
   package: "growth",
+  is_local_business: false,
+  service_areas: "",
 };
 
 export default function IntakePage() {
@@ -535,6 +539,46 @@ export default function IntakePage() {
                 placeholder="We're a B2B SaaS company focused on mid-market logistics companies. We recently pivoted from a per-seat model to usage-based pricing…"
               />
             </Field>
+          </SectionCard>
+
+          {/* ── Service Area ── */}
+          <SectionCard
+            title="Service Area"
+            description="Tell us if you only serve customers in specific places. We use this to decide whether titles should mention cities or stay topic-only."
+          >
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={form.is_local_business}
+                onChange={(e) => set("is_local_business", e.target.checked)}
+                className="w-4 h-4 mt-0.5 accent-indigo-600 shrink-0"
+              />
+              <div>
+                <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">
+                  Do you only serve select geographic areas?
+                </span>
+                <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                  Check this if your customers are mostly in specific cities, regions, or service areas (e.g. a roofer covering Austin + Round Rock, or a clinic serving the greater Boston area). Leave unchecked if you serve customers nationally or online.
+                </p>
+              </div>
+            </label>
+
+            {form.is_local_business && (
+              <Field
+                label="Which cities or regions do you serve?"
+                hint="Comma-separated. We'll use these as real place names in geo-targeted titles. List the 2–6 areas that matter most."
+                required
+              >
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={form.service_areas}
+                  onChange={(e) => set("service_areas", e.target.value)}
+                  placeholder="Austin, Round Rock, Cedar Park"
+                  required
+                />
+              </Field>
+            )}
           </SectionCard>
 
           {/* ── Website Tech ── */}

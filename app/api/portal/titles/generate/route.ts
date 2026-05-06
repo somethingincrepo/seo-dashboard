@@ -41,6 +41,8 @@ export async function POST(request: NextRequest) {
   const siteUrl = portalClient.fields.site_url || "";
   const tone = portalClient.fields.content_tone || "";
   const audience = portalClient.fields.content_audience || "";
+  const isLocal = portalClient.fields.is_local_business === true;
+  const serviceAreas = (portalClient.fields.service_areas || "").trim();
 
   // Fetch content profile for brand voice, positioning, services, restricted language, and content styles
   let brandVoice = "";
@@ -81,6 +83,8 @@ CURRENT TITLE: ${current_title || "(none)"}
 TARGET KEYWORD: ${keyword || "(not specified)"}
 KEYWORD GROUP / TOPIC PILLAR: ${group || "(not specified)"}
 SEARCH INTENT: ${search_intent || "(not specified)"}
+LOCAL BUSINESS: ${isLocal ? "yes" : "no"}
+SERVICE AREAS: ${serviceAreas || "(none)"}
 
 CLIENT DIRECTION / SUGGESTION: ${suggestion}
 
@@ -90,6 +94,9 @@ Rules:
 - Matches the ${tone || "professional"} tone
 - Does NOT violate restricted language
 - Does NOT use: "Everything You Need to Know", "Ultimate Guide", "Why X Matters"
+${isLocal && serviceAreas
+  ? `- This client is a LOCAL business — about half the time include a real city/region from SERVICE AREAS to signal local intent (patterns like "in [City]", "[Area] [Service]", "Near [Region]"); the other half write a pure topic title with no geo. Never invent a city — only use names from SERVICE AREAS.`
+  : `- This client is NOT local — never include city, region, or "near me" modifiers in the title.`}
 ${isLongform ? `- This is a LONG-FORM GUIDE — the title must signal depth and comprehensiveness
 - Use formats like: "How to [X]: A Step-by-Step Guide", "[Topic]: A Complete Walkthrough", "The [X] Guide for [Audience]", "[X] Explained: [Specific Angle]", "How to [X] (and [Related Thing])"
 - The word "Guide" is encouraged for long-form — but avoid "Ultimate Guide" or "Complete Guide"

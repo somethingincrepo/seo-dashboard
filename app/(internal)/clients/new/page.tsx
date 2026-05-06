@@ -65,6 +65,8 @@ export default function NewClientPage() {
     competitors: "",
     notes: "",
     package: "growth" as PackageTier,
+    is_local_business: false,
+    service_areas: "",
     run_audit: true,
   });
 
@@ -372,6 +374,39 @@ export default function NewClientPage() {
               onChange={(e) => handleChange("notes", e.target.value)}
             />
           </Field>
+        </div>
+
+        {/* Local SEO */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Local SEO</h2>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.is_local_business}
+              onChange={(e) => handleChange("is_local_business", e.target.checked)}
+              className="w-4 h-4 mt-0.5 accent-indigo-600 shrink-0"
+            />
+            <div>
+              <div className="text-sm font-medium text-slate-800">Local business</div>
+              <div className="text-xs text-slate-400 mt-0.5">
+                Check if this client serves a defined geographic area (city / region / service area). Title generation will include geo-targeted variants.
+              </div>
+            </div>
+          </label>
+          {form.is_local_business && (
+            <Field
+              label="Service Areas"
+              hint="Comma-separated cities or regions used as real place names in geo-targeted titles."
+            >
+              <input
+                type="text"
+                className={inputClass}
+                value={form.service_areas}
+                onChange={(e) => handleChange("service_areas", e.target.value)}
+                placeholder="Austin, Round Rock, Cedar Park"
+              />
+            </Field>
+          )}
         </div>
 
         {/* Package selection */}

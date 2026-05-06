@@ -16,6 +16,7 @@ import { platformFromCmsField } from "@/lib/connections/registry";
 import { EngainLinkButton } from "@/components/ui/EngainLinkButton";
 import { ContentStylesEditor } from "@/components/ui/ContentStylesEditor";
 import { IntegrationsForm } from "@/components/ui/IntegrationsForm";
+import { LocalSeoForm } from "@/components/ui/LocalSeoForm";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 import { getSupabase } from "@/lib/supabase";
 
@@ -366,6 +367,23 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           clientId={id}
           recordId={contentStylesData?.recordId ?? null}
           initialStyleIds={contentStylesData?.styleIds ?? []}
+        />
+      </GlassCard>
+
+      {/* Local SEO */}
+      <GlassCard className="p-5">
+        <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">
+          Local SEO
+          <span className="ml-2 text-slate-400 normal-case font-normal">
+            — flag local-business clients so titles include geo modifiers
+          </span>
+        </div>
+        <LocalSeoForm
+          clientId={id}
+          initialValues={{
+            is_local_business: f.is_local_business === true,
+            service_areas: f.service_areas || "",
+          }}
         />
       </GlassCard>
 

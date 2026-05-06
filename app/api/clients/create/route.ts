@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
     competitors,
     notes,
     package: packageTier,
+    is_local_business,
+    service_areas,
     run_audit = false,
   } = body as Record<string, unknown>;
 
@@ -134,6 +136,9 @@ export async function POST(request: NextRequest) {
     portal_username,
     portal_password_hash,
     portal_password, // plaintext — stored for admin reference
+    is_local_business: is_local_business === true,
+    service_areas:
+      typeof service_areas === "string" ? service_areas.trim() : "",
   };
 
   let record: { id: string };

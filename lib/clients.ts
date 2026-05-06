@@ -59,6 +59,10 @@ export type ClientFields = {
   content_tone: string;   // B2B SaaS | B2B Services | Healthcare | E-commerce | Professional Services
   content_audience: string;
 
+  // Local SEO — manual toggle on the admin client page; flows into title prompts
+  is_local_business: boolean;
+  service_areas: string;  // comma-separated cities/regions (e.g. "Austin, Round Rock, Cedar Park")
+
   // Portal credentials (username/password login)
   portal_username: string;
   portal_password_hash: string;

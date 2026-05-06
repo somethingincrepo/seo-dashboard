@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
     report_day,
     approval_turnaround,
     invite_token,
+    is_local_business,
+    service_areas,
   } = body as Record<string, unknown>;
 
   // Required field validation
@@ -190,6 +192,12 @@ export async function POST(request: NextRequest) {
 
   // Checkbox
   if (in_slack === true || in_slack === "true") fields.in_slack = true;
+
+  // Local SEO toggle (always write — keeps the field consistent on every record)
+  fields.is_local_business = is_local_business === true || is_local_business === "true";
+  if (typeof service_areas === "string" && service_areas.trim()) {
+    fields.service_areas = service_areas.trim();
+  }
 
   let record: { id: string };
   try {
