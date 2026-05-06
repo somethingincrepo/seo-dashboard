@@ -20,6 +20,34 @@
  * through escapeHtml before being placed into HTML context. A final allowlist
  * sanitization pass strips any HTML tags not produced by this parser.
  */
+/**
+ * "Proposed-only" renderer — strips ALL change-tracking markup (no del/ins,
+ * no strikethrough, no inline diffs) and renders only the final proposed
+ * version of the content. Used by the portal's RefreshedPanel where the
+ * OriginalPanel already shows the current version in the left column — the
+ * right column should show what the page will look like AFTER the change,
+ * cleanly, with no diff clutter.
+ *
+ *   [CHANGED from="X"]Y[/CHANGED] → Y       (just the new text, plain)
+ *   [ADDED]X[/ADDED]              → X      (still highlighted as a new block via ct-added wrapper)
+ *   [REMOVED]X[/REMOVED]          → ""     (dropped entirely)
+ *
+ * Customers can compare to the OriginalPanel side-by-side — they don't need
+ * an inline diff to see what changed.
+ */
+export function bracketToHtmlProposed(text: string): string {
+  if (!text) return "";
+  // Strip removed blocks
+  let processed = text.replace(/\[REMOVED\][\s\S]*?\[\/REMOVED\]/g, "");
+  // Replace [CHANGED from="X"]Y[/CHANGED] with just the proposed text Y, plain.
+  processed = processed.replace(
+    /\[CHANGED from="[^"]*"\]([\s\S]*?)\[\/CHANGED\]/g,
+    (_m, newText: string) => newText,
+  );
+  // Now hand off to the standard bracket renderer for the rest.
+  return bracketToHtml(processed);
+}
+
 export function bracketToHtml(text: string): string {
   if (!text) return "";
 

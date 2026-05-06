@@ -6,443 +6,443 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface PortalSidebarProps {
-  children: React.ReactNode;
-  companyName: string;
-  token: string;
-  logoUrl?: string;
-  pendingCount: number;
-  contentReviewCount: number;
-  titleProposalCount: number;
-  contentOptimizationCount?: number;
-  internalLinksPendingCount?: number;
-  auditIssueCount?: number;
-  categoryBreakdown: Record<string, number>;
-  isLoggedIn: boolean;
-  monthlyProgress?: React.ReactNode;
-  hasReddit?: boolean;
-  redditMentionCount?: number;
+ children: React.ReactNode;
+ companyName: string;
+ token: string;
+ logoUrl?: string;
+ pendingCount: number;
+ contentReviewCount: number;
+ titleProposalCount: number;
+ contentOptimizationCount?: number;
+ internalLinksPendingCount?: number;
+ auditIssueCount?: number;
+ categoryBreakdown: Record<string, number>;
+ isLoggedIn: boolean;
+ monthlyProgress?: React.ReactNode;
+ hasReddit?: boolean;
+ redditMentionCount?: number;
 }
 
 const CATEGORY_ROUTES: Record<string, string> = {
-  Technical: "technical",
-  "On-Page": "on-page",
-  Content: "content",
-  "AI-GEO": "ai-geo",
+ Technical: "technical",
+ "On-Page": "on-page",
+ Content: "content",
+ "AI-GEO": "ai-geo",
 };
 
 function IconDashboard({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+ </svg>
+ );
 }
 function IconApprovals({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+ </svg>
+ );
 }
 function IconContent({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+ </svg>
+ );
 }
 function IconReports({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+ </svg>
+ );
 }
 function IconActivity({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+ </svg>
+ );
 }
 function IconIndexation({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+ </svg>
+ );
 }
 function IconOptimization({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+ </svg>
+ );
 }
 function IconCalendar({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+ </svg>
+ );
 }
 function IconLinks({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+ <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+ </svg>
+ );
 }
 function IconReddit({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="14" r="7"/>
-      <circle cx="4.5" cy="11" r="2"/>
-      <circle cx="19.5" cy="11" r="2"/>
-      <circle cx="9.5" cy="13" r="1.2" fill="currentColor" stroke="none"/>
-      <circle cx="14.5" cy="13" r="1.2" fill="currentColor" stroke="none"/>
-      <path d="M9 17c.8 1.2 2 1.8 3 1.8s2.2-.6 3-1.8" fill="none"/>
-      <path d="M12 7V5"/>
-      <circle cx="12" cy="4" r="1.2" fill="currentColor" stroke="none"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <circle cx="12" cy="14" r="7"/>
+ <circle cx="4.5" cy="11" r="2"/>
+ <circle cx="19.5" cy="11" r="2"/>
+ <circle cx="9.5" cy="13" r="1.2" fill="currentColor" stroke="none"/>
+ <circle cx="14.5" cy="13" r="1.2" fill="currentColor" stroke="none"/>
+ <path d="M9 17c.8 1.2 2 1.8 3 1.8s2.2-.6 3-1.8" fill="none"/>
+ <path d="M12 7V5"/>
+ <circle cx="12" cy="4" r="1.2" fill="currentColor" stroke="none"/>
+ </svg>
+ );
 }
 function IconBook({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+ </svg>
+ );
 }
 function IconDeliverables({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/><path d="M9 7h6"/><path d="M9 17h4"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/><path d="M9 7h6"/><path d="M9 17h4"/>
+ </svg>
+ );
 }
 function IconSettings({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <circle cx="12" cy="12" r="3"/>
+ <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+ </svg>
+ );
 }
 function IconLogOut({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-      <polyline points="16 17 21 12 16 7"/>
-      <line x1="21" y1="12" x2="9" y2="12"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+ <polyline points="16 17 21 12 16 7"/>
+ <line x1="21" y1="12" x2="9" y2="12"/>
+ </svg>
+ );
 }
 function IconAudit({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-      <circle cx="11.5" cy="14.5" r="2.5"/>
-      <line x1="13.5" y1="16.5" x2="15.5" y2="18.5"/>
-    </svg>
-  );
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+ <polyline points="14 2 14 8 20 8"/>
+ <circle cx="11.5" cy="14.5" r="2.5"/>
+ <line x1="13.5" y1="16.5" x2="15.5" y2="18.5"/>
+ </svg>
+ );
 }
 
 const NAV_ITEMS = [
-  { suffix: "",                      label: "Dashboard",           Icon: IconDashboard },
-  { suffix: "/audit",                label: "Site Audit",          Icon: IconAudit },
-  { suffix: "/approvals",            label: "Approvals",           Icon: IconApprovals },
-  { suffix: "/content",              label: "Content",             Icon: IconContent },
-  { suffix: "/content-optimization", label: "Content Refreshes",  Icon: IconOptimization },
-  { suffix: "/internal-links",       label: "Internal Links",      Icon: IconLinks },
-  { suffix: "/indexation",           label: "Indexation",          Icon: IconIndexation },
-  { suffix: "/reports",              label: "Reports",             Icon: IconReports },
-  { suffix: "/reddit",               label: "Reddit Mentions",     Icon: IconReddit },
-  { suffix: "/activity",             label: "Activity",            Icon: IconActivity },
+ { suffix: "", label: "Dashboard", Icon: IconDashboard },
+ { suffix: "/audit", label: "Site Audit", Icon: IconAudit },
+ { suffix: "/approvals", label: "Approvals", Icon: IconApprovals },
+ { suffix: "/content", label: "Content", Icon: IconContent },
+ { suffix: "/content-optimization", label: "Content Refreshes", Icon: IconOptimization },
+ { suffix: "/internal-links", label: "Internal Links", Icon: IconLinks },
+ { suffix: "/indexation", label: "Indexation", Icon: IconIndexation },
+ { suffix: "/reports", label: "Reports", Icon: IconReports },
+ { suffix: "/reddit", label: "Reddit Mentions", Icon: IconReddit },
+ { suffix: "/activity", label: "Activity", Icon: IconActivity },
 ] as const;
 
 export function PortalSidebar({
-  children,
-  companyName,
-  token,
-  logoUrl,
-  pendingCount,
-  contentReviewCount,
-  titleProposalCount,
-  contentOptimizationCount,
-  internalLinksPendingCount,
-  auditIssueCount,
-  categoryBreakdown,
-  isLoggedIn,
-  monthlyProgress,
-  hasReddit,
-  redditMentionCount,
+ children,
+ companyName,
+ token,
+ logoUrl,
+ pendingCount,
+ contentReviewCount,
+ titleProposalCount,
+ contentOptimizationCount,
+ internalLinksPendingCount,
+ auditIssueCount,
+ categoryBreakdown,
+ isLoggedIn,
+ monthlyProgress,
+ hasReddit,
+ redditMentionCount,
 }: PortalSidebarProps) {
-  const pathname = usePathname();
-  const base = `/portal/${token}`;
-  const [logoError, setLogoError] = useState(false);
-  const showLogo = !!logoUrl && !logoError;
+ const pathname = usePathname();
+ const base = `/portal/${token}`;
+ const [logoError, setLogoError] = useState(false);
+ const showLogo = !!logoUrl && !logoError;
 
-  const inApprovals = pathname.startsWith(`${base}/approvals`);
-  const inContent = pathname.startsWith(`${base}/content`);
-  const inAudit = pathname.startsWith(`${base}/audit`);
+ const inApprovals = pathname.startsWith(`${base}/approvals`);
+ const inContent = pathname.startsWith(`${base}/content`);
+ const inAudit = pathname.startsWith(`${base}/audit`);
 
-  // Only expand sub-nav when actively in that section
-  const approvalsExpanded = inApprovals;
-  const contentExpanded = inContent;
+ // Only expand sub-nav when actively in that section
+ const approvalsExpanded = inApprovals;
+ const contentExpanded = inContent;
 
-  return (
-    <div className="flex min-h-screen">
-      {/* ── Left sidebar ── */}
-      <aside className="fixed left-0 top-0 h-full w-[240px] z-20 flex flex-col bg-white border-r border-slate-200/80">
-        {/* Brand */}
-        <div className="px-4 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            {showLogo ? (
-              <img
-                src={logoUrl}
-                alt={companyName}
-                onError={() => setLogoError(true)}
-                className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200 shrink-0"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-semibold text-sm shrink-0">
-                {companyName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="flex flex-col min-w-0">
-              <span className="text-[13px] font-semibold text-slate-900 leading-tight truncate">{companyName}</span>
-              <span className="text-[11px] text-slate-500 leading-tight">Client Portal</span>
-            </div>
-          </div>
-        </div>
+ return (
+ <div className="flex min-h-screen">
+ {/* ── Left sidebar ── */}
+ <aside className="fixed left-0 top-0 h-full w-[240px] z-20 flex flex-col bg-white border-r border-slate-200/80">
+ {/* Brand */}
+ <div className="px-4 py-4 border-b border-slate-100">
+ <div className="flex items-center gap-2.5">
+ {showLogo ? (
+ <img
+ src={logoUrl}
+ alt={companyName}
+ onError={() => setLogoError(true)}
+ className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200 shrink-0"
+ />
+ ) : (
+ <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+ {companyName.charAt(0).toUpperCase()}
+ </div>
+ )}
+ <div className="flex flex-col min-w-0">
+ <span className="text-[13px] font-semibold text-slate-900 leading-tight truncate">{companyName}</span>
+ <span className="text-[11px] text-slate-500 leading-tight">Client Portal</span>
+ </div>
+ </div>
+ </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
-            if (item.suffix === "/reddit" && !hasReddit) return null;
+ {/* Nav */}
+ <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+ {NAV_ITEMS.map((item) => {
+ if (item.suffix === "/reddit" && !hasReddit) return null;
 
-            const href = `${base}${item.suffix}`;
-            const isActive =
-              item.suffix === ""
-                ? pathname === base
-                : pathname.startsWith(href);
-            const { Icon } = item;
+ const href = `${base}${item.suffix}`;
+ const isActive =
+ item.suffix === ""
+ ? pathname === base
+ : pathname.startsWith(href);
+ const { Icon } = item;
 
-            return (
-              <div key={item.suffix}>
-                <Link
-                  href={href}
-                  className={cn(
-                    "flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors",
-                    isActive
-                      ? "bg-slate-100 text-slate-900"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-slate-700" : "text-slate-500")} />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.suffix === "/approvals" && pendingCount > 0 && (
-                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
-                      {pendingCount}
-                    </span>
-                  )}
-                  {item.suffix === "/content" && (contentReviewCount > 0 || titleProposalCount > 0) && (
-                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
-                      {contentReviewCount > 0 ? contentReviewCount : titleProposalCount}
-                    </span>
-                  )}
-                  {item.suffix === "/content-optimization" && (contentOptimizationCount ?? 0) > 0 && (
-                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200/60">
-                      {contentOptimizationCount}
-                    </span>
-                  )}
-                  {item.suffix === "/internal-links" && (internalLinksPendingCount ?? 0) > 0 && (
-                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
-                      {internalLinksPendingCount}
-                    </span>
-                  )}
-                  {item.suffix === "/audit" && (auditIssueCount ?? 0) > 0 && (
-                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200/60">
-                      {auditIssueCount}
-                    </span>
-                  )}
-                  {item.suffix === "/reddit" && (redditMentionCount ?? 0) > 0 && (
-                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 ring-1 ring-inset ring-orange-200/60">
-                      {redditMentionCount}
-                    </span>
-                  )}
-                </Link>
+ return (
+ <div key={item.suffix}>
+ <Link
+ href={href}
+ className={cn(
+ "flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors",
+ isActive
+ ? "bg-slate-100 text-slate-900"
+ : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+ )}
+ >
+ <div className="flex items-center gap-2">
+ <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-slate-700" : "text-slate-500")} />
+ <span>{item.label}</span>
+ </div>
+ {item.suffix === "/approvals" && pendingCount > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
+ {pendingCount}
+ </span>
+ )}
+ {item.suffix === "/content" && (contentReviewCount > 0 || titleProposalCount > 0) && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
+ {contentReviewCount > 0 ? contentReviewCount : titleProposalCount}
+ </span>
+ )}
+ {item.suffix === "/content-optimization" && (contentOptimizationCount ?? 0) > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200/60">
+ {contentOptimizationCount}
+ </span>
+ )}
+ {item.suffix === "/internal-links" && (internalLinksPendingCount ?? 0) > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
+ {internalLinksPendingCount}
+ </span>
+ )}
+ {item.suffix === "/audit" && (auditIssueCount ?? 0) > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200/60">
+ {auditIssueCount}
+ </span>
+ )}
+ {item.suffix === "/reddit" && (redditMentionCount ?? 0) > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 ring-1 ring-inset ring-orange-200/60">
+ {redditMentionCount}
+ </span>
+ )}
+ </Link>
 
-                {/* Site Audit sub-nav */}
-                {item.suffix === "/audit" && inAudit && (
-                  <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
-                    {[
-                      { label: "Issues", href: `${base}/audit`, exactMatch: true },
-                      { label: "Site Health", href: `${base}/audit/health`, exactMatch: false },
-                    ].map(({ label, href, exactMatch }) => {
-                      const subActive = exactMatch ? pathname === href : pathname.startsWith(href);
-                      return (
-                        <Link
-                          key={label}
-                          href={href}
-                          className={cn(
-                            "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
-                            subActive
-                              ? "text-slate-900 font-medium bg-slate-50"
-                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                          )}
-                        >
-                          <span>{label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
+ {/* Site Audit sub-nav */}
+ {item.suffix === "/audit" && inAudit && (
+ <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
+ {[
+ { label: "Issues", href: `${base}/audit`, exactMatch: true },
+ { label: "Site Health", href: `${base}/audit/health`, exactMatch: false },
+ ].map(({ label, href, exactMatch }) => {
+ const subActive = exactMatch ? pathname === href : pathname.startsWith(href);
+ return (
+ <Link
+ key={label}
+ href={href}
+ className={cn(
+ "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
+ subActive
+ ? "text-slate-900 font-medium bg-slate-50"
+ : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+ )}
+ >
+ <span>{label}</span>
+ </Link>
+ );
+ })}
+ </div>
+ )}
 
-                {/* Approvals sub-nav */}
-                {item.suffix === "/approvals" && approvalsExpanded && (
-                  <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
-                    {Object.entries(CATEGORY_ROUTES).map(([cat, slug]) => {
-                      const count = categoryBreakdown[cat] || 0;
-                      const catHref = `${base}/approvals/${slug}`;
-                      const catActive = pathname === catHref;
-                      if (count === 0 && !catActive) return null;
-                      return (
-                        <Link
-                          key={slug}
-                          href={catHref}
-                          className={cn(
-                            "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
-                            catActive
-                              ? "text-slate-900 font-medium bg-slate-50"
-                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                          )}
-                        >
-                          <span>{cat}</span>
-                          <span className="tabular text-slate-400 text-[11px]">{count}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
+ {/* Approvals sub-nav */}
+ {item.suffix === "/approvals" && approvalsExpanded && (
+ <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
+ {Object.entries(CATEGORY_ROUTES).map(([cat, slug]) => {
+ const count = categoryBreakdown[cat] || 0;
+ const catHref = `${base}/approvals/${slug}`;
+ const catActive = pathname === catHref;
+ if (count === 0 && !catActive) return null;
+ return (
+ <Link
+ key={slug}
+ href={catHref}
+ className={cn(
+ "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
+ catActive
+ ? "text-slate-900 font-medium bg-slate-50"
+ : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+ )}
+ >
+ <span>{cat}</span>
+ <span className="tabular text-slate-400 text-[11px]">{count}</span>
+ </Link>
+ );
+ })}
+ </div>
+ )}
 
-                {/* Content sub-nav */}
-                {item.suffix === "/content" && contentExpanded && (
-                  <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
-                    {[
-                      { label: "Pipeline", href: `${base}/content`, badge: 0 },
-                      { label: "Title Proposals", href: `${base}/content/titles`, badge: titleProposalCount },
-                      { label: "Keywords", href: `${base}/content/keywords`, badge: 0 },
-                      { label: "Content Profile", href: `${base}/content/profile`, badge: 0 },
-                    ].map(({ label, href, badge }) => {
-                      const subActive = label === "Pipeline"
-                        ? pathname === `${base}/content`
-                        : pathname.startsWith(href);
-                      return (
-                        <Link
-                          key={label}
-                          href={href}
-                          className={cn(
-                            "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
-                            subActive
-                              ? "text-slate-900 font-medium bg-slate-50"
-                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                          )}
-                        >
-                          <span>{label}</span>
-                          {badge > 0 && (
-                            <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
-                              {badge}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
+ {/* Content sub-nav */}
+ {item.suffix === "/content" && contentExpanded && (
+ <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
+ {[
+ { label: "Pipeline", href: `${base}/content`, badge: 0 },
+ { label: "Title Proposals", href: `${base}/content/titles`, badge: titleProposalCount },
+ { label: "Keywords", href: `${base}/content/keywords`, badge: 0 },
+ { label: "Content Profile", href: `${base}/content/profile`, badge: 0 },
+ ].map(({ label, href, badge }) => {
+ const subActive = label === "Pipeline"
+ ? pathname === `${base}/content`
+ : pathname.startsWith(href);
+ return (
+ <Link
+ key={label}
+ href={href}
+ className={cn(
+ "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
+ subActive
+ ? "text-slate-900 font-medium bg-slate-50"
+ : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+ )}
+ >
+ <span>{label}</span>
+ {badge > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
+ {badge}
+ </span>
+ )}
+ </Link>
+ );
+ })}
+ </div>
+ )}
+ </div>
+ );
+ })}
+ </nav>
 
-        {/* Monthly progress */}
-        {monthlyProgress}
+ {/* Monthly progress */}
+ {monthlyProgress}
 
-        {/* Bottom CTAs */}
-        <div className="px-3 py-3 border-t border-slate-100 space-y-1">
-          <a
-            href="https://calendly.com/somethinginc/something-inc-touchbase-1"
-            target="_blank"
-            rel="noreferrer"
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-[0_1px_2px_0_rgba(16,24,40,0.04)]"
-          >
-            <IconCalendar className="w-4 h-4 shrink-0" />
-            Book a meeting
-          </a>
-          <Link
-            href={`${base}/settings`}
-            className={cn(
-              "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors",
-              pathname.startsWith(`${base}/settings`)
-                ? "text-slate-700 bg-slate-100"
-                : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-            )}
-          >
-            <IconSettings className="w-3.5 h-3.5 shrink-0" />
-            Settings
-          </Link>
-        </div>
-      </aside>
+ {/* Bottom CTAs */}
+ <div className="px-3 py-3 border-t border-slate-100 space-y-1">
+ <a
+ href="https://calendly.com/somethinginc/something-inc-touchbase-1"
+ target="_blank"
+ rel="noreferrer"
+ className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-[0_1px_2px_0_rgba(16,24,40,0.04)]"
+ >
+ <IconCalendar className="w-4 h-4 shrink-0" />
+ Book a meeting
+ </a>
+ <Link
+ href={`${base}/settings`}
+ className={cn(
+ "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors",
+ pathname.startsWith(`${base}/settings`)
+ ? "text-slate-700 bg-slate-100"
+ : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+ )}
+ >
+ <IconSettings className="w-3.5 h-3.5 shrink-0" />
+ Settings
+ </Link>
+ </div>
+ </aside>
 
-      {/* ── Right column: top bar + main content ── */}
-      <div className="flex-1 ml-[240px] flex flex-col min-h-screen">
-        {/* Top bar */}
-        <header className="sticky top-0 z-10 h-12 bg-white border-b border-slate-200/80 flex items-center justify-end gap-2 px-5">
-          {/* How to use — styled as a button */}
-          <Link
-            href={`${base}/guide`}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors",
-              pathname === `${base}/guide`
-                ? "text-slate-700 bg-slate-100 border-slate-200"
-                : "text-slate-600 bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
-            )}
-          >
-            <IconBook className="w-3.5 h-3.5 shrink-0" />
-            How to use
-          </Link>
+ {/* ── Right column: top bar + main content ── */}
+ <div className="flex-1 ml-[240px] flex flex-col min-h-screen">
+ {/* Top bar */}
+ <header className="sticky top-0 z-10 h-12 bg-white border-b border-slate-200/80 flex items-center justify-end gap-2 px-5">
+ {/* How to use — styled as a button */}
+ <Link
+ href={`${base}/guide`}
+ className={cn(
+ "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors",
+ pathname === `${base}/guide`
+ ? "text-slate-700 bg-slate-100 border-slate-200"
+ : "text-slate-600 bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+ )}
+ >
+ <IconBook className="w-3.5 h-3.5 shrink-0" />
+ How to use
+ </Link>
 
-          <div className="w-px h-4 bg-slate-200" />
+ <div className="w-px h-4 bg-slate-200" />
 
-          {/* Auth */}
-          {isLoggedIn ? (
-            <form action="/api/portal/logout" method="POST">
-              <button
-                type="submit"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-slate-500 bg-white border border-transparent hover:text-red-600 hover:bg-red-50 hover:border-red-100 transition-colors"
-              >
-                <IconLogOut className="w-3.5 h-3.5 shrink-0" />
-                Sign out
-              </button>
-            </form>
-          ) : (
-            <Link
-              href="/portal/login"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-800 transition-colors"
-            >
-              Sign in
-            </Link>
-          )}
-        </header>
+ {/* Auth */}
+ {isLoggedIn ? (
+ <form action="/api/portal/logout" method="POST">
+ <button
+ type="submit"
+ className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-slate-500 bg-white border border-transparent hover:text-red-600 hover:bg-red-50 hover:border-red-100 transition-colors"
+ >
+ <IconLogOut className="w-3.5 h-3.5 shrink-0" />
+ Sign out
+ </button>
+ </form>
+ ) : (
+ <Link
+ href="/portal/login"
+ className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+ >
+ Sign in
+ </Link>
+ )}
+ </header>
 
-        {/* Main content */}
-        <main className="flex-1 p-10">{children}</main>
-      </div>
-    </div>
-  );
+ {/* Main content */}
+ <main className="flex-1 p-10">{children}</main>
+ </div>
+ </div>
+ );
 }
