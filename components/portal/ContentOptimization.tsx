@@ -526,25 +526,19 @@ function RefreshListItem({
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState({ clientPackage, monthNumber }: { clientPackage: string; monthNumber: number }) {
+function EmptyState({ clientPackage }: { clientPackage: string }) {
   const refreshCount = refreshLimit(clientPackage);
   const packageLabel = clientPackage.charAt(0).toUpperCase() + clientPackage.slice(1);
-  // Month 0/1 customers don't yet have enough Google Search Console traffic
-  // signal for the refresh scheduler to identify pages worth updating —
-  // explain this rather than implying nothing's happening.
-  const isFirstMonth = monthNumber <= 1;
 
   return (
     <div className="flex-1 flex items-center justify-center text-center px-8">
       <div>
         <div className="text-3xl text-slate-200 mb-4">◇</div>
-        <div className="text-[15px] font-medium text-slate-600 mb-2">
-          {isFirstMonth ? "Refreshes will start in month 2" : "No content refreshes yet"}
-        </div>
+        <div className="text-[15px] font-medium text-slate-600 mb-2">First refresh batch on the way</div>
         <p className="text-[13px] text-slate-400 max-w-sm">
-          {isFirstMonth
-            ? "Refresh recommendations need 30+ days of Google Search Console traffic data to identify which pages will benefit most. Your first batch will appear here once we've gathered enough signal."
-            : "Each month we identify pages across your site that have keyword gaps, thin content, or outdated headings and update them to improve rankings."}
+          The refresh scheduler runs at audit time and weekly thereafter, picking pages from your audit
+          to update with stronger keyword targeting, improved structure, and expanded content. The first
+          batch usually appears here within an hour of the audit completing.
         </p>
 
         <div className="mt-5 text-left bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 max-w-sm mx-auto">
@@ -583,13 +577,11 @@ export function ContentOptimization({
   historicalItems = [],
   token,
   clientPackage,
-  monthNumber = 1,
 }: {
   items: ContentRefresh[];
   historicalItems?: ContentRefresh[];
   token: string;
   clientPackage: string;
-  monthNumber?: number;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
     items.find((r) => getUiStatus(r) === "review")?.id ?? items[0]?.id ?? null
@@ -629,7 +621,7 @@ export function ContentOptimization({
   if (localItems.length === 0 && historicalItems.length === 0) {
     return (
       <div className="flex-1 flex flex-col px-10">
-        <EmptyState clientPackage={clientPackage} monthNumber={monthNumber} />
+        <EmptyState clientPackage={clientPackage} />
       </div>
     );
   }

@@ -62,7 +62,6 @@ export default async function ContentOptimizationPage({
         historicalItems={historicalItems}
         token={token}
         clientPackage={clientPackage}
-        monthNumber={typeof client.fields.month_number === "number" ? client.fields.month_number : 1}
       />
     </div>
   );
