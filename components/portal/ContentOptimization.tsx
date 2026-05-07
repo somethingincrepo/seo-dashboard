@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { Fragment, useState, useCallback } from "react";
 import { bracketToHtml, bracketToHtmlProposed } from "@/lib/bracketToHtml";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import type { ContentRefresh } from "@/lib/supabase";
@@ -54,10 +54,10 @@ function cleanMetaText(text: string): string {
  .trim();
 }
 
-// Body prose: each h2 gets a horizontal section divider above it (skipped
-// on the first h2 so the panel doesn't lead with a bare line). Used by
-// both OriginalPanel and RefreshedPanel so the visual rhythm of "section
-// → divider → next section" matches between them.
+// Body prose for both columns of the comparison grid. Each h2 gets a soft
+// horizontal divider above it (skipped on the first h2 in a cell so the
+// content doesn't open with a bare line). Same prose styling on both sides
+// so corresponding sections render at matching heights.
 const PROSE_CLASSES = `
  text-[15px] text-slate-700 leading-[1.7]
  [&_h1]:text-[24px] [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-5 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-slate-200 [&_h1]:leading-tight
@@ -131,145 +131,187 @@ function HowItWorks({ status }: { status: UiStatus }) {
  );
 }
 
-function OriginalPanel({ refresh }: { refresh: ContentRefresh }) {
- // Original body has no change markers, so the standard bracket renderer is fine.
- const html = bracketToHtml(refresh.original_body);
- const origTitle = refresh.original_meta_title;
- const origDesc = refresh.original_meta_description;
+// ── Aligned-section grid ──────────────────────────────────────────────────────
+//
+// Splits both bodies into sections (h2-bounded, plus an "intro" block before
+// the first h2, plus [ADDED] blocks treated as their own sections), pairs
+// matching sections by position, and renders them in a 2-column CSS grid so
+// the corresponding original/proposed sections align horizontally. A single
+// horizontal line spans across both columns between rows.
 
- return (
- <div className="flex-1 overflow-y-auto px-6 py-5">
- {(origTitle || origDesc) && (
- <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mb-6 space-y-3">
- {origTitle && (
- <div>
- <div className="flex items-center gap-2 mb-1">
- <span className="text-[12px] font-medium text-slate-500">Meta title</span>
- <span className={`text-[11px] ${origTitle.length > 60 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
- {origTitle.length}/60
- </span>
- </div>
- <p className="text-[14px] text-slate-800 font-medium leading-snug">{origTitle}</p>
- </div>
- )}
- {origDesc && (
- <div>
- <div className="flex items-center gap-2 mb-1">
- <span className="text-[12px] font-medium text-slate-500">Meta description</span>
- <span className={`text-[11px] ${origDesc.length > 155 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
- {origDesc.length}/155
- </span>
- </div>
- <p className="text-[14px] text-slate-700 leading-relaxed">{origDesc}</p>
- </div>
- )}
- </div>
- )}
+type Block = { kind: "intro" | "section" | "added"; markup: string };
 
- <div className={PROSE_CLASSES} dangerouslySetInnerHTML={{ __html: html }} />
- </div>
- );
+function splitBody(body: string): Block[] {
+ if (!body) return [];
+ const blocks: Block[] = [];
+ const lines = body.split("\n");
+ let buf: string[] = [];
+ let kind: "intro" | "section" = "intro";
+
+ const flush = () => {
+ const m = buf.join("\n").trim();
+ if (m) blocks.push({ kind, markup: m });
+ buf = [];
+ };
+
+ for (let i = 0; i < lines.length; i++) {
+ const line = lines[i];
+
+ if (/^\s*\[ADDED\]\s*$/.test(line)) {
+ flush();
+ const inner: string[] = [];
+ i++;
+ while (i < lines.length && !/^\s*\[\/ADDED\]\s*$/.test(lines[i])) {
+ inner.push(lines[i]);
+ i++;
+ }
+ const m = inner.join("\n").trim();
+ if (m) blocks.push({ kind: "added", markup: m });
+ continue;
+ }
+
+ if (/^\s*\[H2\]/.test(line)) {
+ flush();
+ kind = "section";
+ }
+
+ buf.push(line);
+ }
+ flush();
+ return blocks;
 }
 
-// ── Refreshed content panel ───────────────────────────────────────────────────
+type Pair =
+ | { kind: "matched"; original: string | null; proposed: string }
+ | { kind: "added"; proposed: string };
 
-function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
- const body = refresh.proposed_body;
- // Render the clean proposed version — no inline strikethroughs, no del/ins
- // mixing. The OriginalPanel on the left already shows the current text;
- // here we show what the page will look like once approved.
- const html = bracketToHtmlProposed(body);
- const wordCount = refresh.proposed_word_count ?? countWords(body);
- const origWordCount = refresh.original_word_count;
- const rawMetaTitle = refresh.proposed_meta_title;
- const rawMetaDesc = refresh.proposed_meta_description;
- const newMetaTitle = cleanMetaText(rawMetaTitle);
- const newMetaDesc = cleanMetaText(rawMetaDesc);
+function pairSections(originalBody: string, proposedBody: string): Pair[] {
+ const orig = splitBody(originalBody).filter((b) => b.kind !== "added");
+ const prop = splitBody(proposedBody);
+ const pairs: Pair[] = [];
+ let oi = 0;
+ for (const pb of prop) {
+ if (pb.kind === "added") {
+ pairs.push({ kind: "added", proposed: pb.markup });
+ } else {
+ pairs.push({ kind: "matched", original: orig[oi]?.markup ?? null, proposed: pb.markup });
+ oi++;
+ }
+ }
+ // Any leftover original sections aren't shown — proposed is the source of
+ // truth for what the page becomes.
+ return pairs;
+}
 
- const delta = wordCount - origWordCount;
- const deltaLabel = delta > 0
- ? `+${delta.toLocaleString()} vs. current`
- : delta < 0
- ? `${delta.toLocaleString()} vs. current`
- : "same length as current";
- const deltaColor = delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-500" : "text-slate-400";
+function ComparisonGrid({ refresh }: { refresh: ContentRefresh }) {
+ const oldTitle = refresh.original_meta_title ?? "";
+ const newTitle = cleanMetaText(refresh.proposed_meta_title ?? "");
+ const oldDesc = refresh.original_meta_description ?? "";
+ const newDesc = cleanMetaText(refresh.proposed_meta_description ?? "");
+ const titleChanged = !!oldTitle && oldTitle !== newTitle;
+ const descChanged = !!oldDesc && oldDesc !== newDesc;
 
- const hasChangeMarkers = /\[ADDED\]|\[CHANGED |\[REMOVED\]/.test(body);
- const hasChangeStats = typeof refresh.change_ratio === "number";
+ const pairs = pairSections(refresh.original_body ?? "", refresh.proposed_body ?? "");
 
- const titleChanged = refresh.original_meta_title && refresh.original_meta_title !== newMetaTitle;
- const descChanged = refresh.original_meta_description && refresh.original_meta_description !== newMetaDesc;
+ const cellLeft = "px-6 py-5";
+ const cellRight = "px-6 py-5 border-l border-slate-200";
+ const proseClass = PROSE_CLASSES;
+
+ const rows: Array<{ left: React.ReactNode; right: React.ReactNode; key: string }> = [];
+
+ if (newTitle || oldTitle) {
+ rows.push({
+ key: "meta-title",
+ left: oldTitle ? (
+ <div>
+ <div className="text-[11px] font-medium text-slate-400 mb-1">Meta title</div>
+ <div className="text-[15px] text-slate-700 leading-snug">{oldTitle}</div>
+ </div>
+ ) : <div className="text-[12px] text-slate-400">No current meta title</div>,
+ right: (
+ <div>
+ <div className="flex items-center gap-2 mb-1">
+ <span className="text-[11px] font-medium text-slate-400">Meta title</span>
+ {titleChanged && (
+ <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
+ )}
+ </div>
+ <div className={`text-[15px] leading-snug ${titleChanged ? "italic font-bold text-slate-900" : "text-slate-700"}`}>
+ {newTitle}
+ </div>
+ </div>
+ ),
+ });
+ }
+
+ if (newDesc || oldDesc) {
+ rows.push({
+ key: "meta-desc",
+ left: oldDesc ? (
+ <div>
+ <div className="text-[11px] font-medium text-slate-400 mb-1">Meta description</div>
+ <div className="text-[14px] text-slate-700 leading-relaxed">{oldDesc}</div>
+ </div>
+ ) : <div className="text-[12px] text-slate-400">No current meta description</div>,
+ right: (
+ <div>
+ <div className="flex items-center gap-2 mb-1">
+ <span className="text-[11px] font-medium text-slate-400">Meta description</span>
+ {descChanged && (
+ <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
+ )}
+ </div>
+ <div className={`text-[14px] leading-relaxed ${descChanged ? "italic font-bold text-slate-900" : "text-slate-700"}`}>
+ {newDesc}
+ </div>
+ </div>
+ ),
+ });
+ }
+
+ pairs.forEach((p, i) => {
+ if (p.kind === "added") {
+ rows.push({
+ key: `body-${i}`,
+ left: <div className="text-[13px] text-slate-400 italic">No equivalent — this section is new.</div>,
+ right: (
+ <div>
+ <div className="mb-2">
+ <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Added</span>
+ </div>
+ <div className={proseClass} dangerouslySetInnerHTML={{ __html: bracketToHtml(p.proposed) }} />
+ </div>
+ ),
+ });
+ } else {
+ rows.push({
+ key: `body-${i}`,
+ left: p.original ? (
+ <div className={proseClass} dangerouslySetInnerHTML={{ __html: bracketToHtml(p.original) }} />
+ ) : <div className="text-[13px] text-slate-400 italic">— no current content —</div>,
+ right: (
+ <div className={proseClass} dangerouslySetInnerHTML={{ __html: bracketToHtmlProposed(p.proposed) }} />
+ ),
+ });
+ }
+ });
 
  return (
- <div className="flex-1 overflow-y-auto px-6 py-5">
- <div className="flex items-center justify-between mb-3">
- <div className="flex items-center gap-3 flex-wrap">
- <span className="text-[12px] text-slate-500">
- ~{wordCount.toLocaleString()} words
- </span>
- <span className={`text-[12px] ${deltaColor}`}>
- {deltaLabel}
- </span>
- {hasChangeStats && (
- <span className="text-[12px] text-slate-500">
- {Math.round((refresh.change_ratio ?? 0) * 100)}% changed
- {refresh.edits_count > 0 && ` · ${refresh.edits_count} edit${refresh.edits_count === 1 ? "" : "s"}`}
- {refresh.additions_count > 0 && ` · ${refresh.additions_count} added`}
- </span>
- )}
- </div>
- </div>
-
- {hasChangeMarkers && (
- <div className="mb-5 px-3 py-2 rounded-md bg-slate-50 border border-slate-200">
- <span className="text-[12px] text-slate-500">
- <strong className="text-slate-800"><em>Bold italic words</em></strong> are proposed updates. Sections labeled <span className="inline-flex items-center px-1.5 py-0.5 rounded ring-1 ring-slate-300 bg-white text-[11px] font-medium text-slate-600">Added</span> are entirely new.
- </span>
- </div>
- )}
-
- {(rawMetaTitle || rawMetaDesc) && (
- <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mb-6 space-y-3">
- {rawMetaTitle && (
- <div>
- <div className="flex items-center gap-2 mb-1">
- <span className="text-[12px] font-medium text-slate-500">Meta title</span>
- <span className={`text-[11px] ${newMetaTitle.length > 60 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
- {newMetaTitle.length}/60
- </span>
- {titleChanged && (
- <span className="text-[10px] font-medium text-slate-600 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
- )}
- </div>
- <div className={`text-[14px] leading-snug ${titleChanged ? "italic font-bold text-slate-900" : "font-medium text-slate-800"}`}>{newMetaTitle}</div>
- </div>
- )}
- {rawMetaDesc && (
- <div>
- <div className="flex items-center gap-2 mb-1">
- <span className="text-[12px] font-medium text-slate-500">Meta description</span>
- <span className={`text-[11px] ${newMetaDesc.length > 155 ? "text-red-500 font-semibold" : "text-slate-400"}`}>
- {newMetaDesc.length}/155
- </span>
- {descChanged && (
- <span className="text-[10px] font-medium text-slate-600 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
- )}
- </div>
- <div className={`text-[14px] leading-relaxed ${descChanged ? "italic font-bold text-slate-900" : "text-slate-700"}`}>{newMetaDesc}</div>
- </div>
- )}
- </div>
- )}
-
+ <div className="flex-1 overflow-y-auto">
+ <div className="grid grid-cols-2">
+ {rows.map((row, i) => (
+ <Fragment key={row.key}>
+ {i > 0 && (
  <div
- className={`
- ${PROSE_CLASSES}
- [&_.ct-added]:relative [&_.ct-added]:block [&_.ct-added]:my-6
- [&_.ct-label-added]:inline-flex [&_.ct-label-added]:items-center [&_.ct-label-added]:px-1.5 [&_.ct-label-added]:py-0.5 [&_.ct-label-added]:rounded [&_.ct-label-added]:ring-1 [&_.ct-label-added]:ring-slate-300 [&_.ct-label-added]:bg-white [&_.ct-label-added]:text-[10px] [&_.ct-label-added]:font-medium [&_.ct-label-added]:text-slate-600 [&_.ct-label-added]:mb-2
- [&_em]:italic [&_em]:text-slate-800
- `}
- dangerouslySetInnerHTML={{ __html: html }}
+ className="col-span-2 border-t border-slate-200"
+ aria-hidden="true"
  />
+ )}
+ <div className={cellLeft}>{row.left}</div>
+ <div className={cellRight}>{row.right}</div>
+ </Fragment>
+ ))}
+ </div>
  </div>
  );
 }
@@ -414,9 +456,9 @@ function DetailPanel({
  )}
 
  {(status === "review" || status === "approved") && (
- <div className="flex-1 flex min-h-0 border-t border-slate-200">
- <div className="flex flex-col w-1/2 border-r border-slate-200 min-h-0">
- <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0 flex items-center justify-between">
+ <div className="flex-1 min-h-0 flex flex-col border-t border-slate-200">
+ <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50/70 shrink-0">
+ <div className="px-6 py-3 flex items-center justify-between">
  <span className="text-[12px] font-medium text-slate-600">
  Current ({refresh.original_word_count.toLocaleString()} words)
  </span>
@@ -429,17 +471,14 @@ function DetailPanel({
  View live →
  </a>
  </div>
- <OriginalPanel refresh={refresh} />
- </div>
-
- <div className="flex flex-col w-1/2 min-h-0">
- <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
- <span className="text-[12px] font-medium text-slate-600">
- Proposed
+ <div className="px-6 py-3 border-l border-slate-200 flex items-center gap-3">
+ <span className="text-[12px] font-medium text-slate-600">Proposed</span>
+ <span className="text-[11px] text-slate-400">
+ <strong className="text-slate-700"><em>Bold italic</em></strong> = updated words · <span className="inline-flex items-center px-1.5 py-0.5 rounded ring-1 ring-slate-300 bg-white text-[10px] font-medium text-slate-600">Added</span> = new section
  </span>
  </div>
- <RefreshedPanel refresh={refresh} />
  </div>
+ <ComparisonGrid refresh={refresh} />
  </div>
  )}
  </div>
