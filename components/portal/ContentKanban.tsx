@@ -464,7 +464,12 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
  setFeedback(null);
  try {
  await approveContentResult(resultId, action);
- setFeedback({ type: "success", message: action === "approved" ? "Article approved" : "Revision requested" });
+ setFeedback({ type: "success", message: action === "approved" ? "Article approved — added to publishing calendar" : "Revision requested" });
+ if (action === "approved") {
+ // Tell sibling components (e.g. PublishCalendar) to re-fetch so the
+ // newly-scheduled article appears on the calendar without a page reload.
+ window.dispatchEvent(new CustomEvent("content:approved", { detail: { resultId } }));
+ }
  setTimeout(() => { setFeedback(null); closeDrawer(); }, 1500);
  } catch (e) {
  setFeedback({ type: "error", message: e instanceof Error ? e.message : "Failed" });

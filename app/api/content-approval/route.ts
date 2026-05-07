@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
+import { getPortalSession } from "@/lib/portal-auth";
+import { getClientByToken } from "@/lib/clients";
 import { getNextPublishDate } from "@/lib/content-schedule";
 
 const BASE_URL = "https://api.airtable.com/v0";
@@ -106,12 +108,47 @@ async function handleResultApproval(recordId: string, action: string) {
   }
 }
 
+// Verify the record (Content Job or Result) actually belongs to the calling
+// client. Both tables expose the linked Client's name through a lookup
+// field; we accept the record if any of those lookup values matches the
+// calling client's company_name. This keeps the check simple and avoids
+// having to translate between content-base record IDs and main-base IDs.
+async function recordBelongsToClient(
+  recordId: string,
+  type: "job" | "result",
+  companyName: string,
+): Promise<boolean> {
+  const tableName = type === "job" ? JOBS_TABLE : RESULTS_TABLE;
+  const url = `${BASE_URL}/${CONTENT_BASE_ID}/${encodeURIComponent(tableName)}/${recordId}`;
+  const res = await fetch(url, { headers: getContentHeaders(), cache: "no-store" });
+  if (!res.ok) return false;
+  const data = (await res.json()) as { fields: Record<string, unknown> };
+  const candidates: string[] = [];
+  const direct = data.fields["Client Name (from Client ID)"];
+  if (Array.isArray(direct)) candidates.push(...(direct as string[]));
+  else if (typeof direct === "string") candidates.push(direct);
+  const viaJob = data.fields["Client Name (from Client ID) (from Job ID)"];
+  if (Array.isArray(viaJob)) candidates.push(...(viaJob as string[]));
+  else if (typeof viaJob === "string") candidates.push(viaJob);
+  return candidates.includes(companyName);
+}
+
 export async function POST(request: NextRequest) {
-  // Require admin auth — Bearer token or session cookie
+  // Auth: admin (Bearer or session) OR portal session (customer approving
+  // their own content). Portal callers go through an ownership check below.
   const bearer = request.headers.get("authorization");
   const bearerOk = bearer === `Bearer ${process.env.ADMIN_PASSWORD}`;
-  if (!bearerOk && !(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const adminOk = bearerOk || (await isAdminAuthenticated());
+  let portalClient: Awaited<ReturnType<typeof getClientByToken>> | null = null;
+  if (!adminOk) {
+    const portalSession = await getPortalSession();
+    if (!portalSession) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    portalClient = await getClientByToken(portalSession.portal_token);
+    if (!portalClient) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   try {
@@ -130,6 +167,17 @@ export async function POST(request: NextRequest) {
     }
     if (!CONTENT_BASE_ID) {
       return NextResponse.json({ error: "Content Airtable not configured" }, { status: 500 });
+    }
+
+    // Portal callers: verify ownership against the record. We compare against
+    // the company name (which is what the Results lookup field returns and
+    // what the Content Jobs flow filters by elsewhere — see content.ts and
+    // content-schedule.ts for the same pattern).
+    if (!adminOk && portalClient) {
+      const companyName = portalClient.fields.company_name;
+      if (!companyName) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const owns = await recordBelongsToClient(recordId, type === "job" ? "job" : "result", companyName);
+      if (!owns) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (type === "job") {

@@ -61,6 +61,16 @@ export function PublishCalendar({ token }: PublishCalendarProps) {
 
  useEffect(() => { void load(); }, [load]);
 
+ // Re-fetch when something elsewhere on the page approves or publishes
+ // content. The kanban sibling dispatches "content:approved" on every
+ // successful action; we listen and reload so the calendar reflects the
+ // change without a hard page refresh.
+ useEffect(() => {
+ const handler = () => { void load(); };
+ window.addEventListener("content:approved", handler);
+ return () => window.removeEventListener("content:approved", handler);
+ }, [load]);
+
  // Build calendar grid for current month
  const firstDay = new Date(Date.UTC(year, month, 1));
  const lastDay = new Date(Date.UTC(year, month + 1, 0));
