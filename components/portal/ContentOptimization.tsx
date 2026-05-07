@@ -54,16 +54,21 @@ function cleanMetaText(text: string): string {
  .trim();
 }
 
+// Body prose: each h2 gets a horizontal section divider above it (skipped
+// on the first h2 so the panel doesn't lead with a bare line). Used by
+// both OriginalPanel and RefreshedPanel so the visual rhythm of "section
+// → divider → next section" matches between them.
 const PROSE_CLASSES = `
  text-[15px] text-slate-700 leading-[1.7]
  [&_h1]:text-[24px] [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-5 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-slate-200 [&_h1]:leading-tight
- [&_h2]:text-[19px] [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:leading-snug
+ [&_h2]:text-[19px] [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:leading-snug [&_h2]:pt-6 [&_h2]:border-t [&_h2]:border-slate-200 [&_h2:first-child]:border-t-0 [&_h2:first-child]:pt-0 [&_h2:first-child]:mt-0
  [&_h3]:text-[16px] [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mt-5 [&_h3]:mb-2
  [&_p]:mb-4 [&_p]:leading-[1.7]
  [&_ul]:pl-5 [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:space-y-1.5
  [&_ol]:pl-5 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:space-y-1.5
  [&_li]:text-[15px] [&_li]:leading-[1.65]
  [&_strong]:font-semibold [&_strong]:text-slate-900
+ [&_em]:italic
 `.trim().replace(/\s+/g, " ");
 
 // ── How it works strip ────────────────────────────────────────────────────────
@@ -122,155 +127,6 @@ function HowItWorks({ status }: { status: UiStatus }) {
  </div>
  ))}
  </div>
- </div>
- );
-}
-
-// ── Original page panel ───────────────────────────────────────────────────────
-
-// ── Stacked change list ───────────────────────────────────────────────────────
-//
-// Replaces the side-by-side "Current | Proposed changes" panels with a single
-// vertical stack of comparison boxes. Each box surfaces exactly one change
-// (meta title, meta description, or a [CHANGED]/[ADDED] block from the body),
-// with the current version on top, a horizontal divider, then the proposed
-// version below. New sections (no current equivalent) get their own box
-// labeled "Added" instead of the divided two-row layout.
-
-type ChangeItem =
- | { type: "meta_title"; current: string; proposed: string }
- | { type: "meta_description"; current: string; proposed: string }
- | { type: "changed"; current: string; proposed: string }
- | { type: "added"; proposed: string };
-
-function buildChangeStack(refresh: ContentRefresh): ChangeItem[] {
- const items: ChangeItem[] = [];
-
- const oldTitle = refresh.original_meta_title ?? "";
- const newTitle = cleanMetaText(refresh.proposed_meta_title ?? "");
- if (newTitle && oldTitle !== newTitle) {
- items.push({ type: "meta_title", current: oldTitle, proposed: newTitle });
- }
-
- const oldDesc = refresh.original_meta_description ?? "";
- const newDesc = cleanMetaText(refresh.proposed_meta_description ?? "");
- if (newDesc && oldDesc !== newDesc) {
- items.push({ type: "meta_description", current: oldDesc, proposed: newDesc });
- }
-
- const body = refresh.proposed_body ?? "";
- // Single sweep so CHANGED and ADDED blocks appear in the same order they do
- // on the page. Using non-greedy match for both forms.
- const re = /\[CHANGED from="([^"]*)"\]([\s\S]*?)\[\/CHANGED\]|\[ADDED\]([\s\S]*?)\[\/ADDED\]/g;
- for (const m of body.matchAll(re)) {
- if (m[1] !== undefined && m[2] !== undefined) {
- items.push({ type: "changed", current: m[1], proposed: m[2] });
- } else if (m[3] !== undefined) {
- items.push({ type: "added", proposed: m[3] });
- }
- }
-
- return items;
-}
-
-const STACK_PROSE = `
- [&_h1]:text-[20px] [&_h1]:font-semibold [&_h1]:text-slate-900 [&_h1]:mb-2
- [&_h2]:text-[17px] [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-4 [&_h2]:mb-2
- [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mt-3 [&_h3]:mb-1.5
- [&_p]:text-[15px] [&_p]:text-slate-700 [&_p]:leading-[1.7] [&_p]:mb-3
- [&_ul]:pl-5 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:space-y-1.5
- [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:space-y-1.5
- [&_li]:text-[15px] [&_li]:text-slate-700 [&_li]:leading-[1.65]
- [&_strong]:font-semibold [&_strong]:text-slate-900
-`.trim().replace(/\s+/g, " ");
-
-function ChangeBox({ item, index, total }: { item: ChangeItem; index: number; total: number }) {
- const isAdded = item.type === "added";
- const labelText = isAdded ? "Added" : "Updated";
- const contextLabel =
- item.type === "meta_title" ? "Meta title"
- : item.type === "meta_description" ? "Meta description"
- : item.type === "added" ? "New section"
- : null;
-
- const renderText = (raw: string, plainText: boolean) => {
- if (plainText) {
- return <p className="text-[15px] text-slate-700 leading-[1.6]">{raw}</p>;
- }
- return (
- <div
- className={STACK_PROSE}
- dangerouslySetInnerHTML={{ __html: bracketToHtml(raw) }}
- />
- );
- };
-
- const isMeta = item.type === "meta_title" || item.type === "meta_description";
-
- return (
- <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
- <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
- <span className="text-[11px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">
- {labelText}
- </span>
- {contextLabel && (
- <span className="text-[12px] text-slate-500">{contextLabel}</span>
- )}
- <span className="text-[11px] text-slate-400 ml-auto">
- {index + 1} of {total}
- </span>
- </div>
-
- {item.type !== "added" && (
- <>
- <div className="px-4 py-3">
- <div className="text-[11px] font-medium text-slate-400 mb-1.5">Current</div>
- {renderText(item.current, isMeta)}
- </div>
- <div className="border-t border-slate-200 mx-4" aria-hidden="true" />
- </>
- )}
-
- <div className={`px-4 py-3 ${isAdded ? "" : "bg-slate-50/40"}`}>
- <div className="text-[11px] font-medium text-slate-400 mb-1.5">
- {isAdded ? "New content" : "Proposed"}
- </div>
- {renderText(item.proposed, isMeta)}
- </div>
- </div>
- );
-}
-
-function ChangeStack({ refresh }: { refresh: ContentRefresh }) {
- const items = buildChangeStack(refresh);
- const refreshUrl = refresh.refresh_url;
-
- if (items.length === 0) {
- return (
- <div className="px-6 py-10 text-center">
- <p className="text-[14px] text-slate-500">
- No changes proposed for this page.
- </p>
- <a
- href={refreshUrl}
- target="_blank"
- rel="noopener noreferrer"
- className="inline-block mt-2 text-[12px] text-indigo-600 hover:underline"
- >
- View live page →
- </a>
- </div>
- );
- }
-
- return (
- <div className="px-6 py-5 space-y-4 overflow-y-auto">
- <div className="text-[12px] text-slate-500">
- {items.length} change{items.length === 1 ? "" : "s"} proposed for this page · compare each against the current version below
- </div>
- {items.map((item, i) => (
- <ChangeBox key={i} item={item} index={i} total={items.length} />
- ))}
  </div>
  );
 }
@@ -365,9 +221,9 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  </div>
 
  {hasChangeMarkers && (
- <div className="flex items-center gap-3 mb-5 px-3 py-2 rounded-md bg-slate-50 border border-slate-200">
+ <div className="mb-5 px-3 py-2 rounded-md bg-slate-50 border border-slate-200">
  <span className="text-[12px] text-slate-500">
- <em className="text-slate-700">Italicized text</em> marks proposed updates · sections labeled <span className="inline-flex items-center px-1.5 py-0.5 rounded ring-1 ring-slate-300 bg-white text-[10px] font-medium text-slate-600">New</span> are entirely new
+ <strong className="text-slate-800"><em>Bold italic words</em></strong> are proposed updates. Sections labeled <span className="inline-flex items-center px-1.5 py-0.5 rounded ring-1 ring-slate-300 bg-white text-[11px] font-medium text-slate-600">Added</span> are entirely new.
  </span>
  </div>
  )}
@@ -385,7 +241,7 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  <span className="text-[10px] font-medium text-slate-600 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
  </div>
- <div className={`text-[14px] text-slate-800 font-medium leading-snug ${titleChanged ? "italic" : ""}`}>{newMetaTitle}</div>
+ <div className={`text-[14px] leading-snug ${titleChanged ? "italic font-bold text-slate-900" : "font-medium text-slate-800"}`}>{newMetaTitle}</div>
  </div>
  )}
  {rawMetaDesc && (
@@ -399,7 +255,7 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  <span className="text-[10px] font-medium text-slate-600 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
  </div>
- <div className={`text-[14px] text-slate-700 leading-relaxed ${descChanged ? "italic" : ""}`}>{newMetaDesc}</div>
+ <div className={`text-[14px] leading-relaxed ${descChanged ? "italic font-bold text-slate-900" : "text-slate-700"}`}>{newMetaDesc}</div>
  </div>
  )}
  </div>
@@ -558,10 +414,11 @@ function DetailPanel({
  )}
 
  {(status === "review" || status === "approved") && (
- <div className="flex-1 min-h-0 overflow-hidden border-t border-slate-200 flex flex-col">
+ <div className="flex-1 flex min-h-0 border-t border-slate-200">
+ <div className="flex flex-col w-1/2 border-r border-slate-200 min-h-0">
  <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0 flex items-center justify-between">
- <span className="text-[12px] text-slate-500">
- Proposed changes for this page
+ <span className="text-[12px] font-medium text-slate-600">
+ Current ({refresh.original_word_count.toLocaleString()} words)
  </span>
  <a
  href={refreshUrl}
@@ -569,10 +426,20 @@ function DetailPanel({
  rel="noopener noreferrer"
  className="text-[11px] text-slate-400 hover:text-indigo-600 transition-colors"
  >
- View live page →
+ View live →
  </a>
  </div>
- <ChangeStack refresh={refresh} />
+ <OriginalPanel refresh={refresh} />
+ </div>
+
+ <div className="flex flex-col w-1/2 min-h-0">
+ <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
+ <span className="text-[12px] font-medium text-slate-600">
+ Proposed
+ </span>
+ </div>
+ <RefreshedPanel refresh={refresh} />
+ </div>
  </div>
  )}
  </div>

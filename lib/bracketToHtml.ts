@@ -22,29 +22,29 @@
  */
 /**
  * "Proposed-only" renderer — strips strikethrough/del/ins inline diff and
- * renders the proposed final. Marks changes typographically (italic) instead
- * of with color so the right panel reads like the left panel with subtle
- * accents instead of a noisy red/green diff.
+ * renders the proposed final. Marks changes typographically:
  *
- *   [CHANGED from="X"]Y[/CHANGED] → <em>Y</em>     (italic — proposed change)
- *   [ADDED]X[/ADDED]              → ct-added block (small "New" pill, no fill)
- *   [REMOVED]X[/REMOVED]          → ""             (dropped — left panel shows it)
+ *   [CHANGED from="X"]Y[/CHANGED] → <strong><em>Y</em></strong>
+ *                                   (bold + italic — the changed words pop
+ *                                    out against unchanged surrounding prose)
+ *   [ADDED]X[/ADDED]              → ct-added block (label + plain content)
+ *   [REMOVED]X[/REMOVED]          → ""  (dropped — left panel shows it)
+ *
+ * Sentinels survive the bracket parser; the final replace swaps them to
+ * real tags. Direct <strong><em> insertion would otherwise be eaten by
+ * the standard parser's sanitize() pass.
  */
 export function bracketToHtmlProposed(text: string): string {
   if (!text) return "";
   let processed = text.replace(/\[REMOVED\][\s\S]*?\[\/REMOVED\]/g, "");
-  // Wrap inline changes in a sentinel that survives the bracket parser, then
-  // post-render swap to <em>. Direct insertion of <em> would be neutralized
-  // by sanitize() because the standard parser doesn't expect <em> inside
-  // bracket bodies.
   processed = processed.replace(
     /\[CHANGED from="[^"]*"\]([\s\S]*?)\[\/CHANGED\]/g,
-    (_m, newText: string) => `__CT_EM_OPEN__${newText}__CT_EM_CLOSE__`,
+    (_m, newText: string) => `__CT_BI_OPEN__${newText}__CT_BI_CLOSE__`,
   );
   let html = bracketToHtml(processed);
   html = html
-    .replace(/__CT_EM_OPEN__/g, "<em>")
-    .replace(/__CT_EM_CLOSE__/g, "</em>");
+    .replace(/__CT_BI_OPEN__/g, "<strong><em>")
+    .replace(/__CT_BI_CLOSE__/g, "</em></strong>");
   return html;
 }
 
@@ -59,14 +59,14 @@ export function bracketToHtml(text: string): string {
   );
 
   // ── Pre-pass 2: collapse multi-line [ADDED]...[/ADDED] into block ──────────
-  // Subtle styling — a thin left border + a small "New" pill at the top.
-  // No background fill (was overwhelming when the LLM added a whole new
-  // section, the entire right panel went green).
+  // Wraps in a labeled block. Visual styling lives in the consuming
+  // component (RefreshedPanel) — keep this neutral so OriginalPanel can
+  // reuse the same renderer if needed.
   processed = processed.replace(
     /\[ADDED\]([\s\S]*?)\[\/ADDED\]/g,
     (_match, inner: string) => {
       const innerHtml = bracketToHtml(inner.trim());
-      return `<div class="ct-added"><span class="ct-label ct-label-added">New</span>${innerHtml}</div>`;
+      return `<div class="ct-added"><span class="ct-label ct-label-added">Added</span>${innerHtml}</div>`;
     }
   );
 
