@@ -62,6 +62,16 @@ export interface LinkProposal {
   /** Confidence bucket derived from score components. */
   confidence: "High" | "Medium" | "Low";
 
+  /**
+   * Alternative anchor phrases that also exist on this source page and could
+   * link to the same target — ordered best to worst, max 3, NOT including the
+   * winning phrase. The Changes writer falls back to these when the same
+   * (target_url, anchor_text) pair is already saturated for this client, so we
+   * can vary anchor text instead of repeating the same phrase. Empty when no
+   * alternatives exist on the page.
+   */
+  phrase_candidates?: string[];
+
   /** ISO timestamp of when the proposal was generated. */
   generated_at: string;
 }

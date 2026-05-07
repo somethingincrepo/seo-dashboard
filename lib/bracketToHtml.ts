@@ -151,8 +151,16 @@ function sanitize(html: string): string {
       // Return bare tag — strip all attributes to block event-handler injection.
       return match.startsWith("</") ? `</${lower}>` : `<${lower}>`;
     }
-    // Allow change-tracking divs and spans produced by the pre-passes
-    if ((lower === "div" || lower === "span") && /class="ct-/.test(match)) return match;
+    // Allow change-tracking divs and spans produced by the pre-passes.
+    // Opening tags carry class="ct-…"; closing tags don't carry attributes
+    // at all, but we must let them through too or the wrapper never closes
+    // and DOM structure collapses (everything below the [ADDED] block ends
+    // up nested inside, content layout breaks, and the literal "</div>"
+    // text leaks into the rendered output via escapeHtml).
+    if (lower === "div" || lower === "span") {
+      if (match.startsWith("</")) return `</${lower}>`;
+      if (/class="ct-/.test(match)) return match;
+    }
     return escapeHtml(match);
   });
 }

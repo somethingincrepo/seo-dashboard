@@ -57,6 +57,14 @@ const RULES_LIMIT_AND_DIRECTION: Record<
   R050: { direction: "subject_is_target", limit: 1, require_nav_source: true },
 };
 
+/**
+ * Maximum share of accepted proposals that can come from R050 (only-1-inbound
+ * link). R050 fires on almost every page once the obvious orphans/dead-ends
+ * are cleared, so without a cap weekly runs eventually become 100% R050 churn.
+ * Capping at 30% keeps the high-signal R047/R048 rules dominant.
+ */
+const R050_MAX_SHARE = 0.3;
+
 export async function generateProposals(input: GenerateInput): Promise<GenerateOutput> {
   const fetcher = input.fetcher ?? defaultFetcher;
   const concurrency = input.concurrency ?? 6;
@@ -123,6 +131,15 @@ export async function generateProposals(input: GenerateInput): Promise<GenerateO
         }
       }
     } else {
+      // Skip in-body link proposals when the target is already a main-nav page:
+      // every page on the site already links to it via the nav, so an in-body
+      // link is duplicative authority. R047 (subject_is_source) is unaffected —
+      // that rule is about adding outbound links from the subject, not adding
+      // inbound links to it.
+      if (subject.is_nav_page === true || subject.page_type === "home") {
+        failures.push({ issue_id: issue.id, reason: "target is a nav/home page — already linked sitewide; skipping in-body link" });
+        continue;
+      }
       const phrases = buildPhraseCandidates({ target: subject, brand: input.brand, keywords: input.keywords });
       if (phrases.length === 0) {
         failures.push({ issue_id: issue.id, reason: "target page has no usable anchor candidates (h1/title/headings empty)" });
