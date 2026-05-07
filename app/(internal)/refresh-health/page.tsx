@@ -124,10 +124,15 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
       .gte("created_at", ninetyDaysAgo.toISOString())
       .order("created_at", { ascending: false })
       .limit(2000),
+    // "Delivered" = what the client actually sees in their portal:
+    // completed (awaiting review) + approved_for_publish + published.
+    // Mirrors the filter in components/portal/ContentOptimization.tsx so the
+    // admin number reconciles with what the client sees.
     supabase
       .from("content_refreshes")
       .select("client_id, status, proposed_at")
       .in("client_id", ids)
+      .in("status", ["completed", "approved_for_publish", "published"])
       .gte("proposed_at", monthStart)
       .limit(2000),
     supabase
