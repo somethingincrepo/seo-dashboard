@@ -131,6 +131,61 @@ function HowItWorks({ status }: { status: UiStatus }) {
  );
 }
 
+// ── Word-level diff for short strings (meta title / description) ─────────────
+//
+// Splits old and new on whitespace (preserving the whitespace tokens), strips
+// a common prefix and suffix, and marks the middle of `new` as changed. Not a
+// full LCS — for the kinds of edits a meta-title rewrite produces (insertions,
+// trailing rewrites, single-word swaps) the prefix/suffix heuristic produces
+// the same result and is dramatically simpler.
+
+function wordDiff(oldText: string, newText: string): Array<{ text: string; changed: boolean }> {
+ if (!oldText || !newText) {
+ // Whole field is "added" or there's no comparison — render plain.
+ return [{ text: newText, changed: !!newText && !oldText }];
+ }
+ const oldT = oldText.split(/(\s+)/);
+ const newT = newText.split(/(\s+)/);
+ // Common prefix
+ let p = 0;
+ while (p < oldT.length && p < newT.length && oldT[p] === newT[p]) p++;
+ // Common suffix (after the prefix)
+ let s = 0;
+ while (
+ s < oldT.length - p &&
+ s < newT.length - p &&
+ oldT[oldT.length - 1 - s] === newT[newT.length - 1 - s]
+ ) {
+ s++;
+ }
+ const out: Array<{ text: string; changed: boolean }> = [];
+ // Prefix unchanged
+ for (let i = 0; i < p; i++) out.push({ text: newT[i], changed: false });
+ // Middle changed (if any)
+ const middle = newT.slice(p, newT.length - s);
+ if (middle.length > 0) {
+ out.push({ text: middle.join(""), changed: true });
+ }
+ // Suffix unchanged
+ for (let i = newT.length - s; i < newT.length; i++) out.push({ text: newT[i], changed: false });
+ return out;
+}
+
+function DiffedMeta({ oldText, newText, className }: { oldText: string; newText: string; className: string }) {
+ const tokens = wordDiff(oldText, newText);
+ return (
+ <div className={className}>
+ {tokens.map((t, i) =>
+ t.changed ? (
+ <strong key={i} className="italic font-bold text-slate-900">{t.text}</strong>
+ ) : (
+ <span key={i}>{t.text}</span>
+ ),
+ )}
+ </div>
+ );
+}
+
 // ── Aligned-section grid ──────────────────────────────────────────────────────
 //
 // Splits both bodies into sections (h2-bounded, plus an "intro" block before
@@ -170,7 +225,14 @@ function splitBody(body: string): Block[] {
  continue;
  }
 
- if (/^\s*\[H2\]/.test(line)) {
+ // Split at H1 OR H2 — many real-world pages use H1 for what are
+ // logically section headings (every blog index page lists each post
+ // with an H1, for instance). Splitting only at H2 collapses all those
+ // sections into one giant "intro" block and breaks pairing with the
+ // original. Treating both as section delimiters fixes that without
+ // hurting pages that use H1 only for the page title (those just get
+ // a single section that owns the whole page, which is fine).
+ if (/^\s*\[H[12]\]/.test(line)) {
  flush();
  kind = "section";
  }
@@ -203,7 +265,101 @@ function pairSections(originalBody: string, proposedBody: string): Pair[] {
  return pairs;
 }
 
-function ComparisonGrid({ refresh }: { refresh: ContentRefresh }) {
+type EditField = "proposed_meta_title" | "proposed_meta_description" | "proposed_body";
+
+function EditButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
+ return (
+ <button
+ type="button"
+ onClick={onClick}
+ disabled={busy}
+ className="text-[11px] text-slate-500 hover:text-indigo-600 underline-offset-2 hover:underline disabled:opacity-40 transition-colors"
+ >
+ Edit
+ </button>
+ );
+}
+
+function InlineEditor({
+ initial,
+ onSave,
+ onCancel,
+ multiline,
+ maxChars,
+}: {
+ initial: string;
+ onSave: (v: string) => Promise<void>;
+ onCancel: () => void;
+ multiline: boolean;
+ maxChars?: number;
+}) {
+ const [draft, setDraft] = useState(initial);
+ const [saving, setSaving] = useState(false);
+ const [err, setErr] = useState<string | null>(null);
+ const submit = async () => {
+ setSaving(true);
+ setErr(null);
+ try {
+ await onSave(draft);
+ } catch (e) {
+ setErr(e instanceof Error ? e.message : "Save failed");
+ setSaving(false);
+ }
+ };
+ return (
+ <div>
+ {multiline ? (
+ <textarea
+ value={draft}
+ onChange={(e) => setDraft(e.target.value)}
+ rows={6}
+ className="w-full text-[14px] leading-relaxed p-2 rounded border border-slate-300 focus:border-indigo-400 focus:outline-none"
+ disabled={saving}
+ />
+ ) : (
+ <input
+ type="text"
+ value={draft}
+ onChange={(e) => setDraft(e.target.value)}
+ className="w-full text-[15px] p-2 rounded border border-slate-300 focus:border-indigo-400 focus:outline-none"
+ disabled={saving}
+ />
+ )}
+ <div className="flex items-center gap-2 mt-2">
+ <button
+ type="button"
+ onClick={submit}
+ disabled={saving || draft === initial}
+ className="text-[12px] px-3 py-1 rounded bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40"
+ >
+ {saving ? "Saving…" : "Save"}
+ </button>
+ <button
+ type="button"
+ onClick={onCancel}
+ disabled={saving}
+ className="text-[12px] px-3 py-1 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+ >
+ Cancel
+ </button>
+ {maxChars !== undefined && (
+ <span className={`text-[11px] ml-auto ${draft.length > maxChars ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+ {draft.length}/{maxChars}
+ </span>
+ )}
+ {err && <span className="text-[11px] text-red-500">{err}</span>}
+ </div>
+ </div>
+ );
+}
+
+function ComparisonGrid({
+ refresh,
+ onEdit,
+}: {
+ refresh: ContentRefresh;
+ onEdit: (refreshId: string, field: EditField, value: string) => Promise<void>;
+}) {
  const oldTitle = refresh.original_meta_title ?? "";
  const newTitle = cleanMetaText(refresh.proposed_meta_title ?? "");
  const oldDesc = refresh.original_meta_description ?? "";
@@ -216,6 +372,13 @@ function ComparisonGrid({ refresh }: { refresh: ContentRefresh }) {
  const cellLeft = "px-6 py-5";
  const cellRight = "px-6 py-5 border-l border-slate-200";
  const proseClass = PROSE_CLASSES;
+
+ const [editing, setEditing] = useState<EditField | null>(null);
+
+ const save = async (field: EditField, value: string) => {
+ await onEdit(refresh.id, field, value);
+ setEditing(null);
+ };
 
  const rows: Array<{ left: React.ReactNode; right: React.ReactNode; key: string }> = [];
 
@@ -235,10 +398,24 @@ function ComparisonGrid({ refresh }: { refresh: ContentRefresh }) {
  {titleChanged && (
  <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
+ <span className="ml-auto" />
+ {editing !== "proposed_meta_title" && (
+ <EditButton onClick={() => setEditing("proposed_meta_title")} busy={false} />
+ )}
  </div>
- <div className={`text-[15px] leading-snug ${titleChanged ? "italic font-bold text-slate-900" : "text-slate-700"}`}>
- {newTitle}
- </div>
+ {editing === "proposed_meta_title" ? (
+ <InlineEditor
+ initial={newTitle}
+ onSave={(v) => save("proposed_meta_title", v)}
+ onCancel={() => setEditing(null)}
+ multiline={false}
+ maxChars={60}
+ />
+ ) : titleChanged ? (
+ <DiffedMeta oldText={oldTitle} newText={newTitle} className="text-[15px] leading-snug text-slate-700" />
+ ) : (
+ <div className="text-[15px] leading-snug text-slate-700">{newTitle}</div>
+ )}
  </div>
  ),
  });
@@ -260,10 +437,24 @@ function ComparisonGrid({ refresh }: { refresh: ContentRefresh }) {
  {descChanged && (
  <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
+ <span className="ml-auto" />
+ {editing !== "proposed_meta_description" && (
+ <EditButton onClick={() => setEditing("proposed_meta_description")} busy={false} />
+ )}
  </div>
- <div className={`text-[14px] leading-relaxed ${descChanged ? "italic font-bold text-slate-900" : "text-slate-700"}`}>
- {newDesc}
- </div>
+ {editing === "proposed_meta_description" ? (
+ <InlineEditor
+ initial={newDesc}
+ onSave={(v) => save("proposed_meta_description", v)}
+ onCancel={() => setEditing(null)}
+ multiline={true}
+ maxChars={155}
+ />
+ ) : descChanged ? (
+ <DiffedMeta oldText={oldDesc} newText={newDesc} className="text-[14px] leading-relaxed text-slate-700" />
+ ) : (
+ <div className="text-[14px] leading-relaxed text-slate-700">{newDesc}</div>
+ )}
  </div>
  ),
  });
@@ -296,6 +487,13 @@ function ComparisonGrid({ refresh }: { refresh: ContentRefresh }) {
  }
  });
 
+ // Body-level "Edit raw" affordance — body sections use bracket markup that
+ // doesn't survive an inline plain-text editor cleanly, so the edit affordance
+ // for body content is a single textarea over the entire proposed_body. Less
+ // ergonomic than per-section editing, but functional and honest about the
+ // data shape.
+ const bodyEditing = editing === "proposed_body";
+
  return (
  <div className="flex-1 overflow-y-auto">
  <div className="grid grid-cols-2">
@@ -311,6 +509,28 @@ function ComparisonGrid({ refresh }: { refresh: ContentRefresh }) {
  <div className={cellRight}>{row.right}</div>
  </Fragment>
  ))}
+ {(refresh.proposed_body || bodyEditing) && (
+ <>
+ <div className="col-span-2 border-t border-slate-200" aria-hidden="true" />
+ <div className="col-span-2 px-6 py-4 bg-slate-50/40">
+ {bodyEditing ? (
+ <InlineEditor
+ initial={refresh.proposed_body ?? ""}
+ onSave={(v) => save("proposed_body", v)}
+ onCancel={() => setEditing(null)}
+ multiline={true}
+ />
+ ) : (
+ <div className="flex items-center gap-3">
+ <span className="text-[11px] text-slate-400">
+ Want to tweak the body copy? Edit the raw markup directly.
+ </span>
+ <EditButton onClick={() => setEditing("proposed_body")} busy={false} />
+ </div>
+ )}
+ </div>
+ </>
+ )}
  </div>
  </div>
  );
@@ -322,10 +542,12 @@ function DetailPanel({
  refresh,
  onApprove,
  approving,
+ onEdit,
 }: {
  refresh: ContentRefresh;
  onApprove: () => void;
  approving: boolean;
+ onEdit: (refreshId: string, field: EditField, value: string) => Promise<void>;
 }) {
  const status = getUiStatus(refresh);
  const refreshUrl = refresh.refresh_url;
@@ -478,7 +700,7 @@ function DetailPanel({
  </span>
  </div>
  </div>
- <ComparisonGrid refresh={refresh} />
+ <ComparisonGrid refresh={refresh} onEdit={onEdit} />
  </div>
  )}
  </div>
@@ -623,6 +845,24 @@ export function ContentOptimization({
  }
  }, [selectedItem, selectedId, token]);
 
+ const handleEdit = useCallback(
+ async (refreshId: string, field: "proposed_meta_title" | "proposed_meta_description" | "proposed_body", value: string) => {
+ const res = await fetch(`/api/portal/content-optimization?token=${token}`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ type: "edit_proposed", refreshId, field, value }),
+ });
+ if (!res.ok) {
+ const data = await res.json().catch(() => ({}));
+ throw new Error(data.error ?? "Failed to save");
+ }
+ setLocalItems((prev) =>
+ prev.map((r) => (r.id === refreshId ? { ...r, [field]: value } : r)),
+ );
+ },
+ [token],
+ );
+
  if (localItems.length === 0 && historicalItems.length === 0) {
  return (
  <div className="flex-1 flex flex-col px-10">
@@ -732,6 +972,7 @@ export function ContentOptimization({
  refresh={selectedItem}
  onApprove={handleApprove}
  approving={approving}
+ onEdit={handleEdit}
  />
  ) : (
  <div className="flex-1 flex items-center justify-center text-[13px] text-slate-400">
