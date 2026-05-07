@@ -1,8 +1,13 @@
 {
-  "crons": [],
+  "crons": [
+    { "path": "/api/cron/weekly-health-check", "schedule": "0 13 * * 1" }
+  ],
   "functions": {
     "app/api/portal/reports/keyword-snapshot/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/weekly-health-check/route.ts": {
+      "maxDuration": 120
     }
   }
 }

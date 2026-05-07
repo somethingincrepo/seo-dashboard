@@ -21,31 +21,31 @@
  * sanitization pass strips any HTML tags not produced by this parser.
  */
 /**
- * "Proposed-only" renderer — strips ALL change-tracking markup (no del/ins,
- * no strikethrough, no inline diffs) and renders only the final proposed
- * version of the content. Used by the portal's RefreshedPanel where the
- * OriginalPanel already shows the current version in the left column — the
- * right column should show what the page will look like AFTER the change,
- * cleanly, with no diff clutter.
+ * "Proposed-only" renderer — strips strikethrough/del/ins inline diff and
+ * renders the proposed final. Marks changes typographically (italic) instead
+ * of with color so the right panel reads like the left panel with subtle
+ * accents instead of a noisy red/green diff.
  *
- *   [CHANGED from="X"]Y[/CHANGED] → Y       (just the new text, plain)
- *   [ADDED]X[/ADDED]              → X      (still highlighted as a new block via ct-added wrapper)
- *   [REMOVED]X[/REMOVED]          → ""     (dropped entirely)
- *
- * Customers can compare to the OriginalPanel side-by-side — they don't need
- * an inline diff to see what changed.
+ *   [CHANGED from="X"]Y[/CHANGED] → <em>Y</em>     (italic — proposed change)
+ *   [ADDED]X[/ADDED]              → ct-added block (small "New" pill, no fill)
+ *   [REMOVED]X[/REMOVED]          → ""             (dropped — left panel shows it)
  */
 export function bracketToHtmlProposed(text: string): string {
   if (!text) return "";
-  // Strip removed blocks
   let processed = text.replace(/\[REMOVED\][\s\S]*?\[\/REMOVED\]/g, "");
-  // Replace [CHANGED from="X"]Y[/CHANGED] with just the proposed text Y, plain.
+  // Wrap inline changes in a sentinel that survives the bracket parser, then
+  // post-render swap to <em>. Direct insertion of <em> would be neutralized
+  // by sanitize() because the standard parser doesn't expect <em> inside
+  // bracket bodies.
   processed = processed.replace(
     /\[CHANGED from="[^"]*"\]([\s\S]*?)\[\/CHANGED\]/g,
-    (_m, newText: string) => newText,
+    (_m, newText: string) => `__CT_EM_OPEN__${newText}__CT_EM_CLOSE__`,
   );
-  // Now hand off to the standard bracket renderer for the rest.
-  return bracketToHtml(processed);
+  let html = bracketToHtml(processed);
+  html = html
+    .replace(/__CT_EM_OPEN__/g, "<em>")
+    .replace(/__CT_EM_CLOSE__/g, "</em>");
+  return html;
 }
 
 export function bracketToHtml(text: string): string {
@@ -142,7 +142,7 @@ function escapeHtml(str: string): string {
  * Attributes are stripped from all allowlisted tags — only the bare tag name is
  * preserved. This prevents event-handler injection (e.g. <strong onclick=...>).
  */
-const SAFE_TAGS = new Set(["h1","h2","h3","p","ul","ol","li","strong","del","ins","br"]);
+const SAFE_TAGS = new Set(["h1","h2","h3","p","ul","ol","li","strong","em","del","ins","br"]);
 
 function sanitize(html: string): string {
   return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tag: string) => {

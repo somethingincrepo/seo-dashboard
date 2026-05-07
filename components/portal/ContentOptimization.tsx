@@ -199,31 +199,31 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
 
  return (
  <div className="flex-1 overflow-y-auto px-6 py-5">
- <div className="flex items-center justify-between mb-4">
- <div className="flex items-center gap-2 flex-wrap">
- <span className="text-[10px] text-slate-400 font-medium tracking-widest">
+ <div className="flex items-center justify-between mb-3">
+ <div className="flex items-center gap-3 flex-wrap">
+ <span className="text-[12px] text-slate-500">
  ~{wordCount.toLocaleString()} words
  </span>
- <span className={`text-[10px] font-semibold ${deltaColor}`}>
- ({deltaLabel})
+ <span className={`text-[12px] ${deltaColor}`}>
+ {deltaLabel}
  </span>
  {hasChangeStats && (
- <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 ring-1 ring-indigo-200/60 rounded px-1.5 py-0.5">
+ <span className="text-[12px] text-slate-500">
  {Math.round((refresh.change_ratio ?? 0) * 100)}% changed
  {refresh.edits_count > 0 && ` · ${refresh.edits_count} edit${refresh.edits_count === 1 ? "" : "s"}`}
  {refresh.additions_count > 0 && ` · ${refresh.additions_count} added`}
  </span>
  )}
  </div>
- {hasChangeMarkers && (
- <div className="flex items-center gap-2.5 shrink-0">
- <div className="flex items-center gap-1">
- <div className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-400" />
- <span className="text-[10px] text-slate-500">New section</span>
  </div>
+
+ {hasChangeMarkers && (
+ <div className="flex items-center gap-3 mb-5 px-3 py-2 rounded-md bg-slate-50 border border-slate-200">
+ <span className="text-[12px] text-slate-500">
+ <em className="text-slate-700">Italicized text</em> marks proposed updates · sections labeled <span className="inline-flex items-center px-1.5 py-0.5 rounded ring-1 ring-slate-300 bg-white text-[10px] font-medium text-slate-600">New</span> are entirely new
+ </span>
  </div>
  )}
- </div>
 
  {(rawMetaTitle || rawMetaDesc) && (
  <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mb-6 space-y-3">
@@ -235,10 +235,10 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  {newMetaTitle.length}/60
  </span>
  {titleChanged && (
- <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200/60 rounded px-1.5 py-0.5">Updated</span>
+ <span className="text-[10px] font-medium text-slate-600 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
  </div>
- <div className="text-[14px] text-slate-800 font-medium leading-snug">{newMetaTitle}</div>
+ <div className={`text-[14px] text-slate-800 font-medium leading-snug ${titleChanged ? "italic" : ""}`}>{newMetaTitle}</div>
  </div>
  )}
  {rawMetaDesc && (
@@ -249,10 +249,10 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  {newMetaDesc.length}/155
  </span>
  {descChanged && (
- <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200/60 rounded px-1.5 py-0.5">Updated</span>
+ <span className="text-[10px] font-medium text-slate-600 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
  </div>
- <div className="text-[14px] text-slate-700 leading-relaxed">{newMetaDesc}</div>
+ <div className={`text-[14px] text-slate-700 leading-relaxed ${descChanged ? "italic" : ""}`}>{newMetaDesc}</div>
  </div>
  )}
  </div>
@@ -261,8 +261,9 @@ function RefreshedPanel({ refresh }: { refresh: ContentRefresh }) {
  <div
  className={`
  ${PROSE_CLASSES}
- [&_.ct-added]:relative [&_.ct-added]:block [&_.ct-added]:border-l-2 [&_.ct-added]:border-emerald-400 [&_.ct-added]:pl-4 [&_.ct-added]:my-5
- [&_.ct-label-added]:absolute [&_.ct-label-added]:-top-2 [&_.ct-label-added]:left-3 [&_.ct-label-added]:bg-white [&_.ct-label-added]:px-1.5 [&_.ct-label-added]:text-[10px] [&_.ct-label-added]:font-medium [&_.ct-label-added]:text-emerald-600
+ [&_.ct-added]:relative [&_.ct-added]:block [&_.ct-added]:my-6
+ [&_.ct-label-added]:inline-flex [&_.ct-label-added]:items-center [&_.ct-label-added]:px-1.5 [&_.ct-label-added]:py-0.5 [&_.ct-label-added]:rounded [&_.ct-label-added]:ring-1 [&_.ct-label-added]:ring-slate-300 [&_.ct-label-added]:bg-white [&_.ct-label-added]:text-[10px] [&_.ct-label-added]:font-medium [&_.ct-label-added]:text-slate-600 [&_.ct-label-added]:mb-2
+ [&_em]:italic [&_em]:text-slate-800
  `}
  dangerouslySetInnerHTML={{ __html: html }}
  />
