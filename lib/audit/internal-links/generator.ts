@@ -170,14 +170,56 @@ export async function generateProposals(input: GenerateInput): Promise<GenerateO
     }
 
     for (const pick of picks) {
+      // Phrase alternatives: other phrases that also match on the same
+      // (source, target) pair. Used by the Changes writer to vary anchor text
+      // when the same phrase has been used too many times for this target.
+      const alternativesSeen = new Set<string>([pick.match.phrase.text]);
+      const phraseCandidates: string[] = [];
+      for (const c of candidates) {
+        if (c.source.url !== pick.source.url) continue;
+        if (c.target.url !== pick.target.url) continue;
+        const text = c.match.phrase.text;
+        if (alternativesSeen.has(text)) continue;
+        alternativesSeen.add(text);
+        phraseCandidates.push(text);
+        if (phraseCandidates.length >= 3) break;
+      }
       proposals.push({
         issue_id: issue.id,
-        proposal: candidateToProposal(pick, issue.rule_id, now()),
+        proposal: candidateToProposal(pick, issue.rule_id, now(), phraseCandidates),
       });
     }
   }
 
-  return { proposals, failures };
+  // ── R050 share cap ─────────────────────────────────────────────────────
+  // Once orphans/dead-ends are cleared, R050 (only-1-inbound) becomes noise:
+  // most pages technically qualify, so weekly runs would be 100% R050. Trim
+  // the lowest-scoring R050 proposals until they're ≤30% of the total.
+  return { proposals: enforceR050Cap(proposals), failures };
+}
+
+function enforceR050Cap(
+  proposals: GenerateOutput["proposals"],
+): GenerateOutput["proposals"] {
+  const total = proposals.length;
+  if (total === 0) return proposals;
+  const r050Count = proposals.filter((p) => p.proposal.rule_id === "R050").length;
+  const allowed = Math.floor(total * R050_MAX_SHARE);
+  if (r050Count <= allowed) return proposals;
+  const toDrop = r050Count - allowed;
+  // Identify the lowest-quality R050 proposals (by phrase_priority asc, etc.).
+  const r050ByQuality = proposals
+    .map((p, idx) => ({ p, idx }))
+    .filter(({ p }) => p.proposal.rule_id === "R050")
+    .sort((a, b) => {
+      const sa = a.p.proposal.score_components;
+      const sb = b.p.proposal.score_components;
+      if (sa.phrase_priority !== sb.phrase_priority) return sb.phrase_priority - sa.phrase_priority;
+      if (sa.page_type_fit !== sb.page_type_fit) return sb.page_type_fit - sa.page_type_fit;
+      return sa.authority - sb.authority;
+    });
+  const dropIndices = new Set(r050ByQuality.slice(0, toDrop).map((x) => x.idx));
+  return proposals.filter((_, i) => !dropIndices.has(i));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -275,7 +317,7 @@ const defaultFetcher: Fetcher = async (url) => {
   }
 };
 
-function candidateToProposal(c: Candidate, ruleId: string, now: Date): LinkProposal {
+function candidateToProposal(c: Candidate, ruleId: string, now: Date, phraseCandidates: string[] = []): LinkProposal {
   const { source, target, block, match } = c;
   const score = scoreCandidate(c);
   const display = block.text.slice(match.text_start, match.text_end);
@@ -309,6 +351,7 @@ function candidateToProposal(c: Candidate, ruleId: string, now: Date): LinkPropo
     score_components: score,
     rationale,
     confidence,
+    phrase_candidates: phraseCandidates.length > 0 ? phraseCandidates : undefined,
     generated_at: now.toISOString(),
   };
 }

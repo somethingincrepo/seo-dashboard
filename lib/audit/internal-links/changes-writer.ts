@@ -47,7 +47,8 @@ export async function writeInternalLinkChanges(input: WriteChangesInput): Promis
     return { written: 0, skipped_existing: 0, skipped_quota: proposals.length };
   }
 
-  // Pull existing Internal Link rows for this client so we can dedupe by (source, target).
+  // Pull existing Internal Link rows for this client so we can dedupe by
+  // (source, target) and track anchor-text saturation per target.
   const existing = await airtableFetch<MinimalChangeRow & { fields: { proposed_value?: string; approval?: string; type?: string; page_url?: string } }>(
     CHANGES_TABLE,
     {
@@ -55,6 +56,13 @@ export async function writeInternalLinkChanges(input: WriteChangesInput): Promis
     },
   );
   const existingPairs = new Set<string>();
+  /**
+   * For each target URL, count how many existing Changes already use each
+   * anchor text (lowercased). When the writer is about to add a Change with
+   * an anchor that's already used ≥2× for the same target, it tries the
+   * proposal's `phrase_candidates` first instead of duplicating the anchor.
+   */
+  const anchorCountsByTarget = new Map<string, Map<string, number>>();
   for (const row of existing) {
     const proposed = row.fields.proposed_value;
     if (!proposed) continue;
@@ -62,12 +70,21 @@ export async function writeInternalLinkChanges(input: WriteChangesInput): Promis
     try { parsed = JSON.parse(proposed); } catch { continue; }
     const items: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
     for (const item of items) {
-      const o = item as { source_url?: string; target_url?: string };
+      const o = item as { source_url?: string; target_url?: string; anchor_text?: string };
       if (o?.source_url && o?.target_url) {
         existingPairs.add(pairKey(o.source_url, o.target_url));
       }
+      if (o?.target_url && o?.anchor_text) {
+        const key = normalizeUrl(o.target_url);
+        const inner = anchorCountsByTarget.get(key) ?? new Map<string, number>();
+        const a = o.anchor_text.toLowerCase().trim();
+        inner.set(a, (inner.get(a) ?? 0) + 1);
+        anchorCountsByTarget.set(key, inner);
+      }
     }
   }
+
+  const ANCHOR_SATURATION_THRESHOLD = 2;
 
   // Sort proposals by score so the most valuable ones land first when quota
   // is binding. Generator already returns them grouped per-issue with stable
@@ -85,6 +102,7 @@ export async function writeInternalLinkChanges(input: WriteChangesInput): Promis
   let written = 0;
   let skippedExisting = 0;
   let skippedQuota = 0;
+  let skippedAnchorSaturated = 0;
 
   for (const p of ranked) {
     if (existingPairs.has(pairKey(p.source_url, p.target_url))) {
@@ -95,14 +113,46 @@ export async function writeInternalLinkChanges(input: WriteChangesInput): Promis
       skippedQuota += 1;
       continue;
     }
-    const fields = proposalToChangeFields(p, clientId, auditRunId, nowIso);
+
+    // Anchor-text diversity: if the same anchor is already used ≥N times for
+    // this target across existing Changes, try a phrase_candidates alternative.
+    const targetKey = normalizeUrl(p.target_url);
+    const counts = anchorCountsByTarget.get(targetKey);
+    let proposalToWrite = p;
+    if (counts) {
+      const winnerCount = counts.get(p.anchor_text.toLowerCase().trim()) ?? 0;
+      if (winnerCount >= ANCHOR_SATURATION_THRESHOLD) {
+        const alt = (p.phrase_candidates ?? []).find(
+          (c) => (counts.get(c.toLowerCase().trim()) ?? 0) < ANCHOR_SATURATION_THRESHOLD,
+        );
+        if (alt) {
+          proposalToWrite = { ...p, anchor_text: alt, anchor_text_display: alt };
+        } else {
+          // No diverse alternative on this page — better to skip than to spam
+          // the same anchor a third time.
+          skippedAnchorSaturated += 1;
+          continue;
+        }
+      }
+    }
+
+    const fields = proposalToChangeFields(proposalToWrite, clientId, auditRunId, nowIso);
     try {
       await airtableCreate(CHANGES_TABLE, fields);
-      existingPairs.add(pairKey(p.source_url, p.target_url));
+      existingPairs.add(pairKey(proposalToWrite.source_url, proposalToWrite.target_url));
+      const tk = normalizeUrl(proposalToWrite.target_url);
+      const inner = anchorCountsByTarget.get(tk) ?? new Map<string, number>();
+      const a = proposalToWrite.anchor_text.toLowerCase().trim();
+      inner.set(a, (inner.get(a) ?? 0) + 1);
+      anchorCountsByTarget.set(tk, inner);
       written += 1;
     } catch (e) {
       console.error("[internal-links] airtableCreate failed:", e instanceof Error ? e.message : String(e));
     }
+  }
+
+  if (skippedAnchorSaturated > 0) {
+    console.log(`[internal-links] skipped ${skippedAnchorSaturated} proposal(s) — anchor text already saturated and no diverse alternative available`);
   }
 
   return { written, skipped_existing: skippedExisting, skipped_quota: skippedQuota };

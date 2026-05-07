@@ -30,7 +30,7 @@ type JobRow = {
 
 type RefreshRow = { client_id: string; status: string; proposed_at: string };
 
-type LinkChangeRow = { id: string; fields: { client_id?: string[]; created_at?: string } };
+type LinkChangeRow = { id: string; fields: { client_id?: string | string[]; identified_at?: string } };
 
 type ClientHealth = {
   id: string;
@@ -167,15 +167,17 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
     stuckCountByClient.set(r.client_id, (stuckCountByClient.get(r.client_id) ?? 0) + 1);
   }
 
-  // Internal-link Changes this month — count via Airtable.
+  // Internal-link Changes this month — count via Airtable. The Changes table
+  // uses `identified_at` (set by changes-writer.ts) not `created_at`.
   const changes = await airtableFetch<LinkChangeRow>("Changes", {
-    filterByFormula: `AND({type}="Internal Link",IS_AFTER({created_at},"${monthStart}"))`,
-    fields: ["client_id", "created_at"],
+    filterByFormula: `AND({type}="Internal Link",IS_AFTER({identified_at},"${monthStart}"))`,
+    fields: ["client_id", "identified_at"],
     maxRecords: 2000,
   });
   const linkCountByClient = new Map<string, number>();
   for (const c of changes) {
-    const cid = (c.fields.client_id ?? [])[0];
+    const raw = c.fields.client_id;
+    const cid = Array.isArray(raw) ? raw[0] : raw;
     if (!cid) continue;
     linkCountByClient.set(cid, (linkCountByClient.get(cid) ?? 0) + 1);
   }

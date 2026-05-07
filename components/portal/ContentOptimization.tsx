@@ -128,6 +128,153 @@ function HowItWorks({ status }: { status: UiStatus }) {
 
 // ── Original page panel ───────────────────────────────────────────────────────
 
+// ── Stacked change list ───────────────────────────────────────────────────────
+//
+// Replaces the side-by-side "Current | Proposed changes" panels with a single
+// vertical stack of comparison boxes. Each box surfaces exactly one change
+// (meta title, meta description, or a [CHANGED]/[ADDED] block from the body),
+// with the current version on top, a horizontal divider, then the proposed
+// version below. New sections (no current equivalent) get their own box
+// labeled "Added" instead of the divided two-row layout.
+
+type ChangeItem =
+ | { type: "meta_title"; current: string; proposed: string }
+ | { type: "meta_description"; current: string; proposed: string }
+ | { type: "changed"; current: string; proposed: string }
+ | { type: "added"; proposed: string };
+
+function buildChangeStack(refresh: ContentRefresh): ChangeItem[] {
+ const items: ChangeItem[] = [];
+
+ const oldTitle = refresh.original_meta_title ?? "";
+ const newTitle = cleanMetaText(refresh.proposed_meta_title ?? "");
+ if (newTitle && oldTitle !== newTitle) {
+ items.push({ type: "meta_title", current: oldTitle, proposed: newTitle });
+ }
+
+ const oldDesc = refresh.original_meta_description ?? "";
+ const newDesc = cleanMetaText(refresh.proposed_meta_description ?? "");
+ if (newDesc && oldDesc !== newDesc) {
+ items.push({ type: "meta_description", current: oldDesc, proposed: newDesc });
+ }
+
+ const body = refresh.proposed_body ?? "";
+ // Single sweep so CHANGED and ADDED blocks appear in the same order they do
+ // on the page. Using non-greedy match for both forms.
+ const re = /\[CHANGED from="([^"]*)"\]([\s\S]*?)\[\/CHANGED\]|\[ADDED\]([\s\S]*?)\[\/ADDED\]/g;
+ for (const m of body.matchAll(re)) {
+ if (m[1] !== undefined && m[2] !== undefined) {
+ items.push({ type: "changed", current: m[1], proposed: m[2] });
+ } else if (m[3] !== undefined) {
+ items.push({ type: "added", proposed: m[3] });
+ }
+ }
+
+ return items;
+}
+
+const STACK_PROSE = `
+ [&_h1]:text-[20px] [&_h1]:font-semibold [&_h1]:text-slate-900 [&_h1]:mb-2
+ [&_h2]:text-[17px] [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-4 [&_h2]:mb-2
+ [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mt-3 [&_h3]:mb-1.5
+ [&_p]:text-[15px] [&_p]:text-slate-700 [&_p]:leading-[1.7] [&_p]:mb-3
+ [&_ul]:pl-5 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:space-y-1.5
+ [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:space-y-1.5
+ [&_li]:text-[15px] [&_li]:text-slate-700 [&_li]:leading-[1.65]
+ [&_strong]:font-semibold [&_strong]:text-slate-900
+`.trim().replace(/\s+/g, " ");
+
+function ChangeBox({ item, index, total }: { item: ChangeItem; index: number; total: number }) {
+ const isAdded = item.type === "added";
+ const labelText = isAdded ? "Added" : "Updated";
+ const contextLabel =
+ item.type === "meta_title" ? "Meta title"
+ : item.type === "meta_description" ? "Meta description"
+ : item.type === "added" ? "New section"
+ : null;
+
+ const renderText = (raw: string, plainText: boolean) => {
+ if (plainText) {
+ return <p className="text-[15px] text-slate-700 leading-[1.6]">{raw}</p>;
+ }
+ return (
+ <div
+ className={STACK_PROSE}
+ dangerouslySetInnerHTML={{ __html: bracketToHtml(raw) }}
+ />
+ );
+ };
+
+ const isMeta = item.type === "meta_title" || item.type === "meta_description";
+
+ return (
+ <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+ <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+ <span className="text-[11px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">
+ {labelText}
+ </span>
+ {contextLabel && (
+ <span className="text-[12px] text-slate-500">{contextLabel}</span>
+ )}
+ <span className="text-[11px] text-slate-400 ml-auto">
+ {index + 1} of {total}
+ </span>
+ </div>
+
+ {item.type !== "added" && (
+ <>
+ <div className="px-4 py-3">
+ <div className="text-[11px] font-medium text-slate-400 mb-1.5">Current</div>
+ {renderText(item.current, isMeta)}
+ </div>
+ <div className="border-t border-slate-200 mx-4" aria-hidden="true" />
+ </>
+ )}
+
+ <div className={`px-4 py-3 ${isAdded ? "" : "bg-slate-50/40"}`}>
+ <div className="text-[11px] font-medium text-slate-400 mb-1.5">
+ {isAdded ? "New content" : "Proposed"}
+ </div>
+ {renderText(item.proposed, isMeta)}
+ </div>
+ </div>
+ );
+}
+
+function ChangeStack({ refresh }: { refresh: ContentRefresh }) {
+ const items = buildChangeStack(refresh);
+ const refreshUrl = refresh.refresh_url;
+
+ if (items.length === 0) {
+ return (
+ <div className="px-6 py-10 text-center">
+ <p className="text-[14px] text-slate-500">
+ No changes proposed for this page.
+ </p>
+ <a
+ href={refreshUrl}
+ target="_blank"
+ rel="noopener noreferrer"
+ className="inline-block mt-2 text-[12px] text-indigo-600 hover:underline"
+ >
+ View live page →
+ </a>
+ </div>
+ );
+ }
+
+ return (
+ <div className="px-6 py-5 space-y-4 overflow-y-auto">
+ <div className="text-[12px] text-slate-500">
+ {items.length} change{items.length === 1 ? "" : "s"} proposed for this page · compare each against the current version below
+ </div>
+ {items.map((item, i) => (
+ <ChangeBox key={i} item={item} index={i} total={items.length} />
+ ))}
+ </div>
+ );
+}
+
 function OriginalPanel({ refresh }: { refresh: ContentRefresh }) {
  // Original body has no change markers, so the standard bracket renderer is fine.
  const html = bracketToHtml(refresh.original_body);
@@ -411,40 +558,21 @@ function DetailPanel({
  )}
 
  {(status === "review" || status === "approved") && (
- <div className="flex-1 flex min-h-0 border-t border-slate-200">
- <div className="flex flex-col w-1/2 border-r border-slate-200 min-h-0">
- <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
- <div className="flex items-center justify-between">
- <div className="flex items-center gap-2">
- <div className="w-2 h-2 rounded-full bg-slate-400" />
- <span className="text-[11px] font-semibold text-slate-500 tracking-widest">
- Current ({refresh.original_word_count.toLocaleString()} words)
+ <div className="flex-1 min-h-0 overflow-hidden border-t border-slate-200 flex flex-col">
+ <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0 flex items-center justify-between">
+ <span className="text-[12px] text-slate-500">
+ Proposed changes for this page
  </span>
- </div>
  <a
  href={refreshUrl}
  target="_blank"
  rel="noopener noreferrer"
- className="text-[10px] text-slate-400 hover:text-indigo-600 transition-colors"
+ className="text-[11px] text-slate-400 hover:text-indigo-600 transition-colors"
  >
- View live →
+ View live page →
  </a>
  </div>
- </div>
- <OriginalPanel refresh={refresh} />
- </div>
-
- <div className="flex flex-col w-1/2 min-h-0">
- <div className="px-6 py-3 border-b border-slate-100 bg-indigo-50/40 shrink-0">
- <div className="flex items-center gap-2">
- <div className="w-2 h-2 rounded-full bg-indigo-500" />
- <span className="text-[11px] font-semibold text-indigo-500 tracking-widest">
- Proposed changes
- </span>
- </div>
- </div>
- <RefreshedPanel refresh={refresh} />
- </div>
+ <ChangeStack refresh={refresh} />
  </div>
  )}
  </div>
