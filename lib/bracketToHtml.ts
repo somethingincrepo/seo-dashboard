@@ -22,24 +22,35 @@
  */
 /**
  * "Proposed-only" renderer — strips strikethrough/del/ins inline diff and
- * renders the proposed final. Marks changes typographically:
+ * renders the proposed final, with word-precise highlighting:
  *
- *   [CHANGED from="X"]Y[/CHANGED] → <strong><em>Y</em></strong>
- *                                   (bold + italic — the changed words pop
- *                                    out against unchanged surrounding prose)
+ *   [CHANGED from="X"]Y[/CHANGED] → tokens of Y; only the words that actually
+ *                                   differ from X are wrapped in
+ *                                   <strong><em>...</em></strong>. Words that
+ *                                   appear in both X and Y at the same
+ *                                   prefix/suffix position render plain.
  *   [ADDED]X[/ADDED]              → ct-added block (label + plain content)
  *   [REMOVED]X[/REMOVED]          → ""  (dropped — left panel shows it)
  *
- * Sentinels survive the bracket parser; the final replace swaps them to
- * real tags. Direct <strong><em> insertion would otherwise be eaten by
- * the standard parser's sanitize() pass.
+ * Word-level diffing inside CHANGED markers keeps the highlight tight even
+ * when the LLM marks an entire paragraph as changed but only swapped one
+ * phrase in the middle. Sentinels survive the bracket parser; the final
+ * replace swaps them to real tags. Direct <strong><em> insertion would
+ * otherwise be eaten by the standard parser's sanitize() pass.
  */
+import { wordDiff } from "./wordDiff";
+
 export function bracketToHtmlProposed(text: string): string {
   if (!text) return "";
   let processed = text.replace(/\[REMOVED\][\s\S]*?\[\/REMOVED\]/g, "");
   processed = processed.replace(
-    /\[CHANGED from="[^"]*"\]([\s\S]*?)\[\/CHANGED\]/g,
-    (_m, newText: string) => `__CT_BI_OPEN__${newText}__CT_BI_CLOSE__`,
+    /\[CHANGED from="([^"]*)"\]([\s\S]*?)\[\/CHANGED\]/g,
+    (_m, oldText: string, newText: string) => {
+      const tokens = wordDiff(oldText, newText);
+      return tokens
+        .map((t) => (t.changed ? `__CT_BI_OPEN__${t.text}__CT_BI_CLOSE__` : t.text))
+        .join("");
+    },
   );
   let html = bracketToHtml(processed);
   html = html

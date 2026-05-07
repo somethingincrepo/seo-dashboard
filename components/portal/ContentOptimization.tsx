@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useCallback } from "react";
 import { bracketToHtml, bracketToHtmlProposed } from "@/lib/bracketToHtml";
+import { wordDiff } from "@/lib/wordDiff";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import type { ContentRefresh } from "@/lib/supabase";
 
@@ -131,46 +132,6 @@ function HowItWorks({ status }: { status: UiStatus }) {
  );
 }
 
-// ── Word-level diff for short strings (meta title / description) ─────────────
-//
-// Splits old and new on whitespace (preserving the whitespace tokens), strips
-// a common prefix and suffix, and marks the middle of `new` as changed. Not a
-// full LCS — for the kinds of edits a meta-title rewrite produces (insertions,
-// trailing rewrites, single-word swaps) the prefix/suffix heuristic produces
-// the same result and is dramatically simpler.
-
-function wordDiff(oldText: string, newText: string): Array<{ text: string; changed: boolean }> {
- if (!oldText || !newText) {
- // Whole field is "added" or there's no comparison — render plain.
- return [{ text: newText, changed: !!newText && !oldText }];
- }
- const oldT = oldText.split(/(\s+)/);
- const newT = newText.split(/(\s+)/);
- // Common prefix
- let p = 0;
- while (p < oldT.length && p < newT.length && oldT[p] === newT[p]) p++;
- // Common suffix (after the prefix)
- let s = 0;
- while (
- s < oldT.length - p &&
- s < newT.length - p &&
- oldT[oldT.length - 1 - s] === newT[newT.length - 1 - s]
- ) {
- s++;
- }
- const out: Array<{ text: string; changed: boolean }> = [];
- // Prefix unchanged
- for (let i = 0; i < p; i++) out.push({ text: newT[i], changed: false });
- // Middle changed (if any)
- const middle = newT.slice(p, newT.length - s);
- if (middle.length > 0) {
- out.push({ text: middle.join(""), changed: true });
- }
- // Suffix unchanged
- for (let i = newT.length - s; i < newT.length; i++) out.push({ text: newT[i], changed: false });
- return out;
-}
-
 function DiffedMeta({ oldText, newText, className }: { oldText: string; newText: string; className: string }) {
  const tokens = wordDiff(oldText, newText);
  return (
@@ -244,25 +205,34 @@ function splitBody(body: string): Block[] {
 }
 
 type Pair =
- | { kind: "matched"; original: string | null; proposed: string }
- | { kind: "added"; proposed: string };
+ | { kind: "matched"; original: string | null; proposed: string; proposedIndex: number }
+ | { kind: "added"; proposed: string; proposedIndex: number };
 
 function pairSections(originalBody: string, proposedBody: string): Pair[] {
  const orig = splitBody(originalBody).filter((b) => b.kind !== "added");
  const prop = splitBody(proposedBody);
  const pairs: Pair[] = [];
  let oi = 0;
- for (const pb of prop) {
+ prop.forEach((pb, idx) => {
  if (pb.kind === "added") {
- pairs.push({ kind: "added", proposed: pb.markup });
+ pairs.push({ kind: "added", proposed: pb.markup, proposedIndex: idx });
  } else {
- pairs.push({ kind: "matched", original: orig[oi]?.markup ?? null, proposed: pb.markup });
+ pairs.push({
+ kind: "matched",
+ original: orig[oi]?.markup ?? null,
+ proposed: pb.markup,
+ proposedIndex: idx,
+ });
  oi++;
  }
- }
- // Any leftover original sections aren't shown — proposed is the source of
- // truth for what the page becomes.
+ });
  return pairs;
+}
+
+function joinBlocks(blocks: Block[]): string {
+ return blocks
+ .map((b) => (b.kind === "added" ? `[ADDED]\n${b.markup}\n[/ADDED]` : b.markup))
+ .join("\n\n");
 }
 
 type EditField = "proposed_meta_title" | "proposed_meta_description" | "proposed_body";
@@ -373,12 +343,39 @@ function ComparisonGrid({
  const cellRight = "px-6 py-5 border-l border-slate-200";
  const proseClass = PROSE_CLASSES;
 
- const [editing, setEditing] = useState<EditField | null>(null);
+ // editing state: null when nothing is being edited; otherwise either a meta
+ // field name or { kind: "body", index } for a body-section edit (the index
+ // is the position in splitBody(proposed_body), so saves can rebuild
+ // proposed_body in place).
+ type EditingState =
+ | null
+ | { kind: "meta"; field: "proposed_meta_title" | "proposed_meta_description" }
+ | { kind: "body"; index: number };
+ const [editing, setEditing] = useState<EditingState>(null);
 
- const save = async (field: EditField, value: string) => {
+ const saveMeta = async (field: "proposed_meta_title" | "proposed_meta_description", value: string) => {
  await onEdit(refresh.id, field, value);
  setEditing(null);
  };
+
+ // Save a single body section by rebuilding proposed_body from splitBody's
+ // blocks with the edited block swapped in at its original index. This keeps
+ // every other section verbatim and preserves [ADDED]/[/ADDED] wrappers.
+ const saveBodySection = async (index: number, value: string) => {
+ const blocks = splitBody(refresh.proposed_body ?? "");
+ if (!blocks[index]) {
+ throw new Error("Could not locate this section in the proposed body");
+ }
+ blocks[index] = { ...blocks[index], markup: value.trim() };
+ const newBody = joinBlocks(blocks);
+ await onEdit(refresh.id, "proposed_body", newBody);
+ setEditing(null);
+ };
+
+ const isMetaEditing = (field: "proposed_meta_title" | "proposed_meta_description") =>
+ editing?.kind === "meta" && editing.field === field;
+ const isBodyEditing = (idx: number) =>
+ editing?.kind === "body" && editing.index === idx;
 
  const rows: Array<{ left: React.ReactNode; right: React.ReactNode; key: string }> = [];
 
@@ -399,14 +396,14 @@ function ComparisonGrid({
  <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
  <span className="ml-auto" />
- {editing !== "proposed_meta_title" && (
- <EditButton onClick={() => setEditing("proposed_meta_title")} busy={false} />
+ {!isMetaEditing("proposed_meta_title") && (
+ <EditButton onClick={() => setEditing({ kind: "meta", field: "proposed_meta_title" })} busy={false} />
  )}
  </div>
- {editing === "proposed_meta_title" ? (
+ {isMetaEditing("proposed_meta_title") ? (
  <InlineEditor
  initial={newTitle}
- onSave={(v) => save("proposed_meta_title", v)}
+ onSave={(v) => saveMeta("proposed_meta_title", v)}
  onCancel={() => setEditing(null)}
  multiline={false}
  maxChars={60}
@@ -438,14 +435,14 @@ function ComparisonGrid({
  <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Updated</span>
  )}
  <span className="ml-auto" />
- {editing !== "proposed_meta_description" && (
- <EditButton onClick={() => setEditing("proposed_meta_description")} busy={false} />
+ {!isMetaEditing("proposed_meta_description") && (
+ <EditButton onClick={() => setEditing({ kind: "meta", field: "proposed_meta_description" })} busy={false} />
  )}
  </div>
- {editing === "proposed_meta_description" ? (
+ {isMetaEditing("proposed_meta_description") ? (
  <InlineEditor
  initial={newDesc}
- onSave={(v) => save("proposed_meta_description", v)}
+ onSave={(v) => saveMeta("proposed_meta_description", v)}
  onCancel={() => setEditing(null)}
  multiline={true}
  maxChars={155}
@@ -461,16 +458,30 @@ function ComparisonGrid({
  }
 
  pairs.forEach((p, i) => {
+ const editingThis = isBodyEditing(p.proposedIndex);
  if (p.kind === "added") {
  rows.push({
  key: `body-${i}`,
  left: <div className="text-[13px] text-slate-400 italic">No equivalent — this section is new.</div>,
  right: (
  <div>
- <div className="mb-2">
+ <div className="flex items-center gap-2 mb-2">
  <span className="text-[10px] font-medium text-slate-700 bg-white ring-1 ring-slate-300 rounded px-1.5 py-0.5">Added</span>
+ <span className="ml-auto" />
+ {!editingThis && (
+ <EditButton onClick={() => setEditing({ kind: "body", index: p.proposedIndex })} busy={false} />
+ )}
  </div>
+ {editingThis ? (
+ <InlineEditor
+ initial={p.proposed}
+ onSave={(v) => saveBodySection(p.proposedIndex, v)}
+ onCancel={() => setEditing(null)}
+ multiline={true}
+ />
+ ) : (
  <div className={proseClass} dangerouslySetInnerHTML={{ __html: bracketToHtml(p.proposed) }} />
+ )}
  </div>
  ),
  });
@@ -481,18 +492,28 @@ function ComparisonGrid({
  <div className={proseClass} dangerouslySetInnerHTML={{ __html: bracketToHtml(p.original) }} />
  ) : <div className="text-[13px] text-slate-400 italic">— no current content —</div>,
  right: (
+ <div>
+ <div className="flex items-center gap-2 mb-2">
+ <span className="ml-auto" />
+ {!editingThis && (
+ <EditButton onClick={() => setEditing({ kind: "body", index: p.proposedIndex })} busy={false} />
+ )}
+ </div>
+ {editingThis ? (
+ <InlineEditor
+ initial={p.proposed}
+ onSave={(v) => saveBodySection(p.proposedIndex, v)}
+ onCancel={() => setEditing(null)}
+ multiline={true}
+ />
+ ) : (
  <div className={proseClass} dangerouslySetInnerHTML={{ __html: bracketToHtmlProposed(p.proposed) }} />
+ )}
+ </div>
  ),
  });
  }
  });
-
- // Body-level "Edit raw" affordance — body sections use bracket markup that
- // doesn't survive an inline plain-text editor cleanly, so the edit affordance
- // for body content is a single textarea over the entire proposed_body. Less
- // ergonomic than per-section editing, but functional and honest about the
- // data shape.
- const bodyEditing = editing === "proposed_body";
 
  return (
  <div className="flex-1 overflow-y-auto">
@@ -509,28 +530,6 @@ function ComparisonGrid({
  <div className={cellRight}>{row.right}</div>
  </Fragment>
  ))}
- {(refresh.proposed_body || bodyEditing) && (
- <>
- <div className="col-span-2 border-t border-slate-200" aria-hidden="true" />
- <div className="col-span-2 px-6 py-4 bg-slate-50/40">
- {bodyEditing ? (
- <InlineEditor
- initial={refresh.proposed_body ?? ""}
- onSave={(v) => save("proposed_body", v)}
- onCancel={() => setEditing(null)}
- multiline={true}
- />
- ) : (
- <div className="flex items-center gap-3">
- <span className="text-[11px] text-slate-400">
- Want to tweak the body copy? Edit the raw markup directly.
- </span>
- <EditButton onClick={() => setEditing("proposed_body")} busy={false} />
- </div>
- )}
- </div>
- </>
- )}
  </div>
  </div>
  );
