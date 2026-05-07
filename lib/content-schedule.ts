@@ -92,7 +92,14 @@ export async function getScheduledArticlesForClient(companyName: string): Promis
   const url = new URL(`${AIRTABLE_BASE_URL}/${baseId}/${encodeURIComponent("Results")}`);
   url.searchParams.set(
     "filterByFormula",
-    `AND(FIND("${escaped}",ARRAYJOIN({"Client Name (from Client ID) (from Job ID)"},",")),{portal_approval}="approved",{scheduled_publish_date}!="")`
+    // Airtable field references use {Field Name} — the inner double-quotes
+    // around the lookup name (the previous form was {"Client Name (from
+    // Client ID) (from Job ID)"}) made Airtable parse the quoted string as
+    // a literal field name lookup, which always failed with
+    // INVALID_FILTER_BY_FORMULA. The catch in this function swallowed the
+    // error and returned [], so the calendar silently rendered empty no
+    // matter how many articles were actually approved.
+    `AND(FIND("${escaped}",ARRAYJOIN({Client Name (from Client ID) (from Job ID)},",")),{portal_approval}="approved",{scheduled_publish_date}!="")`
   );
   url.searchParams.append("fields[]", "Article title");
   url.searchParams.append("fields[]", "scheduled_publish_date");
@@ -101,7 +108,11 @@ export async function getScheduledArticlesForClient(companyName: string): Promis
 
   try {
     const res = await fetch(url.toString(), { headers: getContentHeaders(), cache: "no-store" });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.error(`[getScheduledArticlesForClient] ${res.status}: ${errText.slice(0, 300)}`);
+      return [];
+    }
     const data = await res.json() as { records: { id: string; fields: Record<string, unknown> }[] };
     return data.records
       .filter((r) => r.fields.scheduled_publish_date)
@@ -111,7 +122,8 @@ export async function getScheduledArticlesForClient(companyName: string): Promis
         scheduled_publish_date: (r.fields.scheduled_publish_date as string).slice(0, 10),
         portal_approval: (r.fields.portal_approval as string | null) ?? null,
       }));
-  } catch {
+  } catch (err) {
+    console.error("[getScheduledArticlesForClient] threw:", err);
     return [];
   }
 }
