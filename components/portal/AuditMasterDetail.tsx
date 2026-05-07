@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { AuditRunSummary, AuditIssue, IssueDecision } from "@/lib/audit/queries";
+import { computeHealthScore } from "@/lib/audit/healthScore";
 import { AuditDonut } from "./AuditDonut";
 import { getFixGuidance } from "@/lib/audit/rules/fix-guidance";
 
@@ -237,9 +238,16 @@ function AuditMasterDetailInner({ run, issues, token }: Props) {
  }, [pageIssues]);
 
  const totalPagesCrawled = run.pages_crawled ?? 0;
- const healthPct = totalPagesCrawled > 0
- ? Math.max(0, Math.min(100, Math.round(((totalPagesCrawled - affectedPages) / totalPagesCrawled) * 100)))
- : 0;
+ // Severity-weighted score (see lib/audit/healthScore.ts). The previous
+ // ratio-of-clean-pages formula always rounded to 0% on real sites because
+ // every page has at least one minor finding — this rewards fixing the
+ // serious stuff and ignores low-severity background noise. Dismissed
+ // issues are excluded from the score so a customer dismissing a false
+ // positive sees the number move.
+ const healthPct = useMemo(() => {
+ const scoreable = issues.filter((i) => (localDecisions.get(i.id) ?? i.decision) !== "dismissed");
+ return computeHealthScore(scoreable, totalPagesCrawled);
+ }, [issues, localDecisions, totalPagesCrawled]);
 
  const filtered = useMemo(() => {
  const needle = urlQuery.trim().toLowerCase();
