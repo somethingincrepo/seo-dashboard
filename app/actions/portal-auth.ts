@@ -77,8 +77,10 @@ export async function portalLogin(formData: FormData) {
   const client = await getClientByUsername(username);
   if (!client) redirect(errorUrl);
 
-  const hash = client.fields.portal_password_hash;
+  const hash = client.fields.portal_password_hash?.trim();
   if (!hash) redirect(errorUrl);
+
+  if (!client.fields.portal_token) redirect(errorUrl);
 
   const valid = await verifyPassword(password, hash);
   if (!valid) redirect(errorUrl);

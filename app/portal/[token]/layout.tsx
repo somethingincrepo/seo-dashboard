@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
-import { getPortalSession } from "@/lib/portal-auth";
+import { getPortalSession, destroyPortalSession } from "@/lib/portal-auth";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
@@ -35,9 +35,11 @@ export default async function PortalLayout({
  }
 
  if (portalSession && !isAdmin) {
- // Client session must belong to this portal
+ // Client session must belong to this portal — if navigating to a different
+ // client's URL, clear the stale session and send them to the new portal's login.
  if (portalSession.portal_token !== token) {
- redirect(`/portal/${portalSession.portal_token}`);
+ await destroyPortalSession();
+ redirect(`/portal/login?token=${encodeURIComponent(token)}`);
  }
  }
  // Admins pass through to any portal

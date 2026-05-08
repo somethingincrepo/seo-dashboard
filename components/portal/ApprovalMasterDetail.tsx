@@ -926,8 +926,14 @@ function ApprovalMasterDetailInner({
  if (approval === "pending") {
  if (resolved.mode === "manual") {
  return (
- <div className="text-xs text-slate-400 pt-6 pb-3 border-t border-slate-200">
- After you approve, we will show you exactly how to implement this on your CMS. It takes about {resolved.entry.estimatedMinutes} min.
+ <div className="pt-6 border-t border-slate-200">
+ <p className="text-xs text-slate-400 mb-3">Approve above, then follow these steps to implement it yourself (~{resolved.entry.estimatedMinutes} min):</p>
+ <ImplementationGuide
+ deliverable={deliverable}
+ client={client}
+ token={token}
+ change={effectiveSelected}
+ />
  </div>
  );
  }
@@ -993,7 +999,7 @@ function ApprovalMasterDetailInner({
  confirmApprove={confirmApprove}
  undoTarget={undoTarget}
  isLocalDecision={localChanges.has(effectiveSelected.id)}
- onApprove={() => setConfirmApprove(true)}
+ onApprove={() => applyDecision(effectiveSelected.id, "approved", undefined, contactEmail)}
  onSkip={() => applyDecision(effectiveSelected.id, "skipped", undefined, contactEmail)}
  onQuestion={() => setShowQuestion(true)}
  onConfirmApprove={() => applyDecision(effectiveSelected.id, "approved", undefined, contactEmail)}
