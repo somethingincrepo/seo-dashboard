@@ -33,6 +33,7 @@ export default async function TechnicalApprovalsPage({ params }: { params: Promi
  decidedChanges={decided}
  token={token}
  contactEmail={client.fields.contact_email}
+        client={client}
  categoryFilter="Technical"
  />
  </div>

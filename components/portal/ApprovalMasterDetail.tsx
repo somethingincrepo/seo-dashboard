@@ -15,7 +15,11 @@ import { ChangePreview } from "@/components/portal/ChangePreview";
 import { IndexingBadge } from "@/components/portal/IndexingBadge";
 import { useApprovalActions } from "./useApprovalActions";
 import { ApprovalActionBar } from "./ApprovalActionBar";
+import { ImplementationGuide } from "./ImplementationGuide";
+import { AutoModeNotice } from "./AutoModeNotice";
+import { resolveGuide, deliverableFromChangeType } from "@/lib/implementation-guides";
 import type { Change } from "@/lib/changes";
+import type { Client } from "@/lib/clients";
 
 const CATEGORY_ORDER = ["Technical", "On-Page", "Content", "AI-GEO"];
 
@@ -29,6 +33,7 @@ interface ApprovalMasterDetailProps {
  decidedChanges: Change[];
  token: string;
  contactEmail: string;
+ client: Client;
  categoryFilter?: string;
 }
 
@@ -80,6 +85,7 @@ function ApprovalMasterDetailInner({
  decidedChanges,
  token,
  contactEmail,
+ client,
  categoryFilter,
 }: ApprovalMasterDetailProps) {
  const router = useRouter();
@@ -891,12 +897,49 @@ function ApprovalMasterDetailInner({
  </div>
  )}
 
- {/* What happens next? */}
+ {/* Implementation guide / next-step notice */}
+ {(() => {
+ const approval = getApprovalStatus(effectiveSelected);
+ const deliverable = deliverableFromChangeType(fields.type || fields.change_type);
+ if (!deliverable) return null;
+ const resolved = resolveGuide(deliverable, client);
+
+ if (approval === "approved" && !fields.implemented_at) {
+ if (resolved.mode === "auto") {
+ return (
+ <AutoModeNotice
+ summary={`We will implement this on ${(() => { try { return new URL(fields.page_url).hostname; } catch { return "your site"; } })()}.`}
+ note="You will see confirmation in your next monthly report once it is live."
+ />
+ );
+ }
+ return (
+ <ImplementationGuide
+ deliverable={deliverable}
+ client={client}
+ token={token}
+ change={effectiveSelected}
+ />
+ );
+ }
+
+ if (approval === "pending") {
+ if (resolved.mode === "manual") {
+ return (
  <div className="text-xs text-slate-400 pt-6 pb-3 border-t border-slate-200">
- {getApprovalStatus(effectiveSelected) === 'pending'
- ? "When you approve, we'll implement this change within 48 hours. You'll see it in your next monthly report."
- : ''}
+ After you approve, we will show you exactly how to implement this on your CMS. It takes about {resolved.entry.estimatedMinutes} min.
  </div>
+ );
+ }
+ return (
+ <div className="text-xs text-slate-400 pt-6 pb-3 border-t border-slate-200">
+ When you approve, we will implement this change automatically within 48 hours.
+ </div>
+ );
+ }
+
+ return null;
+ })()}
  </div>
 
  </>;

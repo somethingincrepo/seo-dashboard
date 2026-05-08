@@ -11,6 +11,10 @@ import {
  type ContentResult,
 } from "@/lib/content";
 import { bracketToHtml } from "@/lib/bracketToHtml";
+import { ImplementationGuide } from "./ImplementationGuide";
+import { AutoModeNotice } from "./AutoModeNotice";
+import { resolveGuide } from "@/lib/implementation-guides";
+import type { Client } from "@/lib/clients";
 
 type KanbanColumn = {
  key: string;
@@ -25,6 +29,7 @@ interface ContentKanbanProps {
  jobs: ContentJob[];
  results: ContentResult[];
  token: string;
+ client: Client;
 }
 
 function getStatusLabel(status: string | null): string {
@@ -316,7 +321,7 @@ export function ContentActivityFeed({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
+export function ContentKanban({ jobs, results, token, client }: ContentKanbanProps) {
  const [selectedJob, setSelectedJob] = useState<ContentJob | null>(null);
  const [submitting, setSubmitting] = useState(false);
  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -717,6 +722,35 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
  );
  })()}
 
+ {/* Publishing guide — visible once article is approved for publishing */}
+ {(() => {
+ const result = findResultForJob(liveSelectedJob);
+ if (!result || result.fields.portal_approval !== "approved") return null;
+ if (liveSelectedJob.fields.title_status === "published") return null;
+ const resolved = resolveGuide("full_article_publish", client);
+ if (resolved.mode === "auto") {
+ return (
+ <AutoModeNotice
+ summary="We will publish this article to your site automatically."
+ note="You will see it go live within 48 hours."
+ />
+ );
+ }
+ return (
+ <ImplementationGuide
+ deliverable="full_article_publish"
+ client={client}
+ token={token}
+ values={{
+ meta_title: result.fields["Meta title"] || result.fields["Article title"] || "",
+ slug: result.fields["URL slug"] || "",
+ html_body: result.fields["Article body"] || "",
+ meta_description: result.fields["Meta description"] || "",
+ }}
+ />
+ );
+ })()}
+
  {/* Feedback */}
  {feedback && (
  <div className={`text-sm px-3 py-2.5 rounded-lg border ${
@@ -799,12 +833,22 @@ export function ContentKanban({ jobs, results, token }: ContentKanbanProps) {
  </div>
  )}
 
- {isPublishingPhase && (
+ {isPublishingPhase && (() => {
+ const resolved = resolveGuide("full_article_publish", client);
+ if (resolved.mode === "auto") {
+ return (
  <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-50 border border-violet-200">
  <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0" />
  <span className="text-sm font-medium text-violet-700">Queued for publishing — going live soon</span>
  </div>
- )}
+ );
+ }
+ return (
+ <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+ <span className="text-sm font-medium text-emerald-700">Follow the publishing steps above to go live</span>
+ </div>
+ );
+ })()}
  </div>
  );
  })()}

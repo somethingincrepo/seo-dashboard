@@ -56,6 +56,7 @@ export default async function ContentPage({
  jobs={jobs}
  results={results}
  token={token}
+ client={client}
  />
  )}
 

@@ -39,7 +39,7 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
  </Link>
  </p>
  </div>
- <AuditMasterDetail run={completedRun} issues={issues} token={token} />
+ <AuditMasterDetail run={completedRun} issues={issues} token={token} client={client} />
  </div>
  );
 }

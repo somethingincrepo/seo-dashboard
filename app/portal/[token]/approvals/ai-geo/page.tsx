@@ -33,6 +33,7 @@ export default async function AIGEOApprovalsPage({ params }: { params: Promise<{
  decidedChanges={decided}
  token={token}
  contactEmail={client.fields.contact_email}
+        client={client}
  categoryFilter="AI-GEO"
  />
  </div>

@@ -6,6 +6,10 @@ import type { AuditRunSummary, AuditIssue, IssueDecision } from "@/lib/audit/que
 import { computeHealthScore } from "@/lib/audit/healthScore";
 import { AuditDonut } from "./AuditDonut";
 import { getFixGuidance } from "@/lib/audit/rules/fix-guidance";
+import { ImplementationGuide } from "./ImplementationGuide";
+import { AutoModeNotice } from "./AutoModeNotice";
+import { resolveGuide, deliverableFromChangeType } from "@/lib/implementation-guides";
+import type { Client } from "@/lib/clients";
 
 const SEVERITIES = ["critical", "high", "medium", "low"] as const;
 type Severity = (typeof SEVERITIES)[number];
@@ -92,6 +96,7 @@ interface Props {
  run: AuditRunSummary;
  issues: AuditIssue[];
  token: string;
+ client: Client;
 }
 
 type Selection =
@@ -107,7 +112,7 @@ export function AuditMasterDetail(props: Props) {
  );
 }
 
-function AuditMasterDetailInner({ run, issues, token }: Props) {
+function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  const searchParams = useSearchParams();
  const router = useRouter();
 
@@ -610,6 +615,7 @@ function AuditMasterDetailInner({ run, issues, token }: Props) {
  decide={decide}
  submitting={submitting}
  token={token}
+ client={client}
  />
  )}
  {detail?.kind === "rule" && (
@@ -1040,12 +1046,14 @@ function IssueDetail({
  decide,
  submitting,
  token,
+ client,
 }: {
  issue: AuditIssue;
  decisionFor: (id: string) => IssueDecision;
  decide: (ids: string[], decision: IssueDecision) => Promise<void>;
  submitting: boolean;
  token: string;
+ client: Client;
 }) {
  const sev = issue.severity as Severity;
  const ev = issue.evidence as { fix_guidance?: string; rule_description?: string; [k: string]: unknown } | null;
@@ -1158,7 +1166,34 @@ function IssueDetail({
  )}
  </div>
 
- {/* 5. Collapsible technical details */}
+ {/* 5. Implementation guide — shown when approved and client is manual-mode */}
+ {decision === "approved" && (() => {
+ const deliverable = deliverableFromChangeType(issue.rule_name);
+ if (!deliverable) return null;
+ const resolved = resolveGuide(deliverable, client);
+ if (resolved.mode === "auto") {
+ return (
+ <AutoModeNotice
+ summary={`We will apply this fix on ${issue.page_url ? (() => { try { return new URL(issue.page_url).hostname; } catch { return "your site"; } })() : "your site"}.`}
+ note="You will see confirmation once the fix is live."
+ />
+ );
+ }
+ return (
+ <ImplementationGuide
+ deliverable={deliverable}
+ client={client}
+ token={token}
+ values={{
+ page_url: issue.page_url ?? "",
+ proposed_value: issue.proposed_value ?? issue.expected_value ?? "",
+ current_value: issue.current_value ?? "",
+ }}
+ />
+ );
+ })()}
+
+ {/* 6. Collapsible technical details */}
  <div className="border-t border-slate-100 pt-3">
  <button
  onClick={() => setShowDetails((s) => !s)}

@@ -33,6 +33,7 @@ export default async function OnPageApprovalsPage({ params }: { params: Promise<
  decidedChanges={decided}
  token={token}
  contactEmail={client.fields.contact_email}
+        client={client}
  categoryFilter="On-Page"
  />
  </div>

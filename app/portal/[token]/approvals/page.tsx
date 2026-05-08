@@ -33,6 +33,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
  decidedChanges={decided}
  token={token}
  contactEmail={client.fields.contact_email}
+ client={client}
  />
  </div>
  );
