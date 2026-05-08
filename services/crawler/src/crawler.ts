@@ -86,9 +86,13 @@ export async function crawlSite(opts: CrawlOptions): Promise<CrawlOutput> {
       pages.push(extracted);
       log.info(`[crawler] ${statusCode} ${finalUrl} (${pages.length} pages)`);
 
-      // Enqueue same-origin links — but normalize and dedupe ourselves.
+      // Enqueue same-domain links — "same-domain" handles www↔non-www redirects correctly
+      // by using the final (post-redirect) URL's origin for filtering. "same-origin" would
+      // use the original request URL's origin and miss all links if the root redirects
+      // from non-www to www (or vice versa). transformRequestFunction below still enforces
+      // our own sameHost check as a second pass.
       await enqueueLinks({
-        strategy: "same-origin",
+        strategy: "same-domain",
         transformRequestFunction: (req) => {
           const norm = normalizeUrl(req.url);
           if (!sameHost(norm, origin)) return false;
