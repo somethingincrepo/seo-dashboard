@@ -11,7 +11,8 @@ export type ChangeFields = {
   current_value: string;     // Verbatim current state on the live page
   proposed_value: string;    // Recommended fix (can be technical or readable)
   approval: string;          // pending, approved, skipped, question, backlog
-  execution_status: string;  // queued, implementing, complete, failed
+  execution_status: string;  // queued, implementing, complete, failed, awaiting_client_implementation
+  client_self_implement: boolean; // true when client opted into manual mode for this change (overrides auto)
   implementation_tier: string; // tier_1, tier_2
   confidence: string;        // High, Medium, Low
   priority: string;          // Critical, High, Medium, Low
@@ -87,14 +88,33 @@ export async function getClientChanges(clientId: string, recordId?: string): Pro
 export async function updateApproval(
   recordId: string,
   decision: "approved" | "skipped" | "question",
-  notes?: string
+  notes?: string,
+  routing?: { execution_status?: "queued" | "awaiting_client_implementation" }
 ): Promise<void> {
   const fields: Record<string, unknown> = {
     approval: decision,
   };
   if (notes) fields.client_notes = notes;
-  if (decision === "approved") fields.approved_at = new Date().toISOString();
+  if (decision === "approved") {
+    fields.approved_at = new Date().toISOString();
+    if (routing?.execution_status) fields.execution_status = routing.execution_status;
+  }
   await airtablePatch(TABLE, recordId, fields);
+}
+
+export async function setClientSelfImplement(recordId: string, value: boolean): Promise<void> {
+  await airtablePatch(TABLE, recordId, { client_self_implement: value });
+}
+
+export async function markChangeImplemented(recordId: string): Promise<void> {
+  const change = await getChangeById(recordId);
+  if (!change) throw new Error("Change not found");
+  await airtablePatch(TABLE, recordId, {
+    execution_status: "complete",
+    implemented_at: new Date().toISOString(),
+    verified_value: change.fields.proposed_value,
+    verification: "self_reported",
+  });
 }
 
 export async function getChangeById(recordId: string): Promise<Change | null> {

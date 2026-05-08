@@ -1,120 +1,167 @@
 "use client";
 
-import { resolveGuide } from "@/lib/implementation-guides";
-import type { DeliverableType } from "@/lib/implementation-guides/types";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Client } from "@/lib/clients";
-import type { Change } from "@/lib/changes";
-import type { Capabilities, Platform } from "@/lib/connections/types";
-import { platformFromCmsField } from "@/lib/connections/registry";
-import { GuideStepList } from "./GuideStepList";
-import { AutoModeNotice } from "./AutoModeNotice";
+import {
+  resolveGuideForChange,
+  type DeliverableType,
+  type GuideEntry,
+} from "@/lib/implementation-guides";
+import { GuideStepList, type GuideValueBag } from "./GuideStepList";
 
-type Props = {
+interface ImplementationGuideProps {
   deliverable: DeliverableType;
   client: Client;
-  change?: Change;
-  capabilities?: Capabilities | null;
-  defaultOpen?: boolean;
-};
-
-const PLATFORM_LABELS: Record<Platform | "generic", string> = {
-  wordpress_self: "WordPress",
-  shopify: "Shopify",
-  hubspot: "HubSpot",
-  webflow: "Webflow",
-  cloudflare: "Cloudflare",
-  framer: "Framer",
-  squarespace: "Squarespace",
-  wix: "Wix",
-  generic: "your site",
-};
-
-const DELIVERABLE_ACTIONS: Record<DeliverableType, string> = {
-  title_tag: "update the title tag",
-  meta_description: "update the meta description",
-  h1: "update the H1 heading",
-  internal_link_insertion: "insert the internal link",
-  content_rewrite: "publish the content rewrite",
-  content_block_insert: "insert the content block",
-  full_article_publish: "publish this article",
-  schema_org: "add schema markup",
-  faq_schema: "add FAQ schema",
-  location_signals: "add location signals",
-  redirect: "set up the redirect",
-  canonical: "set the canonical URL",
-  alt_text: "update the alt text",
-  robots_txt: "update robots.txt",
-  sitemap_xml: "update the sitemap",
-  indexation_submit: "submit for indexing",
-};
-
-function guideHeaderLabel(deliverable: DeliverableType, platform: Platform | "generic"): string {
-  const platformLabel = PLATFORM_LABELS[platform] ?? "your site";
-  const action = DELIVERABLE_ACTIONS[deliverable];
-  if (platform === "generic") return `How to ${action}`;
-  return `How to ${action} in ${platformLabel}`;
+  token: string;                  // portal token (required for Mark as Implemented endpoint auth)
+  // Either pass a `change` (for approval-flow deliverables) or a `values` bag
+  // (for synthetic deliverables like full_article_publish where the source isn't a Change).
+  change?: { id: string; fields: Record<string, unknown> };
+  values?: GuideValueBag;
+  changeId?: string;             // explicit when not passing `change`
+  // What to do when "Mark as Implemented" is clicked. Defaults to calling /api/changes/mark-implemented.
+  onImplemented?: () => void | Promise<void>;
+  onDeferred?: () => void;
+  variant?: "inline" | "panel";  // panel = padded card, inline = bare
+  hideHeader?: boolean;
+  preset?: GuideEntry;            // skip resolution, render this directly (used by re-entry / article publish)
 }
 
 export function ImplementationGuide({
   deliverable,
   client,
+  token,
   change,
-  capabilities,
-  defaultOpen = false,
-}: Props) {
-  const { entry, mode } = resolveGuide(deliverable, client, capabilities);
+  values,
+  changeId,
+  onImplemented,
+  onDeferred,
+  variant = "panel",
+  hideHeader,
+  preset,
+}: ImplementationGuideProps) {
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const platform = platformFromCmsField(client.fields.cms) ?? "generic";
-  const headerLabel = guideHeaderLabel(deliverable, platform as Platform | "generic");
+  // Resolve guide entry (or use preset)
+  let entry: GuideEntry;
+  let modeReason = "";
+  if (preset) {
+    entry = preset;
+  } else {
+    const resolved = resolveGuideForChange(deliverable, client, {
+      client_self_implement: change?.fields.client_self_implement === true,
+    });
+    entry = resolved.entry;
+    modeReason = resolved.reason;
+  }
+
+  // Build the value bag.
+  // - If `values` is passed explicitly, use it.
+  // - Otherwise pull from change.fields and stringify.
+  const bag: GuideValueBag = values ?? (() => {
+    const out: GuideValueBag = {};
+    if (change) {
+      for (const [k, v] of Object.entries(change.fields)) {
+        if (v == null) continue;
+        out[k] = String(v);
+      }
+    }
+    return out;
+  })();
+
+  const targetId = changeId ?? change?.id;
+
+  async function handleMarkImplemented() {
+    if (onImplemented) {
+      await onImplemented();
+      return;
+    }
+    if (!targetId) {
+      setError("Cannot mark implemented — no change ID.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/changes/mark-implemented", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: targetId, token }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Server error ${res.status}`);
+      }
+      setFeedback("Marked as implemented. Nice work.");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const wrapperClass = variant === "panel"
+    ? "rounded-xl border border-slate-200 bg-white p-5 space-y-4"
+    : "space-y-4";
 
   return (
-    <details
-      className="group border border-slate-150 rounded-lg overflow-hidden"
-      open={defaultOpen || undefined}
-    >
-      <summary className="flex items-center justify-between px-4 py-3 bg-slate-50 cursor-pointer select-none list-none hover:bg-slate-100 transition-colors">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[13px] font-semibold text-slate-700 truncate">
-            {headerLabel}
-          </span>
-          {entry.estimatedMinutes > 0 && (
-            <span className="text-[11px] text-slate-400 shrink-0">
-              {entry.estimatedMinutes} min
-            </span>
+    <div className={wrapperClass} data-testid="implementation-guide">
+      {!hideHeader && (
+        <div>
+          <div className="text-[11px] font-bold tracking-widest text-emerald-600 uppercase mb-1">
+            Implementation step
+          </div>
+          <h3 className="text-base font-semibold text-slate-900">{entry.title}</h3>
+          <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+            <span>~{entry.estimatedMinutes} min</span>
+            {modeReason && <span className="text-slate-400">· {modeReason}</span>}
+          </div>
+          {entry.prerequisites && entry.prerequisites.length > 0 && (
+            <div className="mt-3 text-xs text-slate-600">
+              <span className="font-semibold">Before you start: </span>
+              {entry.prerequisites.join(" · ")}
+            </div>
           )}
         </div>
-        <svg
-          className="w-4 h-4 text-slate-400 transition-transform duration-200 group-open:rotate-180 shrink-0 ml-2"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </summary>
+      )}
 
-      <div className="px-4 py-4 border-t border-slate-100 bg-white space-y-4">
-        {mode === "auto" ? (
-          <AutoModeNotice entry={entry} fields={change?.fields} />
-        ) : (
-          <>
-            {entry.prerequisites && entry.prerequisites.length > 0 && (
-              <div className="space-y-1">
-                {entry.prerequisites.map((p, i) => (
-                  <div key={i} className="text-[12px] text-slate-500 flex gap-2">
-                    <span className="shrink-0 font-medium text-slate-400">Before you start:</span>
-                    <span>{p}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <GuideStepList steps={entry.steps} fields={change?.fields} />
-          </>
-        )}
-      </div>
-    </details>
+      <GuideStepList steps={entry.steps} values={bag} />
+
+      {error && (
+        <div className="text-sm text-red-600 px-3 py-2 rounded-md bg-red-50 border border-red-200">
+          {error}
+        </div>
+      )}
+      {feedback && (
+        <div className="text-sm text-emerald-700 px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200">
+          {feedback}
+        </div>
+      )}
+
+      {!feedback && (onImplemented || targetId) && (
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <button
+            onClick={handleMarkImplemented}
+            disabled={submitting}
+            className="flex-[2] py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            ✓ Mark as Implemented
+          </button>
+          {onDeferred && (
+            <button
+              onClick={onDeferred}
+              disabled={submitting}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              I&apos;ll do this later
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

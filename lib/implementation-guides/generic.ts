@@ -1,373 +1,206 @@
-import type { DeliverableType, GuideEntry } from "./types";
+import type { CmsGuideTable } from "./types";
 
-export const genericGuides: Record<DeliverableType, GuideEntry> = {
+// Generic / fallback guides. Every deliverable must have an entry here so unknown CMSs degrade gracefully.
+export const GENERIC_GUIDES: CmsGuideTable = {
   title_tag: {
     deliverable: "title_tag",
     platform: "generic",
-    title: "Update the title tag",
-    estimatedMinutes: 5,
+    title: "Update the page title tag",
+    estimatedMinutes: 3,
     steps: [
-      {
-        text: 'Log in to your CMS and open the page at {{page_url}}.',
-      },
-      {
-        text: 'Find the SEO or metadata settings for this page. This is often labeled "SEO title", "Page title", or found under a search/social tab.',
-      },
-      {
-        text: 'Replace the current title with the proposed value.',
-        copyable: { label: "Proposed title", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save or publish the page.",
-        warning: "Changes may take a few days to appear in Google search results after the page is re-crawled.",
-      },
+      { text: "Log into your website's CMS or page editor." },
+      { text: "Navigate to the page at this URL.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Find the SEO settings panel for this page (often labeled 'SEO', 'Meta', 'Search Appearance', or 'Page Properties')." },
+      { text: "Replace the existing browser title / SEO title with the new value below.", copyable: { label: "New title tag", valueKey: "proposed_value" } },
+      { text: "Save and publish the page." },
+      { text: "Open an incognito tab and view-source the page to confirm <title> reflects the new value." },
     ],
   },
-
   meta_description: {
     deliverable: "meta_description",
     platform: "generic",
     title: "Update the meta description",
-    estimatedMinutes: 5,
+    estimatedMinutes: 3,
     steps: [
-      {
-        text: 'Log in to your CMS and open the page at {{page_url}}.',
-      },
-      {
-        text: 'Find the SEO or metadata settings. Look for a field labeled "Meta description" or "Search description".',
-      },
-      {
-        text: "Replace the current description with the proposed value.",
-        copyable: { label: "Proposed description", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save or publish the page.",
-      },
+      { text: "Log into your CMS and open the page editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Find the SEO panel (often 'Search Appearance', 'Meta', or 'SEO settings')." },
+      { text: "Paste this into the meta description field.", copyable: { label: "New meta description", valueKey: "proposed_value" } },
+      { text: "Save and publish.", warning: "Some CMSs cache the meta description — clear cache if changes don't appear in view-source." },
     ],
   },
-
   h1: {
     deliverable: "h1",
     platform: "generic",
     title: "Update the H1 heading",
-    estimatedMinutes: 5,
+    estimatedMinutes: 4,
     steps: [
-      {
-        text: 'Log in to your CMS and open the page at {{page_url}} for editing.',
-      },
-      {
-        text: 'Find the main page heading. It is typically the first large heading at the top of the page body, marked as "Heading 1" or "H1" in your editor.',
-      },
-      {
-        text: "Replace the current heading text with the proposed value.",
-        copyable: { label: "Proposed H1", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save or publish the page.",
-        warning: "There should be exactly one H1 on the page. If you see multiple, remove the extras.",
-      },
+      { text: "Open the page in your CMS editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Locate the main heading at the top of the page (usually the largest text — H1 element)." },
+      { text: "Replace the heading text with this:", copyable: { label: "New H1", valueKey: "proposed_value" } },
+      { text: "Confirm only one H1 exists on the page (this should be the main heading, not a section heading)." },
+      { text: "Save and publish." },
     ],
   },
-
   internal_link_insertion: {
     deliverable: "internal_link_insertion",
     platform: "generic",
-    title: "Insert internal link",
-    estimatedMinutes: 10,
+    title: "Add an internal link",
+    estimatedMinutes: 4,
     steps: [
-      {
-        text: 'Log in to your CMS and open the page at {{page_url}} for editing.',
-      },
-      {
-        text: "Locate the anchor text or section identified in the recommendation.",
-        copyable: { label: "Anchor text / context", valueKey: "proposed_value" },
-      },
-      {
-        text: "Highlight the anchor text and add a hyperlink pointing to the destination URL listed in the recommendation.",
-      },
-      {
-        text: "Save or publish the page.",
-      },
+      { text: "Open the source page in your CMS editor.", copyable: { label: "Source page", valueKey: "page_url" } },
+      { text: "Find the paragraph containing this text:", copyable: { label: "Source paragraph", valueKey: "source_paragraph_text" } },
+      { text: "Highlight this anchor text within that paragraph:", copyable: { label: "Anchor text", valueKey: "anchor_text" } },
+      { text: "Apply a link with this destination URL:", copyable: { label: "Link target", valueKey: "target_url" } },
+      { text: "Save and publish the page." },
     ],
   },
-
   content_rewrite: {
     deliverable: "content_rewrite",
     platform: "generic",
-    title: "Publish content rewrite",
-    estimatedMinutes: 15,
-    prerequisites: ["Review the updated draft in the Content Refreshes tab before publishing."],
+    title: "Apply the content rewrite",
+    estimatedMinutes: 10,
     steps: [
-      {
-        text: 'Open the page at {{page_url}} in your CMS.',
-      },
-      {
-        text: "Replace the existing body content with the updated draft provided in the portal.",
-        warning: "Copy the full draft including headings, body paragraphs, and any lists. Do not mix old and new content.",
-      },
-      {
-        text: "Confirm the title tag and meta description are still correct after the update.",
-      },
-      {
-        text: "Save and publish the page.",
-      },
+      { text: "Open the page in your CMS editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Replace the matching section with the new content from the brief." },
+      { text: "Use the 'before' value to find the exact section.", copyable: { label: "Find this", valueKey: "current_value" } },
+      { text: "Replace it with this:", copyable: { label: "Replace with", valueKey: "proposed_value" } },
+      { text: "Save and publish." },
     ],
   },
-
   content_block_insert: {
     deliverable: "content_block_insert",
     platform: "generic",
-    title: "Insert content block",
-    estimatedMinutes: 10,
+    title: "Insert a new content block",
+    estimatedMinutes: 6,
     steps: [
-      {
-        text: 'Open the page at {{page_url}} in your CMS editor.',
-      },
-      {
-        text: "Navigate to the position specified in the recommendation (typically after the intro or before the conclusion).",
-      },
-      {
-        text: "Insert the provided content block, preserving its heading level and formatting.",
-        copyable: { label: "Content to insert", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save or publish the page.",
-      },
+      { text: "Open the page in your CMS editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Insert this content block at the location specified in the recommendation:" , copyable: { label: "New content", valueKey: "proposed_value" } },
+      { text: "Save and publish.", warning: "Most CMSs require pasting as plain text or HTML — check the formatting matches surrounding content." },
     ],
   },
-
   full_article_publish: {
     deliverable: "full_article_publish",
     platform: "generic",
-    title: "Publish new article",
-    estimatedMinutes: 15,
-    prerequisites: ["Article draft has been reviewed and approved in the portal."],
+    title: "Publish the article on your CMS",
+    estimatedMinutes: 12,
     steps: [
-      {
-        text: "Log in to your CMS and create a new blog post or article.",
-      },
-      {
-        text: "Set the title to the approved title.",
-        copyable: { label: "Article title", valueKey: "proposed_value" },
-      },
-      {
-        text: "Paste the full article content from the portal into the body editor. Preserve all headings (H2/H3), paragraphs, and any lists.",
-      },
-      {
-        text: "Set the meta title and meta description using the values provided in the portal.",
-      },
-      {
-        text: "Set the URL slug as specified. Avoid auto-generated slugs if they differ from the recommendation.",
-      },
-      {
-        text: "Set the publication date to today and publish.",
-        warning: "Do not publish until you have reviewed the draft in full and confirmed the title, URL, and meta fields.",
-      },
+      { text: "In your CMS, create a new blog post / article." },
+      { text: "Set the post title to:", copyable: { label: "Post title", valueKey: "meta_title" } },
+      { text: "Set the URL slug to:", copyable: { label: "Slug", valueKey: "slug" } },
+      { text: "Paste the article body (HTML).", copyable: { label: "Article HTML", valueKey: "html_body" } },
+      { text: "Set the meta description.", copyable: { label: "Meta description", valueKey: "meta_description" } },
+      { text: "Add a featured image (use any relevant image from your media library)." },
+      { text: "Set the post category and tags as appropriate." },
+      { text: "Publish or schedule the post for the agreed date." },
     ],
   },
-
   schema_org: {
     deliverable: "schema_org",
     platform: "generic",
-    title: "Add Organization / schema markup",
-    estimatedMinutes: 15,
+    title: "Add structured data (JSON-LD)",
+    estimatedMinutes: 8,
     steps: [
-      {
-        text: "Navigate to the global head or custom code section of your CMS. This is typically in Settings > Custom Code, Site Settings, or a theme options panel.",
-      },
-      {
-        text: "Paste the provided JSON-LD script block into the head section.",
-        copyable: { label: "Schema JSON-LD", valueKey: "proposed_value" },
-        warning: "Place this in the <head> of the page or site-wide. Do not put it inside the body content area.",
-      },
-      {
-        text: "Save and publish.",
-      },
-      {
-        text: "Verify using Google's Rich Results Test by pasting your URL after publishing.",
-      },
+      { text: "Open the page in your CMS editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Find the option to inject custom HTML/JavaScript into the page <head>. Some CMSs call this 'Custom Code', 'Header Snippets', or 'Page Code Injection'." },
+      { text: "Paste this JSON-LD script tag:", copyable: { label: "JSON-LD", valueKey: "proposed_value" } },
+      { text: "Save and publish." },
+      { text: "Validate at https://search.google.com/test/rich-results — paste the page URL and confirm no errors." },
     ],
   },
-
   faq_schema: {
     deliverable: "faq_schema",
     platform: "generic",
-    title: "Add FAQ schema markup",
+    title: "Add FAQ schema and visible FAQ section",
     estimatedMinutes: 10,
     steps: [
-      {
-        text: 'Open the page at {{page_url}} in your CMS.',
-      },
-      {
-        text: "Navigate to the custom code or head injection section for this specific page (not site-wide).",
-      },
-      {
-        text: "Paste the provided FAQ JSON-LD script block.",
-        copyable: { label: "FAQ schema JSON-LD", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save and publish the page.",
-      },
-      {
-        text: "Verify using Google's Rich Results Test at search.google.com/test/rich-results.",
-      },
+      { text: "Open the page in your CMS editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Add a visible FAQ section to the page using your CMS's accordion or text blocks. The questions and answers must match what's in the schema below." },
+      { text: "In the page <head> code injection area, paste this JSON-LD:", copyable: { label: "FAQ JSON-LD", valueKey: "proposed_value" }, warning: "FAQ schema is only valid if the questions and answers also appear visibly on the page." },
+      { text: "Save and publish, then validate at https://search.google.com/test/rich-results." },
     ],
   },
-
   location_signals: {
     deliverable: "location_signals",
     platform: "generic",
-    title: "Add location signals",
-    estimatedMinutes: 10,
+    title: "Add local business / location signals",
+    estimatedMinutes: 8,
     steps: [
-      {
-        text: 'Open the page at {{page_url}} in your CMS editor.',
-      },
-      {
-        text: "Locate the section identified in the recommendation (typically a services list, about section, or footer area).",
-      },
-      {
-        text: "Insert the provided location text naturally into the content.",
-        copyable: { label: "Location text to add", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save or publish the page.",
-      },
+      { text: "Open the page in your CMS editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Add LocalBusiness JSON-LD to the page <head>:", copyable: { label: "LocalBusiness JSON-LD", valueKey: "proposed_value" } },
+      { text: "Verify your address and hours match what's listed on your Google Business Profile." },
+      { text: "Save and publish, then validate at https://search.google.com/test/rich-results." },
     ],
   },
-
   redirect: {
     deliverable: "redirect",
     platform: "generic",
-    title: "Set up 301 redirect",
-    estimatedMinutes: 10,
+    title: "Set up a 301 redirect",
+    estimatedMinutes: 5,
     steps: [
-      {
-        text: "Find the redirect management section in your CMS or hosting provider. This is commonly labeled Redirects, URL Redirects, or found in your site settings.",
-      },
-      {
-        text: "Create a new redirect with the following settings: Type 301 (permanent), From path set to the old URL, To path set to the destination URL.",
-        copyable: { label: "Redirect rule", valueKey: "proposed_value" },
-        warning: "Use 301 (permanent) not 302 (temporary). A 302 does not pass SEO value to the destination.",
-      },
-      {
-        text: "Save the redirect and test it by visiting the old URL in your browser to confirm it forwards correctly.",
-      },
+      { text: "Find your CMS's redirect manager (often under SEO settings, or a plugin called 'Redirects' / 'URL Redirects')." },
+      { text: "Create a new 301 (permanent) redirect from this source path:", copyable: { label: "From", valueKey: "current_value" } },
+      { text: "To this destination:", copyable: { label: "To", valueKey: "proposed_value" } },
+      { text: "Save the redirect." },
+      { text: "Test by visiting the source URL in an incognito window — it should redirect to the destination.", warning: "Use 301 (permanent), not 302 (temporary)." },
     ],
   },
-
   canonical: {
     deliverable: "canonical",
     platform: "generic",
-    title: "Set canonical URL",
-    estimatedMinutes: 5,
+    title: "Set the canonical URL",
+    estimatedMinutes: 4,
     steps: [
-      {
-        text: 'Open the page at {{page_url}} in your CMS.',
-      },
-      {
-        text: 'Find the canonical URL field. This is typically in the SEO settings for the page, labeled "Canonical URL" or "Canonical link".',
-      },
-      {
-        text: "Enter the canonical URL as specified in the recommendation.",
-        copyable: { label: "Canonical URL", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save or publish the page.",
-      },
+      { text: "Open the page in your CMS editor.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Find the SEO panel and locate the canonical URL field (sometimes called 'Canonical', 'rel=canonical', or 'Custom canonical URL')." },
+      { text: "Set it to this value:", copyable: { label: "Canonical URL", valueKey: "proposed_value" } },
+      { text: "Save and publish." },
+      { text: "View-source the page and confirm <link rel=\"canonical\"> matches." },
     ],
   },
-
   alt_text: {
     deliverable: "alt_text",
     platform: "generic",
-    title: "Update image alt text",
-    estimatedMinutes: 5,
+    title: "Add alt text to an image",
+    estimatedMinutes: 2,
     steps: [
-      {
-        text: 'Open the page at {{page_url}} in your CMS editor.',
-      },
-      {
-        text: "Click the image identified in the recommendation to open its settings panel.",
-      },
-      {
-        text: 'Find the field labeled "Alt text", "Alternative text", or "Image description".',
-      },
-      {
-        text: "Enter the proposed alt text.",
-        copyable: { label: "Alt text", valueKey: "proposed_value" },
-      },
-      {
-        text: "Save or publish the page.",
-      },
+      { text: "Find the image referenced at this URL.", copyable: { label: "Page URL", valueKey: "page_url" } },
+      { text: "Open the image in your media library or page editor and update the alt text field." },
+      { text: "Use this alt text:", copyable: { label: "Alt text", valueKey: "proposed_value" } },
+      { text: "Save the image / page." },
     ],
   },
-
   robots_txt: {
     deliverable: "robots_txt",
     platform: "generic",
     title: "Update robots.txt",
-    estimatedMinutes: 10,
-    prerequisites: ["Back up the current robots.txt before making changes."],
+    estimatedMinutes: 5,
     steps: [
-      {
-        text: "Locate your robots.txt file. On most platforms this is under Settings > SEO or accessible at yourdomain.com/robots.txt. Some CMS platforms have a built-in editor.",
-      },
-      {
-        text: "Apply the change specified in the recommendation.",
-        copyable: { label: "Proposed robots.txt update", valueKey: "proposed_value" },
-        warning: "Incorrect robots.txt entries can accidentally block search engines from your entire site. Double-check any Disallow rules before saving.",
-      },
-      {
-        text: "Save and verify at yourdomain.com/robots.txt that the change is live.",
-      },
-      {
-        text: "Submit the robots.txt URL in Google Search Console under Settings > robots.txt if prompted.",
-      },
+      { text: "Find your CMS's robots.txt management (often under SEO settings or hosting/server config)." },
+      { text: "Update the file to this content:", copyable: { label: "robots.txt", valueKey: "proposed_value" } },
+      { text: "Save the file.", warning: "After saving, visit yourdomain.com/robots.txt in an incognito window to confirm the changes are live." },
     ],
   },
-
   sitemap_xml: {
     deliverable: "sitemap_xml",
     platform: "generic",
-    title: "Update or regenerate sitemap",
-    estimatedMinutes: 10,
+    title: "Update the XML sitemap",
+    estimatedMinutes: 5,
     steps: [
-      {
-        text: "Most CMS platforms generate sitemaps automatically. Check if your platform has a sitemap setting under SEO or Site Settings.",
-      },
-      {
-        text: "Apply the change described in the recommendation. This may mean enabling the sitemap, excluding specific pages, or forcing a regeneration.",
-        copyable: { label: "Recommendation", valueKey: "proposed_value" },
-      },
-      {
-        text: "Confirm the sitemap is accessible at yourdomain.com/sitemap.xml.",
-      },
-      {
-        text: "Submit the sitemap URL in Google Search Console under Sitemaps to ensure Google picks up the update promptly.",
-      },
+      { text: "Most CMSs and SEO plugins generate the sitemap automatically. Confirm yours does." },
+      { text: "If manual: update the sitemap file to include or exclude the URLs in the recommendation.", copyable: { label: "Recommended changes", valueKey: "proposed_value" } },
+      { text: "Submit the updated sitemap URL in Google Search Console under Sitemaps." },
     ],
   },
-
   indexation_submit: {
     deliverable: "indexation_submit",
     platform: "generic",
-    title: "Submit URL for indexing",
-    estimatedMinutes: 5,
+    title: "Request indexation in Google Search Console",
+    estimatedMinutes: 3,
     steps: [
-      {
-        text: "Go to Google Search Console (search.google.com/search-console) and select your property.",
-      },
-      {
-        text: 'Paste the page URL into the URL Inspection tool at the top of the page.',
-        copyable: { label: "Page URL", valueKey: "page_url" },
-      },
-      {
-        text: 'Once the inspection loads, click "Request Indexing".',
-      },
-      {
-        text: "Google typically processes indexing requests within a few days. You can revisit URL Inspection to check the current index status.",
-      },
+      { text: "Go to https://search.google.com/search-console and select your property." },
+      { text: "Use the URL Inspection tool at the top — paste the URL.", copyable: { label: "URL to submit", valueKey: "page_url" } },
+      { text: "Click 'Test Live URL' to confirm the page can be crawled." },
+      { text: "Click 'Request Indexing'.", warning: "Google rate-limits this to roughly ~10 URL requests per day per property." },
     ],
   },
 };

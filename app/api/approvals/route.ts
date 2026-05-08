@@ -53,10 +53,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch change record upfront — needed for ownership check and gate logic
-    type ChangeRecord = { id: string; fields: { client_id?: string; auto_executable?: boolean; requires_design_review?: boolean; type?: string; page_url?: string } };
+    type ChangeRecord = { id: string; fields: { client_id?: string; auto_executable?: boolean; requires_design_review?: boolean; client_self_implement?: boolean; type?: string; page_url?: string } };
     const changeRecords = await airtableFetch<ChangeRecord>("Changes", {
       filterByFormula: `RECORD_ID()="${recordId}"`,
-      fields: ["client_id", "auto_executable", "requires_design_review", "type", "page_url"],
+      fields: ["client_id", "auto_executable", "requires_design_review", "client_self_implement", "type", "page_url"],
       maxRecords: 1,
     });
     if (!changeRecords[0]) {
@@ -110,9 +110,15 @@ export async function POST(request: NextRequest) {
       // are written atomically — no partial state if the patch fails.
       const autoExecutable = changeFields.auto_executable === true;
       const requiresDesignReview = changeFields.requires_design_review === true;
+      const clientSelfImplement = changeFields.client_self_implement === true;
+      const clientImplementsManually = (client.fields as Record<string, unknown>).implementation_included === false;
 
       let executionStatus: string;
-      if (!autoExecutable) {
+      if (clientSelfImplement || clientImplementsManually) {
+        // Client opted into self-implementation (or their account doesn't include implementation).
+        // Route to awaiting_client_implementation so the portal renders the CMS guide.
+        executionStatus = "awaiting_client_implementation";
+      } else if (!autoExecutable) {
         executionStatus = "manual_required";
       } else if (requiresDesignReview) {
         executionStatus = "design_review_required";
@@ -174,6 +180,10 @@ export async function POST(request: NextRequest) {
 
       if (executionStatus === "design_review_required") {
         return NextResponse.json({ ok: true, queued: false, outcome: "design_review_required" });
+      }
+
+      if (executionStatus === "awaiting_client_implementation") {
+        return NextResponse.json({ ok: true, queued: false, outcome: "awaiting_client_implementation" });
       }
 
       // Both gates passed — queue implement job.

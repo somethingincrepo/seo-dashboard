@@ -2,54 +2,62 @@
 
 import { CopyButton } from "@/components/ui/CopyButton";
 import type { GuideStep } from "@/lib/implementation-guides/types";
-import type { ChangeFields } from "@/lib/changes";
 
-type Props = {
-  steps: GuideStep[];
-  fields?: ChangeFields;
-};
+// Source bag of values the guide can pull copyables and {{placeholders}} from.
+// For approval-flow changes this is essentially the Change.fields shape; for the
+// full-article-publish surface we synthesize a similar bag with html_body / slug etc.
+export type GuideValueBag = Partial<Record<string, string>>;
 
-function substitute(text: string, fields?: ChangeFields): string {
-  if (!fields) return text;
-  return text
-    .replace(/{{proposed_value}}/g, fields.proposed_value ?? "")
-    .replace(/{{page_url}}/g, fields.page_url ?? "")
-    .replace(/{{current_value}}/g, fields.current_value ?? "");
+function substitute(text: string, values: GuideValueBag): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_match, key) => {
+    const v = values[key];
+    return v == null || v === "" ? `{${key} not available}` : String(v);
+  });
 }
 
-export function GuideStepList({ steps, fields }: Props) {
+interface GuideStepListProps {
+  steps: GuideStep[];
+  values: GuideValueBag;
+}
+
+export function GuideStepList({ steps, values }: GuideStepListProps) {
   return (
-    <ol className="space-y-3">
-      {steps.map((step, i) => {
-        const text = substitute(step.text, fields);
-        const copyValue = step.copyable && fields
-          ? String(fields[step.copyable.valueKey] ?? "")
-          : undefined;
-
+    <ol className="space-y-4">
+      {steps.map((step, idx) => {
+        const copyValue = step.copyable ? values[step.copyable.valueKey] : undefined;
         return (
-          <li key={i} className="flex gap-3">
-            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold flex items-center justify-center mt-0.5">
-              {i + 1}
-            </span>
-            <div className="flex-1 min-w-0 space-y-2">
-              <p className="text-[13px] text-slate-600 leading-relaxed">{text}</p>
-
-              {step.copyable && copyValue && (
-                <div className="flex items-center gap-2 rounded-lg bg-slate-50 border border-slate-150 px-3 py-2">
-                  <span className="text-[11px] font-medium text-slate-400 shrink-0">
-                    {step.copyable.label}
-                  </span>
-                  <span className="flex-1 text-[12px] text-slate-700 font-mono truncate">
-                    {copyValue}
-                  </span>
-                  <CopyButton value={copyValue} label="Copy" />
+          <li key={idx} className="flex gap-3">
+            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold flex items-center justify-center mt-0.5">
+              {idx + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-700 leading-relaxed">
+                {substitute(step.text, values)}
+              </p>
+              {step.warning && (
+                <div className="mt-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                  ⚠ {step.warning}
                 </div>
               )}
-
-              {step.warning && (
-                <div className="flex gap-2 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-                  <span className="text-amber-500 text-[12px] shrink-0 mt-px">!</span>
-                  <p className="text-[12px] text-amber-700 leading-relaxed">{step.warning}</p>
+              {step.copyable && (
+                <div className="mt-2">
+                  {copyValue ? (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 overflow-hidden">
+                      <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-200 bg-white">
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                          {step.copyable.label}
+                        </span>
+                        <CopyButton value={copyValue} label="Copy" />
+                      </div>
+                      <pre className="px-3 py-2 text-xs text-slate-700 whitespace-pre-wrap break-words font-mono max-h-72 overflow-auto">
+                        {copyValue}
+                      </pre>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400 italic">
+                      ({step.copyable.label} not available for this change)
+                    </div>
+                  )}
                 </div>
               )}
             </div>
