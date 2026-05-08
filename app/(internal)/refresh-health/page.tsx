@@ -28,6 +28,14 @@ type JobRow = {
   payload: Record<string, unknown> | null;
 };
 
+type AuditRunRow = {
+  id: string;
+  client_id: string;
+  status: string;
+  created_at: string;
+  error_message: string | null;
+};
+
 type RefreshRow = { client_id: string; status: string; proposed_at: string };
 
 type LinkChangeRow = { id: string; fields: { client_id?: string | string[]; identified_at?: string } };
@@ -42,11 +50,13 @@ type ClientHealth = {
   last_refresh_scheduler: JobRow | null;
   last_audit_internal_links: JobRow | null;
   last_title_generation: JobRow | null;
-  last_report_generate: JobRow | null;
+  last_audit_run: AuditRunRow | null;
   refreshes_this_month: number;
   links_this_month: number;
   stuck_refreshes: number;
 };
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
 
 function startOfMonthISO(): string {
   const d = new Date();
@@ -67,6 +77,32 @@ function thirtyDaysAgoISO(): string {
   return d.toISOString();
 }
 
+/** Next Monday 00:00 UTC */
+function nextWeeklyRunISO(): string {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dow = d.getUTCDay() || 7; // Mon=1…Sun=7
+  d.setUTCDate(d.getUTCDate() + (8 - dow));
+  return d.toISOString();
+}
+
+/** 3rd of next month — monthly audits fire starting day 3 (after month_advance on day 1) */
+function nextMonthlyAuditISO(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 3)).toISOString();
+}
+
+/** Format a future ISO as "today" / "tomorrow" / "in Xd" / "Apr 28" */
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  const diffMs = d.getTime() - Date.now();
+  const diffDays = Math.ceil(diffMs / 86_400_000);
+  if (diffDays <= 0) return "today";
+  if (diffDays === 1) return "tomorrow";
+  if (diffDays < 14) return `in ${diffDays}d`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function fmtRelative(iso: string | null): string {
   if (!iso) return "never";
   const t = new Date(iso).getTime();
@@ -83,11 +119,16 @@ function fmtRelative(iso: string | null): string {
 function statusTone(status: string | null): string {
   switch (status) {
     case "done":
+    case "complete":
       return "text-green-600";
     case "failed":
       return "text-red-500";
     case "running":
     case "claimed":
+    case "crawling":
+    case "crawled":
+    case "diagnosing":
+    case "queued":
       return "text-blue-500";
     case "pending":
       return "text-amber-500";
@@ -95,6 +136,8 @@ function statusTone(status: string | null): string {
       return "text-slate-400";
   }
 }
+
+// ── Data loading ──────────────────────────────────────────────────────────────
 
 async function loadClientHealth(): Promise<ClientHealth[]> {
   const clients = await airtableFetch<ClientRecord>("Clients", {
@@ -110,7 +153,6 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
   const monthStart = startOfMonthISO();
   const stuckCutoff = thirtyDaysAgoISO();
 
-  // Fetch in parallel: jobs (last 90d), this-month refreshes, last-30d failed refreshes, internal-link Changes (this month).
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setUTCDate(ninetyDaysAgo.getUTCDate() - 90);
 
@@ -118,18 +160,17 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
     { data: jobsData },
     { data: refreshesData },
     { data: stuckData },
+    { data: auditRunsData },
   ] = await Promise.all([
     supabase
       .from("jobs")
       .select("id, sop_name, client_id, status, created_at, finished_at, error, payload")
-      .in("sop_name", ["refresh_scheduler", "audit_internal_links", "title_generation", "report_generate"])
+      .in("sop_name", ["refresh_scheduler", "audit_internal_links", "title_generation"])
       .gte("created_at", ninetyDaysAgo.toISOString())
       .order("created_at", { ascending: false })
       .limit(2000),
     // "Delivered" = what the client actually sees in their portal:
     // completed (awaiting review) + approved_for_publish + published.
-    // Mirrors the filter in components/portal/ContentOptimization.tsx so the
-    // admin number reconciles with what the client sees.
     supabase
       .from("content_refreshes")
       .select("client_id, status, proposed_at")
@@ -144,21 +185,26 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
       .eq("status", "failed")
       .gte("proposed_at", stuckCutoff)
       .limit(2000),
+    supabase
+      .from("audit_runs")
+      .select("id, client_id, status, created_at, error_message")
+      .in("client_id", ids)
+      .gte("created_at", ninetyDaysAgo.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(500),
   ]);
 
   const jobs = (jobsData ?? []) as JobRow[];
   const refreshes = (refreshesData ?? []) as RefreshRow[];
   const stuck = (stuckData ?? []) as RefreshRow[];
+  const auditRuns = (auditRunsData ?? []) as AuditRunRow[];
 
-  // Latest refresh_scheduler per client. The cron mode runs with no client_id
-  // (one global job processes all clients) — use that as the client's "last
-  // refresh_scheduler" too if no client-scoped run is more recent.
+  // Latest refresh_scheduler per client — fall back to the global (no client_id) run
   const latestGlobalRefresh = jobs.find((j) => j.sop_name === "refresh_scheduler" && !j.client_id) ?? null;
 
   const latestRefreshByClient = new Map<string, JobRow>();
   const latestLinksByClient = new Map<string, JobRow>();
   const latestTitlesByClient = new Map<string, JobRow>();
-  const latestReportByClient = new Map<string, JobRow>();
   for (const j of jobs) {
     if (j.sop_name === "refresh_scheduler" && j.client_id) {
       if (!latestRefreshByClient.has(j.client_id)) latestRefreshByClient.set(j.client_id, j);
@@ -166,9 +212,13 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
       if (!latestLinksByClient.has(j.client_id)) latestLinksByClient.set(j.client_id, j);
     } else if (j.sop_name === "title_generation" && j.client_id) {
       if (!latestTitlesByClient.has(j.client_id)) latestTitlesByClient.set(j.client_id, j);
-    } else if (j.sop_name === "report_generate" && j.client_id) {
-      if (!latestReportByClient.has(j.client_id)) latestReportByClient.set(j.client_id, j);
     }
+  }
+
+  // Latest audit_run per client (ordered newest-first, so first match wins)
+  const latestAuditByClient = new Map<string, AuditRunRow>();
+  for (const r of auditRuns) {
+    if (!latestAuditByClient.has(r.client_id)) latestAuditByClient.set(r.client_id, r);
   }
 
   const refreshCountByClient = new Map<string, number>();
@@ -180,8 +230,7 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
     stuckCountByClient.set(r.client_id, (stuckCountByClient.get(r.client_id) ?? 0) + 1);
   }
 
-  // Internal-link Changes this month — count via Airtable. The Changes table
-  // uses `identified_at` (set by changes-writer.ts) not `created_at`.
+  // Internal-link Changes this month — count via Airtable
   const changes = await airtableFetch<LinkChangeRow>("Changes", {
     filterByFormula: `AND({type}="Internal Link",IS_AFTER({identified_at},"${monthStart}"))`,
     fields: ["client_id", "identified_at"],
@@ -215,13 +264,15 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
       last_refresh_scheduler: lastRefresh,
       last_audit_internal_links: latestLinksByClient.get(c.id) ?? null,
       last_title_generation: latestTitlesByClient.get(c.id) ?? null,
-      last_report_generate: latestReportByClient.get(c.id) ?? null,
+      last_audit_run: latestAuditByClient.get(c.id) ?? null,
       refreshes_this_month: refreshCountByClient.get(c.id) ?? 0,
       links_this_month: linkCountByClient.get(c.id) ?? 0,
       stuck_refreshes: stuckCountByClient.get(c.id) ?? 0,
     };
   });
 }
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function RefreshHealthPage() {
   let rows: ClientHealth[] = [];
@@ -235,6 +286,8 @@ export default async function RefreshHealthPage() {
   rows.sort((a, b) => a.company.localeCompare(b.company));
   const weekStart = startOfWeekISO();
   const monthStart = startOfMonthISO();
+  const nextWeeklyRun = nextWeeklyRunISO();
+  const nextAuditRun = nextMonthlyAuditISO();
 
   const refreshThisWeek = rows.filter(
     (r) => r.last_refresh_scheduler && r.last_refresh_scheduler.created_at >= weekStart,
@@ -245,8 +298,8 @@ export default async function RefreshHealthPage() {
   const titlesThisWeek = rows.filter(
     (r) => r.last_title_generation && r.last_title_generation.created_at >= weekStart,
   ).length;
-  const reportsThisMonth = rows.filter(
-    (r) => r.last_report_generate && r.last_report_generate.created_at >= monthStart,
+  const auditsThisMonth = rows.filter(
+    (r) => r.last_audit_run && r.last_audit_run.created_at >= monthStart,
   ).length;
   const totalStuck = rows.reduce((sum, r) => sum + r.stuck_refreshes, 0);
 
@@ -255,8 +308,8 @@ export default async function RefreshHealthPage() {
       <div>
         <h1 className="text-2xl font-semibold">Deliverable Health</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Per-client status of all automatically generated deliverables — content refreshes,
-          internal links, title generation, and monthly reports. Re-fire any missed or failed job.
+          Per-client status of all automatically generated deliverables. Click any client name to
+          drill into its full job history.
         </p>
       </div>
 
@@ -267,37 +320,38 @@ export default async function RefreshHealthPage() {
       )}
 
       <section>
-        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Content</div>
+        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Content — weekly</div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SummaryTile
-            label="Active clients"
-            value={String(rows.length)}
-          />
+          <SummaryTile label="Active clients" value={String(rows.length)} />
           <SummaryTile
             label="Refresh runs this week"
             value={`${refreshThisWeek} / ${rows.length}`}
+            sub={`next: ${fmtDate(nextWeeklyRun)}`}
             tone={refreshThisWeek === rows.length ? "ok" : refreshThisWeek === 0 ? "err" : "warn"}
           />
           <SummaryTile
             label="Internal-link runs this week"
             value={`${linksThisWeek} / ${rows.length}`}
+            sub={`next: ${fmtDate(nextWeeklyRun)}`}
             tone={linksThisWeek === rows.length ? "ok" : linksThisWeek === 0 ? "err" : "warn"}
           />
         </div>
       </section>
 
       <section>
-        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Technical</div>
+        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Technical — weekly / monthly</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SummaryTile
             label="Title generation runs this week"
             value={`${titlesThisWeek} / ${rows.length}`}
+            sub={`next: ${fmtDate(nextWeeklyRun)}`}
             tone={titlesThisWeek === rows.length ? "ok" : titlesThisWeek === 0 ? "err" : "warn"}
           />
           <SummaryTile
-            label="Monthly reports this month"
-            value={`${reportsThisMonth} / ${rows.length}`}
-            tone={reportsThisMonth === rows.length ? "ok" : reportsThisMonth === 0 ? "err" : "warn"}
+            label="Site audits this month"
+            value={`${auditsThisMonth} / ${rows.length}`}
+            sub={`next scheduled: ${fmtDate(nextAuditRun)}`}
+            tone={auditsThisMonth === rows.length ? "ok" : auditsThisMonth === 0 ? "err" : "warn"}
           />
         </div>
       </section>
@@ -307,8 +361,7 @@ export default async function RefreshHealthPage() {
           <div className="px-5 py-3 text-sm">
             <span className="font-medium text-amber-700">{totalStuck}</span>{" "}
             <span className="text-slate-600">
-              stuck (failed) content refresh{totalStuck === 1 ? "" : "es"} in the last 30 days. Inspect
-              individual rows below.
+              stuck (failed) content refresh{totalStuck === 1 ? "" : "es"} in the last 30 days.
             </span>
           </div>
         </GlassCard>
@@ -327,7 +380,7 @@ export default async function RefreshHealthPage() {
                   <th className="text-left px-3 py-3 font-medium">Last refresh job</th>
                   <th className="text-left px-3 py-3 font-medium">Last links job</th>
                   <th className="text-left px-3 py-3 font-medium">Last titles job</th>
-                  <th className="text-left px-3 py-3 font-medium">Report (mo)</th>
+                  <th className="text-left px-3 py-3 font-medium">Audit (mo)</th>
                   <th className="text-left px-3 py-3 font-medium">Stuck</th>
                   <th className="text-right px-5 py-3 font-medium">Actions</th>
                 </tr>
@@ -341,10 +394,12 @@ export default async function RefreshHealthPage() {
                   </tr>
                 )}
                 {rows.map((r) => (
-                  <tr key={r.id}>
+                  <tr key={r.id} className="hover:bg-slate-50/50">
                     <td className="px-5 py-3">
-                      <div className="font-medium text-slate-800">{r.company}</div>
-                      <div className="text-[11px] text-slate-400">{r.plan_status}</div>
+                      <Link href={`/refresh-health/${r.id}`} className="block hover:underline">
+                        <div className="font-medium text-slate-800">{r.company}</div>
+                        <div className="text-[11px] text-slate-400">{r.plan_status}</div>
+                      </Link>
                     </td>
                     <td className="px-3 py-3 text-slate-600 capitalize">{r.package}</td>
                     <td className="px-3 py-3">
@@ -354,16 +409,16 @@ export default async function RefreshHealthPage() {
                       <QuotaCell delivered={r.links_this_month} quota={r.link_quota} />
                     </td>
                     <td className="px-3 py-3">
-                      <JobCell job={r.last_refresh_scheduler} staleIfBefore={weekStart} />
+                      <JobCell job={r.last_refresh_scheduler} staleIfBefore={weekStart} nextRun={nextWeeklyRun} />
                     </td>
                     <td className="px-3 py-3">
-                      <JobCell job={r.last_audit_internal_links} staleIfBefore={weekStart} />
+                      <JobCell job={r.last_audit_internal_links} staleIfBefore={weekStart} nextRun={nextWeeklyRun} />
                     </td>
                     <td className="px-3 py-3">
-                      <JobCell job={r.last_title_generation} staleIfBefore={weekStart} />
+                      <JobCell job={r.last_title_generation} staleIfBefore={weekStart} nextRun={nextWeeklyRun} />
                     </td>
                     <td className="px-3 py-3">
-                      <JobCell job={r.last_report_generate} staleIfBefore={monthStart} staleLabel="missed this month" />
+                      <AuditRunCell run={r.last_audit_run} monthStart={monthStart} nextRun={nextAuditRun} />
                     </td>
                     <td className="px-3 py-3 text-center">
                       {r.stuck_refreshes > 0 ? (
@@ -386,30 +441,40 @@ export default async function RefreshHealthPage() {
       </section>
 
       <p className="text-xs text-slate-400">
-        Backstop cron at{" "}
+        Weekly backstop cron at{" "}
         <Link href="/jobs" className="underline hover:text-slate-600">
           /api/cron/weekly-health-check
         </Link>{" "}
-        runs every Monday 13:00 UTC and re-fires any missing weekly job.
+        runs every Monday 13:00 UTC. Monthly audits are scheduled automatically from day 3 of each month.
       </p>
     </div>
   );
 }
 
-function SummaryTile({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "ok" | "warn" | "err" }) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function SummaryTile({
+  label,
+  value,
+  sub,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "neutral" | "ok" | "warn" | "err";
+}) {
   const toneCls =
-    tone === "ok"
-      ? "text-green-600"
-      : tone === "warn"
-        ? "text-amber-600"
-        : tone === "err"
-          ? "text-red-500"
-          : "text-slate-800";
+    tone === "ok" ? "text-green-600" :
+    tone === "warn" ? "text-amber-600" :
+    tone === "err" ? "text-red-500" :
+    "text-slate-800";
   return (
     <GlassCard>
       <div className="px-5 py-4">
         <div className="text-xs text-slate-400 uppercase tracking-wider">{label}</div>
         <div className={`text-2xl font-semibold mt-1 ${toneCls}`}>{value}</div>
+        {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
       </div>
     </GlassCard>
   );
@@ -425,10 +490,7 @@ function QuotaCell({ delivered, quota }: { delivered: number; quota: number }) {
         <span className="text-slate-300"> / {quota}</span>
       </span>
       <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-slate-300"
-          style={{ width: `${ratio * 100}%` }}
-        />
+        <div className="h-full bg-slate-300" style={{ width: `${ratio * 100}%` }} />
       </div>
     </div>
   );
@@ -438,12 +500,21 @@ function JobCell({
   job,
   staleIfBefore,
   staleLabel = "missed this week",
+  nextRun,
 }: {
   job: JobRow | null;
   staleIfBefore: string;
   staleLabel?: string;
+  nextRun?: string;
 }) {
-  if (!job) return <span className="text-slate-300 text-xs">never</span>;
+  if (!job) {
+    return (
+      <div>
+        <span className="text-slate-300 text-xs">never</span>
+        {nextRun && <div className="text-[10px] text-slate-400 mt-0.5">next: {fmtDate(nextRun)}</div>}
+      </div>
+    );
+  }
   const stale = job.created_at < staleIfBefore;
   return (
     <Link href={`/jobs/${job.id}`} className="block hover:underline">
@@ -451,11 +522,41 @@ function JobCell({
         <span className="font-medium uppercase tracking-wide">{job.status}</span>
         <span className="text-slate-400 ml-1">{fmtRelative(job.created_at)}</span>
       </div>
-      {stale && (
-        <div className="text-[10px] text-amber-600 mt-0.5">{staleLabel}</div>
-      )}
-      {job.error && (
-        <div className="text-[10px] text-red-400 line-clamp-1 mt-0.5">{job.error}</div>
+      {stale && <div className="text-[10px] text-amber-600 mt-0.5">{staleLabel}</div>}
+      {!stale && nextRun && <div className="text-[10px] text-slate-400 mt-0.5">next: {fmtDate(nextRun)}</div>}
+      {job.error && <div className="text-[10px] text-red-400 line-clamp-1 mt-0.5">{job.error}</div>}
+    </Link>
+  );
+}
+
+function AuditRunCell({
+  run,
+  monthStart,
+  nextRun,
+}: {
+  run: AuditRunRow | null;
+  monthStart: string;
+  nextRun: string;
+}) {
+  if (!run) {
+    return (
+      <div>
+        <span className="text-slate-300 text-xs">never</span>
+        <div className="text-[10px] text-slate-400 mt-0.5">next: {fmtDate(nextRun)}</div>
+      </div>
+    );
+  }
+  const stale = run.created_at < monthStart;
+  return (
+    <Link href={`/audit/${run.id}`} className="block hover:underline">
+      <div className={`text-xs ${statusTone(run.status)}`}>
+        <span className="font-medium uppercase tracking-wide">{run.status}</span>
+        <span className="text-slate-400 ml-1">{fmtRelative(run.created_at)}</span>
+      </div>
+      {stale && <div className="text-[10px] text-amber-600 mt-0.5">missed this month</div>}
+      {!stale && <div className="text-[10px] text-slate-400 mt-0.5">next: {fmtDate(nextRun)}</div>}
+      {run.error_message && (
+        <div className="text-[10px] text-red-400 line-clamp-1 mt-0.5">{run.error_message}</div>
       )}
     </Link>
   );

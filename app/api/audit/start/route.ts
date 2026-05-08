@@ -18,14 +18,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { client_id?: string; root_url?: string };
+  let body: { client_id?: string; root_url?: string; triggered_by?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { client_id, root_url } = body;
+  const { client_id, root_url, triggered_by } = body;
   if (!client_id) {
     return NextResponse.json({ error: "client_id is required" }, { status: 400 });
   }
@@ -120,11 +120,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const validTriggers = ["admin_rerun", "scheduled", "intake"] as const;
+    type Trigger = typeof validTriggers[number];
+    const resolvedTrigger: Trigger =
+      triggered_by && (validTriggers as readonly string[]).includes(triggered_by)
+        ? (triggered_by as Trigger)
+        : "admin_rerun";
+
     const result = await triggerAudit({
       client_id,
       client_name: clientName,
       root_url: derivedRoot,
-      triggered_by: "admin_rerun",
+      triggered_by: resolvedTrigger,
       nav_urls: navUrls,
     });
     return NextResponse.json({ ok: true, audit_run_id: result.audit_run_id }, { status: 201 });
