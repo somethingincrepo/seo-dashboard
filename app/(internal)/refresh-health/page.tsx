@@ -41,6 +41,8 @@ type ClientHealth = {
   link_quota: number;
   last_refresh_scheduler: JobRow | null;
   last_audit_internal_links: JobRow | null;
+  last_title_generation: JobRow | null;
+  last_report_generate: JobRow | null;
   refreshes_this_month: number;
   links_this_month: number;
   stuck_refreshes: number;
@@ -120,7 +122,7 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
     supabase
       .from("jobs")
       .select("id, sop_name, client_id, status, created_at, finished_at, error, payload")
-      .in("sop_name", ["refresh_scheduler", "audit_internal_links"])
+      .in("sop_name", ["refresh_scheduler", "audit_internal_links", "title_generation", "report_generate"])
       .gte("created_at", ninetyDaysAgo.toISOString())
       .order("created_at", { ascending: false })
       .limit(2000),
@@ -155,11 +157,17 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
 
   const latestRefreshByClient = new Map<string, JobRow>();
   const latestLinksByClient = new Map<string, JobRow>();
+  const latestTitlesByClient = new Map<string, JobRow>();
+  const latestReportByClient = new Map<string, JobRow>();
   for (const j of jobs) {
     if (j.sop_name === "refresh_scheduler" && j.client_id) {
       if (!latestRefreshByClient.has(j.client_id)) latestRefreshByClient.set(j.client_id, j);
     } else if (j.sop_name === "audit_internal_links" && j.client_id) {
       if (!latestLinksByClient.has(j.client_id)) latestLinksByClient.set(j.client_id, j);
+    } else if (j.sop_name === "title_generation" && j.client_id) {
+      if (!latestTitlesByClient.has(j.client_id)) latestTitlesByClient.set(j.client_id, j);
+    } else if (j.sop_name === "report_generate" && j.client_id) {
+      if (!latestReportByClient.has(j.client_id)) latestReportByClient.set(j.client_id, j);
     }
   }
 
@@ -206,6 +214,8 @@ async function loadClientHealth(): Promise<ClientHealth[]> {
       link_quota: PACKAGES[pkg].internal_links,
       last_refresh_scheduler: lastRefresh,
       last_audit_internal_links: latestLinksByClient.get(c.id) ?? null,
+      last_title_generation: latestTitlesByClient.get(c.id) ?? null,
+      last_report_generate: latestReportByClient.get(c.id) ?? null,
       refreshes_this_month: refreshCountByClient.get(c.id) ?? 0,
       links_this_month: linkCountByClient.get(c.id) ?? 0,
       stuck_refreshes: stuckCountByClient.get(c.id) ?? 0,
@@ -224,6 +234,7 @@ export default async function RefreshHealthPage() {
 
   rows.sort((a, b) => a.company.localeCompare(b.company));
   const weekStart = startOfWeekISO();
+  const monthStart = startOfMonthISO();
 
   const refreshThisWeek = rows.filter(
     (r) => r.last_refresh_scheduler && r.last_refresh_scheduler.created_at >= weekStart,
@@ -231,15 +242,21 @@ export default async function RefreshHealthPage() {
   const linksThisWeek = rows.filter(
     (r) => r.last_audit_internal_links && r.last_audit_internal_links.created_at >= weekStart,
   ).length;
+  const titlesThisWeek = rows.filter(
+    (r) => r.last_title_generation && r.last_title_generation.created_at >= weekStart,
+  ).length;
+  const reportsThisMonth = rows.filter(
+    (r) => r.last_report_generate && r.last_report_generate.created_at >= monthStart,
+  ).length;
   const totalStuck = rows.reduce((sum, r) => sum + r.stuck_refreshes, 0);
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Refresh Health</h1>
+        <h1 className="text-2xl font-semibold">Deliverable Health</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Per-client status of weekly content refreshes and internal-link batches. Re-fire
-          a job for any client whose run failed or was missed.
+          Per-client status of all automatically generated deliverables — content refreshes,
+          internal links, title generation, and monthly reports. Re-fire any missed or failed job.
         </p>
       </div>
 
@@ -249,21 +266,40 @@ export default async function RefreshHealthPage() {
         </GlassCard>
       )}
 
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <SummaryTile
-          label="Active clients"
-          value={String(rows.length)}
-        />
-        <SummaryTile
-          label="Refresh runs this week"
-          value={`${refreshThisWeek} / ${rows.length}`}
-          tone={refreshThisWeek === rows.length ? "ok" : refreshThisWeek === 0 ? "err" : "warn"}
-        />
-        <SummaryTile
-          label="Internal-link runs this week"
-          value={`${linksThisWeek} / ${rows.length}`}
-          tone={linksThisWeek === rows.length ? "ok" : linksThisWeek === 0 ? "err" : "warn"}
-        />
+      <section>
+        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Content</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <SummaryTile
+            label="Active clients"
+            value={String(rows.length)}
+          />
+          <SummaryTile
+            label="Refresh runs this week"
+            value={`${refreshThisWeek} / ${rows.length}`}
+            tone={refreshThisWeek === rows.length ? "ok" : refreshThisWeek === 0 ? "err" : "warn"}
+          />
+          <SummaryTile
+            label="Internal-link runs this week"
+            value={`${linksThisWeek} / ${rows.length}`}
+            tone={linksThisWeek === rows.length ? "ok" : linksThisWeek === 0 ? "err" : "warn"}
+          />
+        </div>
+      </section>
+
+      <section>
+        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Technical</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SummaryTile
+            label="Title generation runs this week"
+            value={`${titlesThisWeek} / ${rows.length}`}
+            tone={titlesThisWeek === rows.length ? "ok" : titlesThisWeek === 0 ? "err" : "warn"}
+          />
+          <SummaryTile
+            label="Monthly reports this month"
+            value={`${reportsThisMonth} / ${rows.length}`}
+            tone={reportsThisMonth === rows.length ? "ok" : reportsThisMonth === 0 ? "err" : "warn"}
+          />
+        </div>
       </section>
 
       {totalStuck > 0 && (
@@ -290,6 +326,8 @@ export default async function RefreshHealthPage() {
                   <th className="text-left px-3 py-3 font-medium">Links</th>
                   <th className="text-left px-3 py-3 font-medium">Last refresh job</th>
                   <th className="text-left px-3 py-3 font-medium">Last links job</th>
+                  <th className="text-left px-3 py-3 font-medium">Last titles job</th>
+                  <th className="text-left px-3 py-3 font-medium">Report (mo)</th>
                   <th className="text-left px-3 py-3 font-medium">Stuck</th>
                   <th className="text-right px-5 py-3 font-medium">Actions</th>
                 </tr>
@@ -297,7 +335,7 @@ export default async function RefreshHealthPage() {
               <tbody className="divide-y divide-slate-100">
                 {rows.length === 0 && !loadError && (
                   <tr>
-                    <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
+                    <td colSpan={10} className="px-5 py-10 text-center text-slate-400">
                       No active clients found.
                     </td>
                   </tr>
@@ -316,10 +354,16 @@ export default async function RefreshHealthPage() {
                       <QuotaCell delivered={r.links_this_month} quota={r.link_quota} />
                     </td>
                     <td className="px-3 py-3">
-                      <JobCell job={r.last_refresh_scheduler} weekStart={weekStart} />
+                      <JobCell job={r.last_refresh_scheduler} staleIfBefore={weekStart} />
                     </td>
                     <td className="px-3 py-3">
-                      <JobCell job={r.last_audit_internal_links} weekStart={weekStart} />
+                      <JobCell job={r.last_audit_internal_links} staleIfBefore={weekStart} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <JobCell job={r.last_title_generation} staleIfBefore={weekStart} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <JobCell job={r.last_report_generate} staleIfBefore={monthStart} staleLabel="missed this month" />
                     </td>
                     <td className="px-3 py-3 text-center">
                       {r.stuck_refreshes > 0 ? (
@@ -390,9 +434,17 @@ function QuotaCell({ delivered, quota }: { delivered: number; quota: number }) {
   );
 }
 
-function JobCell({ job, weekStart }: { job: JobRow | null; weekStart: string }) {
+function JobCell({
+  job,
+  staleIfBefore,
+  staleLabel = "missed this week",
+}: {
+  job: JobRow | null;
+  staleIfBefore: string;
+  staleLabel?: string;
+}) {
   if (!job) return <span className="text-slate-300 text-xs">never</span>;
-  const stale = job.created_at < weekStart;
+  const stale = job.created_at < staleIfBefore;
   return (
     <Link href={`/jobs/${job.id}`} className="block hover:underline">
       <div className={`text-xs ${statusTone(job.status)}`}>
@@ -400,7 +452,7 @@ function JobCell({ job, weekStart }: { job: JobRow | null; weekStart: string }) 
         <span className="text-slate-400 ml-1">{fmtRelative(job.created_at)}</span>
       </div>
       {stale && (
-        <div className="text-[10px] text-amber-600 mt-0.5">missed this week</div>
+        <div className="text-[10px] text-amber-600 mt-0.5">{staleLabel}</div>
       )}
       {job.error && (
         <div className="text-[10px] text-red-400 line-clamp-1 mt-0.5">{job.error}</div>

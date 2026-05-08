@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Sop = "refresh_scheduler" | "audit_internal_links";
+type Sop = "refresh_scheduler" | "audit_internal_links" | "content_scheduler";
 
 interface Props {
   clientId: string;
@@ -21,7 +21,9 @@ export function RefireJobButtons({ clientId, companyName }: Props) {
       const payload =
         sop === "refresh_scheduler"
           ? { client_id: clientId, force: true }
-          : { client_id: clientId };
+          : sop === "content_scheduler"
+            ? { client_id: clientId, weekly_run: true, force: true }
+            : { client_id: clientId };
 
       const res = await fetch("/api/jobs/create", {
         method: "POST",
@@ -51,7 +53,7 @@ export function RefireJobButtons({ clientId, companyName }: Props) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           disabled={busy !== null}
@@ -67,6 +69,14 @@ export function RefireJobButtons({ clientId, companyName }: Props) {
           className="text-xs px-2.5 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
         >
           {busy === "audit_internal_links" ? "…" : "Re-fire links"}
+        </button>
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => fire("content_scheduler")}
+          className="text-xs px-2.5 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {busy === "content_scheduler" ? "…" : "Re-fire titles"}
         </button>
       </div>
       {message && (
