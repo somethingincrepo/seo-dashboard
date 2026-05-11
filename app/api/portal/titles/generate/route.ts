@@ -12,7 +12,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: "https://openrouter.ai/api",
   defaultHeaders: {
-    "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://seo-dashboard-teal-phi.vercel.app",
+    "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://app.seoguru.ai",
     "X-Title": "seo-dashboard:titles",
   },
 });

@@ -231,5 +231,13 @@ export async function POST(request: NextRequest) {
     console.error(`[intake] audit trigger failed for ${record.id}:`, e);
   }
 
-  return NextResponse.json({ ok: true, record_id: record.id, client_id }, { status: 201 });
+  const portal_url = process.env.NEXT_PUBLIC_BASE_URL || "https://app.seoguru.ai";
+  return NextResponse.json({
+    ok: true,
+    record_id: record.id,
+    client_id,
+    portal_username,
+    portal_password,
+    portal_url,
+  }, { status: 201 });
 }

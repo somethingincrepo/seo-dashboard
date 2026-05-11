@@ -58,7 +58,26 @@ function SectionCard({ title, description, children }: {
 
 // ── Success screen ──────────────────────────────────────────────────────────
 
-function SuccessScreen({ companyName }: { companyName: string }) {
+type PortalCredentials = {
+  username: string;
+  password: string;
+  portal_url: string;
+};
+
+function CopyInline({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => { navigator.clipboard.writeText(value).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className="ml-2 text-xs text-indigo-600 hover:text-indigo-800 transition-colors font-medium"
+    >
+      {copied ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
+function SuccessScreen({ companyName, creds }: { companyName: string; creds: PortalCredentials | null }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
       <div className="max-w-lg w-full space-y-6">
@@ -71,31 +90,45 @@ function SuccessScreen({ companyName }: { companyName: string }) {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">You&apos;re all set, {companyName}.</h1>
             <p className="text-slate-500 mt-2 leading-relaxed">
-              We&apos;ve received your details and your SEO program is officially underway.
+              Your SEO program is officially underway. Save your portal login details below.
             </p>
           </div>
         </div>
 
-        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 flex gap-4">
-          <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
+        {creds && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <p className="text-sm font-semibold text-amber-800">Copy your login details now — you won&apos;t see the password again.</p>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between bg-white rounded-xl px-3.5 py-2.5 border border-amber-200">
+                <span className="text-slate-500 text-xs w-16 shrink-0">Login URL</span>
+                <span className="font-mono text-indigo-700 flex-1 truncate">{creds.portal_url}/portal/login</span>
+                <CopyInline value={`${creds.portal_url}/portal/login`} />
+              </div>
+              <div className="flex items-center justify-between bg-white rounded-xl px-3.5 py-2.5 border border-amber-200">
+                <span className="text-slate-500 text-xs w-16 shrink-0">Username</span>
+                <span className="font-mono text-slate-800 flex-1">{creds.username}</span>
+                <CopyInline value={creds.username} />
+              </div>
+              <div className="flex items-center justify-between bg-white rounded-xl px-3.5 py-2.5 border border-amber-200">
+                <span className="text-slate-500 text-xs w-16 shrink-0">Password</span>
+                <span className="font-mono text-slate-800 flex-1">{creds.password}</span>
+                <CopyInline value={creds.password} />
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-indigo-800">Check your inbox</p>
-            <p className="text-sm text-indigo-600 mt-0.5 leading-relaxed">
-              Your portal link and login credentials are on the way. The portal is where you&apos;ll approve deliverables each sprint.
-            </p>
-          </div>
-        </div>
+        )}
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
           <p className="text-sm font-semibold text-slate-800">What happens next</p>
           <ol className="space-y-3">
             {[
               { title: "Site audit is running", desc: "Full crawl, keyword mapping, and quick-win identification." },
-              { title: "Portal credentials coming your way", desc: "Use them to review audit findings, approve changes, and track progress." },
+              { title: "Log in to your portal", desc: "Use the credentials above to review audit findings, approve changes, and track progress." },
               { title: "First deliverables within the week", desc: "Title proposals, on-page recommendations, and internal link suggestions." },
               { title: "Monthly reports on your schedule", desc: "Rankings, traffic, and completed work — automatically on your chosen day." },
             ].map((step, i) => (
@@ -235,6 +268,7 @@ export default function IntakePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [portalCreds, setPortalCreds] = useState<PortalCredentials | null>(null);
 
   // Token state
   const [inviteToken, setInviteToken] = useState("");
@@ -329,6 +363,9 @@ export default function IntakePage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || `Something went wrong (${res.status}).`); return; }
       try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+      if (data.portal_username && data.portal_password && data.portal_url) {
+        setPortalCreds({ username: data.portal_username, password: data.portal_password, portal_url: data.portal_url });
+      }
       setSuccess(true);
     } catch {
       setError("Network error — please check your connection and try again.");
@@ -337,7 +374,7 @@ export default function IntakePage() {
     }
   };
 
-  if (success) return <SuccessScreen companyName={form.company_name} />;
+  if (success) return <SuccessScreen companyName={form.company_name} creds={portalCreds} />;
 
   // ── Step 1: Sign-up gate ──────────────────────────────────────────────────
   if (step === 1) {
@@ -516,19 +553,19 @@ export default function IntakePage() {
             <Field label="Target keywords" hint="What your ideal customer searches for. Separate with commas." required>
               <textarea className={textareaClass} rows={4} value={form.keywords}
                 onChange={(e) => set("keywords", e.target.value)}
-                placeholder="commercial roofing contractor chicago, flat roof repair near me"
+                placeholder="best project management software, task tracker for teams, team collaboration tool"
                 required />
             </Field>
             <Field label="Top competitors" hint="Companies competing for the same customers — URLs or names." required>
               <textarea className={textareaClass} rows={3} value={form.competitors}
                 onChange={(e) => set("competitors", e.target.value)}
-                placeholder="competitor1.com, Competitor Two, https://competitor3.com"
+                placeholder="competitorone.com, Competitor Two, https://competitorthree.com"
                 required />
             </Field>
             <Field label="Business context" hint="What you do, who you serve, and what makes you different.">
               <textarea className={textareaClass} rows={4} value={form.pivot_context}
                 onChange={(e) => set("pivot_context", e.target.value)}
-                placeholder="We're a B2B SaaS company focused on mid-market logistics companies…" />
+                placeholder="We help [type of customer] do [outcome]. Our main differentiator is…" />
             </Field>
           </SectionCard>
 
@@ -549,7 +586,7 @@ export default function IntakePage() {
               <Field label="Cities / regions you serve" hint="Comma-separated. Used in geo-targeted titles." required>
                 <input type="text" className={inputClass} value={form.service_areas}
                   onChange={(e) => set("service_areas", e.target.value)}
-                  placeholder="Austin, Round Rock, Cedar Park" required />
+                  placeholder="New York, Boston, Philadelphia" required />
               </Field>
             )}
           </SectionCard>
@@ -570,30 +607,32 @@ export default function IntakePage() {
                 </div>
               </div>
             </Field>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="SEO plugin" hint="WordPress only — skip if not applicable.">
-                <div className="relative">
-                  <select className={selectClass} value={form.seo_plugin} onChange={(e) => set("seo_plugin", e.target.value)}>
-                    <option value="">Not applicable</option>
-                    {SEO_PLUGIN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                    <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            {form.cms === "WordPress" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="SEO plugin">
+                  <div className="relative">
+                    <select className={selectClass} value={form.seo_plugin} onChange={(e) => set("seo_plugin", e.target.value)}>
+                      <option value="">Not sure</option>
+                      {SEO_PLUGIN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                      <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
                   </div>
-                </div>
-              </Field>
-              <Field label="Page builder">
-                <div className="relative">
-                  <select className={selectClass} value={form.page_builder} onChange={(e) => set("page_builder", e.target.value)}>
-                    <option value="">Not sure</option>
-                    {PAGE_BUILDER_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                    <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </Field>
+                <Field label="Page builder">
+                  <div className="relative">
+                    <select className={selectClass} value={form.page_builder} onChange={(e) => set("page_builder", e.target.value)}>
+                      <option value="">Not sure</option>
+                      {PAGE_BUILDER_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                      <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
                   </div>
-                </div>
-              </Field>
-            </div>
+                </Field>
+              </div>
+            )}
             <Field label="Pages to never modify" hint="URLs we should never touch — legal, login, etc. One per line.">
               <textarea className={textareaClass} rows={3} value={form.excluded_pages}
                 onChange={(e) => set("excluded_pages", e.target.value)}
@@ -626,12 +665,12 @@ export default function IntakePage() {
             <Field label="What your sales team hears constantly" hint="Recurring themes, misconceptions, competitor comparisons.">
               <textarea className={textareaClass} rows={3} value={form.sales_questions}
                 onChange={(e) => set("sales_questions", e.target.value)}
-                placeholder="Prospects always ask how we compare to [Competitor]…" />
+                placeholder="We hear a lot about how we compare to [Competitor], and questions about pricing/contracts…" />
             </Field>
             <Field label="Claims we should never generate" hint="Specific stats, certifications, or awards that must come from you.">
               <textarea className={textareaClass} rows={3} value={form.claims_no_generate}
                 onChange={(e) => set("claims_no_generate", e.target.value)}
-                placeholder="Do not generate: specific revenue figures, award claims, compliance certifications" />
+                placeholder="Do not claim specific certifications, awards, or statistics we haven't verified" />
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Content approver" hint="Who reviews and approves content?">

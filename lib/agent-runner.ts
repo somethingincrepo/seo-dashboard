@@ -237,7 +237,7 @@ export async function runJob(job: SupabaseJob): Promise<RunResult> {
     // SDK appends /v1/messages, so baseURL is .../api (NOT .../api/v1)
     baseURL: "https://openrouter.ai/api",
     defaultHeaders: {
-      "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://seo-dashboard-teal-phi.vercel.app",
+      "HTTP-Referer": process.env.PUBLIC_BASE_URL ?? "https://app.seoguru.ai",
       "X-Title": "seo-dashboard",
     },
   });

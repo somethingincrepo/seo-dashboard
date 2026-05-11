@@ -90,7 +90,7 @@ function buildPageGroups(
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://seo-dashboard-teal-phi.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://app.seoguru.ai";
 
   // Fetch client first to get client_id slug
   const client = await getClient(id);
