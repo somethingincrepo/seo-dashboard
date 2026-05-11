@@ -503,8 +503,9 @@ export default function IndexationPage() {
 
  {/* No GSC warning */}
  {!hasGsc && (
- <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5 text-[13px] text-amber-800">
- <strong>No Search Console property configured</strong> — Google index status can&apos;t be checked automatically. Contact your account manager to connect GSC.
+ <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-[13px] text-amber-800 space-y-2">
+ <p><strong>Google Search Console not connected</strong> — index status checks are disabled until GSC is set up.</p>
+ <p>To connect it, go to <a href="../settings#integrations" className="underline underline-offset-2 font-medium hover:text-amber-900">Settings → Integrations</a> and enter your GSC property. You'll also need to invite <strong>reporting@somethingincorporated.io</strong> as a <strong>Full User</strong> in your <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 font-medium hover:text-amber-900">Search Console user settings ↗</a>.</p>
  </div>
  )}
 

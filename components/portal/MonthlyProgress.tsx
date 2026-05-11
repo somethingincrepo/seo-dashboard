@@ -101,9 +101,9 @@ async function fetchActuals(
  typeCount[type] = (typeCount[type] ?? 0) + 1;
  }
 
- // Count content_refreshes from Supabase (the canonical source — content_refresh
- // SOP writes there, not Airtable Changes). Anything proposed/in-flight/done
- // in the current month counts toward the monthly quota.
+ // Count content_refreshes from Supabase. Only rows with actual output
+ // (completed/approved/published) count as delivered — in-progress or
+ // failed rows must not inflate the displayed count.
  let contentRefreshCount = 0;
  try {
  const { data } = await getSupabase()
@@ -111,6 +111,7 @@ async function fetchActuals(
  .select("id")
  .eq("client_id", clientRecordId)
  .gte("proposed_at", `${monthStart}T00:00:00Z`)
+ .in("status", ["completed", "approved_for_publish", "published"])
  .limit(200);
  contentRefreshCount = (data ?? []).length;
  } catch {
