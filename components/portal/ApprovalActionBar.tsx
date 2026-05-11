@@ -11,6 +11,7 @@ interface ApprovalActionBarProps {
  confirmApprove: boolean;
  undoTarget: { changeId: string; remaining: number } | null;
  isLocalDecision: boolean;
+ isManual?: boolean;
  onApprove: () => void;
  onSkip: () => void;
  onQuestion: () => void;
@@ -39,6 +40,7 @@ export function ApprovalActionBar({
  confirmApprove,
  undoTarget,
  isLocalDecision,
+ isManual,
  onApprove,
  onSkip,
  onQuestion,
@@ -142,7 +144,9 @@ export function ApprovalActionBar({
  return (
  <div className="space-y-2">
  <p className="text-sm text-slate-600 text-center">
- Are you sure you want to approve this change?
+ {isManual
+ ? "Approve this change and implement it yourself using the guide above?"
+ : "Are you sure you want to approve this change?"}
  </p>
  <div className="flex items-center gap-2">
  <button
@@ -165,13 +169,19 @@ export function ApprovalActionBar({
  }
 
  return (
+ <div className="space-y-2">
+ {isManual && (
+ <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+ Your CMS isn&apos;t connected for auto-implementation. Follow the guide above to apply this yourself, then approve.
+ </p>
+ )}
  <div className="flex items-center gap-2">
  <button
  onClick={onApprove}
  disabled={submitting}
  className="flex-[2] py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
  >
- ✓ Approve
+ {isManual ? "✓ Approve — I'll implement this" : "✓ Approve"}
  </button>
  <button
  onClick={onSkip}
@@ -187,6 +197,7 @@ export function ApprovalActionBar({
  >
  ?
  </button>
+ </div>
  </div>
  );
 }

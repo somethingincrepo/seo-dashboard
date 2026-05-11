@@ -927,7 +927,10 @@ function ApprovalMasterDetailInner({
  if (resolved.mode === "manual") {
  return (
  <div className="pt-6 border-t border-slate-200">
- <p className="text-xs text-slate-400 mb-3">Approve above, then follow these steps to implement it yourself (~{resolved.entry.estimatedMinutes} min):</p>
+ <div className="text-[11px] font-bold tracking-widest text-amber-600 uppercase mb-2">How to implement this</div>
+ <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+ Your CMS isn&apos;t connected for auto-implementation. Apply this change yourself (~{resolved.entry.estimatedMinutes} min) using the steps below, then approve it.
+ </p>
  <ImplementationGuide
  deliverable={deliverable}
  client={client}
@@ -999,6 +1002,7 @@ function ApprovalMasterDetailInner({
  confirmApprove={confirmApprove}
  undoTarget={undoTarget}
  isLocalDecision={localChanges.has(effectiveSelected.id)}
+ isManual={(() => { const d = deliverableFromChangeType(effectiveSelected.fields.type || effectiveSelected.fields.change_type); return !!d && resolveGuide(d, client).mode === "manual"; })()}
  onApprove={() => applyDecision(effectiveSelected.id, "approved", undefined, contactEmail)}
  onSkip={() => applyDecision(effectiveSelected.id, "skipped", undefined, contactEmail)}
  onQuestion={() => setShowQuestion(true)}
