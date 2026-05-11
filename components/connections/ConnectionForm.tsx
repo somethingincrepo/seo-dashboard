@@ -247,6 +247,45 @@ function PlatformFields({
   return <div className="text-sm text-slate-500">No connection flow configured for {platform}.</div>;
 }
 
+function AppPasswordGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 transition-colors"
+      >
+        <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} viewBox="0 0 12 12" fill="currentColor">
+          <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+        </svg>
+        How to create an application password
+      </button>
+      {open && (
+        <ol className="mt-2 space-y-1.5 pl-1">
+          {[
+            <>In your WordPress admin go to <strong>Users &rarr; Profile</strong></>,
+            <>Scroll to <strong>Application Passwords</strong> near the bottom of the page</>,
+            <>Enter a name (e.g. <strong>Something Inc SEO</strong>) and click <strong>Add New Application Password</strong></>,
+            <>Copy the password shown &mdash; <strong className="text-red-600">it will not be shown again</strong></>,
+            "Paste it into the field above and save",
+          ].map((step, i) => (
+            <li key={i} className="flex gap-2 text-[12px] text-slate-600">
+              <span className="shrink-0 w-4 h-4 rounded-full bg-slate-100 text-slate-500 text-[10px] font-semibold flex items-center justify-center mt-0.5">
+                {i + 1}
+              </span>
+              <span>{step}</span>
+            </li>
+          ))}
+          <li className="text-[11px] text-slate-400 pl-6 pt-0.5">
+            Requires WordPress 5.6+ and HTTPS. The account needs at least Editor role.
+          </li>
+        </ol>
+      )}
+    </div>
+  );
+}
+
 function WordPressFields({ submitting, onSubmit }: { submitting: boolean; onSubmit: (c: Record<string, string>) => void }) {
   const [siteUrl, setSiteUrl] = useState("");
   const [username, setUsername] = useState("");
@@ -269,10 +308,12 @@ function WordPressFields({ submitting, onSubmit }: { submitting: boolean; onSubm
         <div>
           <label className={labelCls}>WordPress Username</label>
           <input className={inputCls} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" />
+          <p className="text-[11px] text-slate-400 mt-1">Your login username, not your display name. Find it at Users &rarr; Profile.</p>
         </div>
         <div>
           <label className={labelCls}>Application Password</label>
           <input type="password" className={inputCls} value={appPassword} onChange={(e) => setAppPassword(e.target.value)} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" />
+          <AppPasswordGuide />
         </div>
         <div>
           <label className={labelCls}>SEO Plugin</label>
