@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import type { RedditOpportunity } from "@/lib/reddit";
 
 
@@ -36,7 +36,7 @@ function RelevanceBadge({ score }: { score: number }) {
 
 // ─── Thread detail right panel ────────────────────────────────────────────────
 
-type ThreadComment = { author: string; body: string; score: number };
+type StoredComment = { author: string; body: string; score: number };
 
 function ThreadDetailPanel({
   opportunity: o,
@@ -51,33 +51,6 @@ function ThreadDetailPanel({
 }) {
   const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
-  const [comments, setComments] = useState<ThreadComment[] | null>(null);
-  const [fullText, setFullText] = useState<string | null>(null);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentsError, setCommentsError] = useState<string | null>(null);
-
-  // Auto-load when thread is selected
-  useEffect(() => {
-    void fetchThread();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [o.id]);
-
-  async function fetchThread() {
-    if (commentsLoading) return;
-    setCommentsLoading(true);
-    setCommentsError(null);
-    try {
-      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
-      const data = await res.json() as { selftext?: string; comments?: ThreadComment[]; error?: string };
-      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-      setComments(data.comments ?? []);
-      if (data.selftext && data.selftext.trim()) setFullText(data.selftext);
-    } catch (e) {
-      setCommentsError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setCommentsLoading(false);
-    }
-  }
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
@@ -97,12 +70,15 @@ function ThreadDetailPanel({
     }
   }
 
-  // Strip trailing truncation markers that DataForSEO appends
+  // Strip DataForSEO truncation markers
   const snippet = o.snippet
     ?.replace(/\.?\s*Read more\s*$/i, "")
     .replace(/\.{2,}$/, "")
     .replace(/…$/, "")
     .trim();
+
+  // top_comments stored during scan (may be null for older rows)
+  const storedComments = o.top_comments as StoredComment[] | null;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -158,23 +134,35 @@ function ThreadDetailPanel({
           </div>
         )}
 
-        {/* Thread body */}
-        <div>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-            {fullText ? "Thread Content" : "Thread Preview"}
+        {/* Thread content */}
+        {snippet && (
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Thread Preview</div>
+            <p className="text-sm text-slate-700 leading-relaxed">{snippet}</p>
           </div>
-          {commentsLoading && !fullText && (
-            <div className="flex items-center gap-2 text-[12px] text-slate-400">
-              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              Loading thread…
+        )}
+
+        {/* Comments — from DB if stored, otherwise prompt to open Reddit */}
+        <div className="border-t border-slate-100 pt-4">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+            Top Comments {storedComments && storedComments.length > 0 ? `(${storedComments.length})` : ""}
+          </div>
+
+          {storedComments && storedComments.length > 0 ? (
+            <div className="space-y-3">
+              {storedComments.map((c, i) => (
+                <div key={i} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-slate-600">u/{c.author}</span>
+                    {c.score > 0 && <span className="text-[10px] text-slate-400">▲ {c.score}</span>}
+                  </div>
+                  <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
+                </div>
+              ))}
             </div>
-          )}
-          {!commentsLoading && (fullText || snippet) && (
-            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-              {fullText ?? snippet}
+          ) : (
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Open the thread on Reddit to read and join the conversation.
             </p>
           )}
         </div>
@@ -184,7 +172,7 @@ function ThreadDetailPanel({
           Surfaced by keyword: <span className="text-slate-600 font-medium">{o.keyword}</span>
         </div>
 
-        {/* Engage + Fetch Comments row */}
+        {/* Action buttons */}
         <div className="border-t border-slate-100 pt-4 flex items-center gap-3 flex-wrap">
           <a
             href={o.permalink}
@@ -199,58 +187,18 @@ function ThreadDetailPanel({
             Open Thread &amp; Reply on Reddit
           </a>
 
-          <button
-            onClick={fetchThread}
-            disabled={commentsLoading}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:border-slate-400 hover:text-slate-800 disabled:opacity-50 px-4 py-2.5 rounded-xl transition-all"
+          <a
+            href={o.permalink}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:border-slate-400 hover:text-slate-800 px-4 py-2.5 rounded-xl transition-all"
           >
-            {commentsLoading ? (
-              <>
-                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                </svg>
-                Fetching…
-              </>
-            ) : (
-              <>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-                Fetch Comments
-              </>
-            )}
-          </button>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            Fetch Comments
+          </a>
         </div>
-
-        {/* Error state */}
-        {commentsError && (
-          <div className="text-[11px] text-red-500 bg-red-50 rounded-lg px-3 py-2">
-            {commentsError}
-          </div>
-        )}
-
-        {/* Comments */}
-        {comments !== null && (
-          <div className="space-y-3">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Top Comments {comments.length > 0 ? `(${comments.length})` : ""}
-            </div>
-            {comments.length === 0 ? (
-              <p className="text-[11px] text-slate-400">No comments on this thread yet.</p>
-            ) : (
-              comments.map((c, i) => (
-                <div key={i} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold text-slate-600">u/{c.author}</span>
-                    <span className="text-[10px] text-slate-400">▲ {c.score}</span>
-                  </div>
-                  <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
-                </div>
-              ))
-            )}
-          </div>
-        )}
       </div>
 
       {/* Status actions pinned to bottom */}
@@ -264,8 +212,8 @@ function ThreadDetailPanel({
               disabled={!!pending}
               className={`text-xs px-3 py-1.5 rounded-lg border transition-all disabled:opacity-60 font-medium capitalize ${
                 status === s
-                  ? (s as string) === "replied" ? "bg-emerald-600 text-white border-emerald-600"
-                  : (s as string) === "dismissed" ? "bg-red-100 text-red-600 border-red-200"
+                  ? s === "replied" ? "bg-emerald-600 text-white border-emerald-600"
+                  : s === "dismissed" ? "bg-red-100 text-red-600 border-red-200"
                   : "bg-slate-900 text-white border-slate-900"
                   : "text-slate-600 border-slate-200 hover:border-slate-400 bg-white cursor-pointer"
               }`}
@@ -311,17 +259,10 @@ function ThreadRow({
         </div>
         <RelevanceBadge score={o.relevance_score} />
       </div>
-
-      <div className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">
-        {o.title}
-      </div>
-
+      <div className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">{o.title}</div>
       {o.ai_explanation && (
-        <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-          {o.ai_explanation}
-        </p>
+        <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{o.ai_explanation}</p>
       )}
-
       <div className="flex items-center gap-3 text-[10px] text-slate-400">
         {o.ranks_on_google && <span className="text-emerald-600 font-medium">★ Google</span>}
         {o.status !== "new" && <span className="capitalize text-slate-300">{o.status}</span>}
@@ -347,9 +288,7 @@ export function RedditDashboard({
   emptyMessage?: string;
 }) {
   const [items, setItems] = useState(initialItems);
-  const [selected, setSelected] = useState<RedditOpportunity | null>(
-    initialItems[0] ?? null
-  );
+  const [selected, setSelected] = useState<RedditOpportunity | null>(initialItems[0] ?? null);
 
   const handleStatusChange = useCallback((id: string, status: string) => {
     setItems(prev => prev.map(o =>
@@ -388,7 +327,7 @@ export function RedditDashboard({
           </div>
         </div>
 
-        {/* Right: thread detail — full height */}
+        {/* Right: thread detail */}
         <div className="flex-1 min-w-0 overflow-hidden">
           {selected ? (
             <ThreadDetailPanel
