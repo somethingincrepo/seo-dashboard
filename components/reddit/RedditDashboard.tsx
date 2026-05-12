@@ -3,6 +3,14 @@
 import { useState, useCallback } from "react";
 import type { RedditOpportunity } from "@/lib/reddit";
 
+type RedditComment = {
+  id: string;
+  author: string;
+  body: string;
+  score: number;
+  replies: RedditComment[];
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(input: string | number): string {
@@ -48,6 +56,53 @@ function ThreadDetailPanel({
 }) {
   const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
+  const [comments, setComments] = useState<RedditComment[] | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState(false);
+
+  function parseComments(data: unknown): RedditComment[] {
+    if (!data || typeof data !== "object") return [];
+    const d = data as Record<string, unknown>;
+    if (d.kind !== "Listing") return [];
+    const children = ((d.data as Record<string, unknown>).children as unknown[]) ?? [];
+    const result: RedditComment[] = [];
+    for (const child of children.slice(0, 5)) {
+      const c = child as Record<string, unknown>;
+      if (c.kind !== "t1") continue;
+      const cd = c.data as Record<string, unknown>;
+      if (!cd.body || cd.body === "[deleted]" || cd.body === "[removed]") continue;
+      result.push({
+        id: cd.id as string,
+        author: (cd.author as string) ?? "[deleted]",
+        body: cd.body as string,
+        score: (cd.score as number) ?? 0,
+        replies: [],
+      });
+    }
+    return result;
+  }
+
+  async function fetchComments() {
+    if (commentsLoading || comments) return;
+    setCommentsLoading(true);
+    setCommentsError(false);
+    try {
+      // Fetch directly from browser — Reddit allows CORS on public JSON endpoints
+      const url = `${o.permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const json = await res.json() as unknown[];
+      if (Array.isArray(json) && json.length >= 2) {
+        setComments(parseComments(json[1]));
+      } else {
+        setCommentsError(true);
+      }
+    } catch {
+      setCommentsError(true);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
@@ -134,24 +189,65 @@ function ThreadDetailPanel({
           Surfaced by keyword: <span className="text-slate-600 font-medium">{o.keyword}</span>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-slate-100 pt-4">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Comments</div>
-          <p className="text-sm text-slate-400 mb-3">
-            Read and reply to comments directly on Reddit.
-          </p>
-          <a
-            href={o.permalink}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 px-4 py-2 rounded-lg transition-colors"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-              <circle cx="10" cy="10" r="10" />
-              <path fill="white" d="M16.67 10a1.46 1.46 0 0 0-2.47-1 7.12 7.12 0 0 0-3.85-1.23l.65-3.07 2.13.45a1 1 0 1 0 1-.97 1 1 0 0 0-.96.68l-2.38-.5a.27.27 0 0 0-.32.2l-.73 3.44a7.14 7.14 0 0 0-3.89 1.23 1.46 1.46 0 1 0-1.61 2.39 2.8 2.8 0 0 0 0 .44c0 2.24 2.61 4.06 5.83 4.06s5.83-1.82 5.83-4.06a2.8 2.8 0 0 0 0-.44 1.46 1.46 0 0 0 .68-1.62zm-9.4 1.1a1 1 0 1 1 1 1 1 1 0 0 1-1-1zm5.58 2.63a3.57 3.57 0 0 1-2.85.79 3.57 3.57 0 0 1-2.85-.79.28.28 0 0 1 .4-.4 3 3 0 0 0 2.45.65 3 3 0 0 0 2.45-.65.28.28 0 0 1 .4.4zm-.17-1.63a1 1 0 1 1 1-1 1 1 0 0 1-1 1z" />
-            </svg>
-            Open Thread on Reddit
-          </a>
+        {/* Comments */}
+        <div className="border-t border-slate-100 pt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Top Comments</div>
+            <div className="flex items-center gap-2">
+              {!comments && !commentsLoading && (
+                <button
+                  onClick={fetchComments}
+                  className="text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-400 rounded-lg px-3 py-1.5 transition-all bg-white flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  Fetch Comments
+                </button>
+              )}
+              <a
+                href={o.permalink}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-orange-500 hover:text-orange-700 font-medium flex items-center gap-1 transition-colors"
+              >
+                View on Reddit ↗
+              </a>
+            </div>
+          </div>
+
+          {commentsLoading && (
+            <div className="text-sm text-slate-400">Fetching comments…</div>
+          )}
+
+          {commentsError && (
+            <div className="text-sm text-slate-400">
+              Could not load comments.{" "}
+              <a href={o.permalink} target="_blank" rel="noreferrer" className="text-orange-500 hover:text-orange-700">
+                Read on Reddit ↗
+              </a>
+            </div>
+          )}
+
+          {comments && comments.length === 0 && (
+            <div className="text-sm text-slate-400">No comments yet.</div>
+          )}
+
+          {comments && comments.length > 0 && (
+            <div className="space-y-3">
+              {comments.map(c => (
+                <div key={c.id} className="bg-slate-50 rounded-lg p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-slate-700">u/{c.author}</span>
+                    <span className="text-[10px] text-slate-400">▲ {c.score}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {c.body.slice(0, 400)}{c.body.length > 400 ? "…" : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
