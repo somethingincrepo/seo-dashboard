@@ -11,6 +11,7 @@ type DeliverableKey =
  | "articles_standard"
  | "articles_longform"
  | "content_refreshes"
+ | "page_creation_suggestions"
  | "internal_links"
  | "faq_sections"
  | "reddit_comments";
@@ -83,12 +84,23 @@ const DELIVERABLE_META: Record<
  border: "border-teal-100",
  icon: "?",
  },
- reddit_comments: {
- label: "Reddit Engagements",
- singularLabel: "Reddit Engagement",
+ page_creation_suggestions: {
+ label: "Page Creation Suggestions",
+ singularLabel: "Page Creation Suggestion",
  unit: "per month",
  description:
- "Monitored threads on Reddit where your business, product, or topic comes up. Relevant conversations are surfaced in your portal so your team can respond directly — building brand visibility in places AI models frequently cite.",
+ "Net-new page ideas identified by analyzing your keyword groups, competitor coverage, and gaps in your site architecture. Each suggestion includes a target keyword, recommended URL slug, and the strategic case for why the page should exist. Approve what you want built — content is written and staged automatically.",
+ color: "text-emerald-600",
+ bg: "bg-emerald-50",
+ border: "border-emerald-100",
+ icon: "+",
+ },
+ reddit_comments: {
+ label: "Reddit Threads Found",
+ singularLabel: "Reddit Thread",
+ unit: "per month",
+ description:
+ "Relevant Reddit threads where your business, product, or topic comes up are surfaced in your portal. Your team can review each thread and respond directly — building brand presence in communities that AI models frequently cite as sources.",
  color: "text-orange-600",
  bg: "bg-orange-50",
  border: "border-orange-100",
@@ -127,6 +139,7 @@ const DELIVERABLE_ORDER: DeliverableKey[] = [
  "articles_standard",
  "articles_longform",
  "content_refreshes",
+ "page_creation_suggestions",
  "internal_links",
  "faq_sections",
  "reddit_comments",
