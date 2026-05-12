@@ -96,7 +96,7 @@ function buildColumns(
   for (const r of contentRefreshes) {
     const title = r.display_title || r.refresh_url;
     const keyword = r.target_keyword;
-    const href = `${base}/content-optimization`;
+    const href = `${base}/content-optimization?id=${r.id}`;
 
     if (r.status === "published") {
       live.push({ id: r.id, type: "refresh", title, keyword, date: fmt(r.published_at), href, subLabel: r.page_type });
@@ -115,7 +115,7 @@ function buildColumns(
     if (s.status === "skipped" || s.portal_approval === "skipped") continue;
     const title = s.page_title;
     const keyword = s.target_keyword;
-    const href = `${base}/page-creation`;
+    const href = `${base}/page-creation?id=${s.id}`;
 
     if (s.status === "published") {
       live.push({ id: s.id, type: "page-creation", title, keyword, date: fmt(s.published_at), href, subLabel: s.page_type });
@@ -134,7 +134,7 @@ function buildColumns(
 
   for (const c of internalLinkChanges) {
     const title = c.change_title || "Internal link update";
-    const href = `${base}/internal-links`;
+    const href = `${base}/internal-links?id=${c.id}`;
     const date = fmt(c.approved_at ?? c.identified_at);
 
     if (c.execution_status === "complete") {

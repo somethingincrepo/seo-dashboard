@@ -56,7 +56,40 @@ function ThreadDetailPanel({
 }) {
   const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
-  const storedComments = o.top_comments ?? null;
+  const [comments, setComments] = useState<Array<{ author: string; body: string; score: number }> | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState(false);
+
+  async function fetchComments() {
+    if (commentsLoading || comments) return;
+    setCommentsLoading(true);
+    setCommentsError(false);
+    try {
+      const redditUrl = `${o.permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
+      // corsproxy.io format: ?{url} — NOT ?url={url}
+      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(redditUrl)}`);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const json = await res.json() as unknown[];
+      if (!Array.isArray(json) || json.length < 2) throw new Error("bad format");
+      const listing = json[1] as { data: { children: Array<{ kind: string; data: Record<string, unknown> }> } };
+      const result: Array<{ author: string; body: string; score: number }> = [];
+      for (const child of (listing.data?.children ?? []).slice(0, 5)) {
+        if (child.kind !== "t1") continue;
+        const d = child.data;
+        if (!d.body || d.body === "[deleted]" || d.body === "[removed]") continue;
+        result.push({
+          author: (d.author as string) ?? "unknown",
+          body: ((d.body as string) ?? "").slice(0, 500),
+          score: (d.score as number) ?? 0,
+        });
+      }
+      setComments(result);
+    } catch {
+      setCommentsError(true);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
@@ -147,31 +180,43 @@ function ThreadDetailPanel({
         <div className="border-t border-slate-100 pt-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Top Comments {storedComments && storedComments.length > 0 && `(${storedComments.length})`}
+              Top Comments {comments && `(${comments.length})`}
             </div>
-            <a
-              href={o.permalink}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-orange-500 hover:text-orange-700 font-medium flex items-center gap-1 transition-colors"
-            >
-              View on Reddit ↗
-            </a>
+            <div className="flex items-center gap-2">
+              {!comments && !commentsLoading && (
+                <button
+                  onClick={fetchComments}
+                  className="text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-400 rounded-lg px-3 py-1.5 transition-all bg-white flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  Fetch Comments
+                </button>
+              )}
+              <a href={o.permalink} target="_blank" rel="noreferrer"
+                className="text-xs text-orange-500 hover:text-orange-700 font-medium flex items-center gap-1">
+                View on Reddit ↗
+              </a>
+            </div>
           </div>
 
-          {!storedComments && (
+          {commentsLoading && <div className="text-sm text-slate-400">Loading…</div>}
+
+          {commentsError && (
             <div className="text-sm text-slate-400">
-              Comments load on next daily scan (6am UTC).
+              Could not load comments.{" "}
+              <a href={o.permalink} target="_blank" rel="noreferrer" className="text-orange-500">Read on Reddit ↗</a>
             </div>
           )}
 
-          {storedComments && storedComments.length === 0 && (
-            <div className="text-sm text-slate-400">No comments on this thread yet.</div>
+          {comments && comments.length === 0 && (
+            <div className="text-sm text-slate-400">No comments yet.</div>
           )}
 
-          {storedComments && storedComments.length > 0 && (
+          {comments && comments.length > 0 && (
             <div className="space-y-3">
-              {storedComments.map((c, i) => (
+              {comments.map((c, i) => (
                 <div key={i} className="bg-slate-50 rounded-lg p-3 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold text-slate-700">u/{c.author}</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import type { PageCreationSuggestion, PageCreationStatus } from "@/lib/supabase";
 import { PagePreviewPanel } from "./PagePreviewPanel";
@@ -336,13 +337,17 @@ export function PageCreationSuggestions({
   cms?: string;
 }) {
   const all = [...items, ...historicalItems];
+  const searchParams = useSearchParams();
+  const urlId = searchParams.get("id");
   const [localAll, setLocalAll] = useState(all);
   const [stageFilter, setStageFilter] = useState<StageKey | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    urlId && all.some(s => s.id === urlId) ? urlId : null
+  );
   const [approving, setApproving] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
-  // Auto-select: prefer first content_ready, else first non-skipped
+  // Auto-select: URL param first, then content_ready, then first non-skipped
   useEffect(() => {
     if (!selectedId) {
       const ready = localAll.find(s => s.status === "content_ready");

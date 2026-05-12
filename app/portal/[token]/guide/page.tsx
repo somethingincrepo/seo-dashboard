@@ -165,7 +165,7 @@ export default async function GuidePage({
  },
  {
  label: "Monthly",
- item: "Review and approve title proposals for upcoming blog content.",
+ item: "Review title proposals, content refresh drafts, and page creation suggestions.",
  },
  {
  label: "Anytime",

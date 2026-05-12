@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useState, useCallback } from "react";
+import { Fragment, useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { bracketToHtml, bracketToHtmlProposed } from "@/lib/bracketToHtml";
 import { wordDiff } from "@/lib/wordDiff";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
@@ -809,8 +810,13 @@ export function ContentOptimization({
  token: string;
  clientPackage: string;
 }) {
+ const searchParams = useSearchParams();
+ const urlId = searchParams.get("id");
+ const allRefreshes = [...items, ...(historicalItems ?? [])];
  const [selectedId, setSelectedId] = useState<string | null>(
- items.find((r) => getUiStatus(r) === "review")?.id ?? items[0]?.id ?? null
+   urlId && allRefreshes.some(r => r.id === urlId)
+     ? urlId
+     : items.find((r) => getUiStatus(r) === "review")?.id ?? items[0]?.id ?? null
  );
  const [approving, setApproving] = useState(false);
  const [localItems, setLocalItems] = useState<ContentRefresh[]>(items);

@@ -6,7 +6,6 @@ import {
   scoreThread,
   upsertOpportunities,
   generateExplanations,
-  fetchTopComments,
   type ScoredOpportunity,
 } from "@/lib/reddit";
 
@@ -100,8 +99,6 @@ export async function GET(request: NextRequest) {
         for (const post of posts) {
           const relevanceScore = scoreThread(post, keyword, true);
           if (relevanceScore < 10) continue;
-          const top_comments = await fetchTopComments(post.permalink);
-          await delay(500);
           allOpportunities.push({
             ...post,
             keyword,
@@ -109,7 +106,6 @@ export async function GET(request: NextRequest) {
             ranks_on_google: true,
             opportunity_type: "keyword",
             source: "dataforseo",
-            top_comments: top_comments.length > 0 ? top_comments : undefined,
           });
         }
 
@@ -135,8 +131,6 @@ export async function GET(request: NextRequest) {
       const mentionPosts = await searchRedditMentions(brandName || clientName, { limit: 10 });
       for (const post of mentionPosts) {
         const relevanceScore = Math.min(scoreThread(post, clientName, true) + 20, 100);
-        const top_comments = await fetchTopComments(post.permalink);
-        await delay(500);
         allOpportunities.push({
           ...post,
           keyword: brandName || clientName,
@@ -144,7 +138,6 @@ export async function GET(request: NextRequest) {
           ranks_on_google: true,
           opportunity_type: "mention",
           source: "dataforseo",
-          top_comments: top_comments.length > 0 ? top_comments : undefined,
         });
       }
       await delay(2000);

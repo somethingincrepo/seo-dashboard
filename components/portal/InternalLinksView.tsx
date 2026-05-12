@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PACKAGE_LABELS } from "@/lib/packages";
 import type { PackageTier } from "@/lib/packages";
 import type { Change } from "@/lib/changes";
@@ -585,7 +585,12 @@ export function InternalLinksView({
  contactEmail,
  auditSummary,
 }: InternalLinksViewProps) {
- const [selectedId, setSelectedId] = useState<string | null>(pending[0]?.id ?? decided[0]?.id ?? null);
+ const searchParams = useSearchParams();
+ const urlId = searchParams.get("id");
+ const allLinks = [...pending, ...decided];
+ const [selectedId, setSelectedId] = useState<string | null>(
+   urlId && allLinks.some(c => c.id === urlId) ? urlId : pending[0]?.id ?? decided[0]?.id ?? null
+ );
  const [localDecisions, setLocalDecisions] = useState<Map<string, string>>(new Map());
  const [showSkipped, setShowSkipped] = useState(false);
 
