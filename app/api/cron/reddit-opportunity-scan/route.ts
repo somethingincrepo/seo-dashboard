@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
         for (const post of posts) {
           const ranksOnGoogle = googleUrls.has(post.permalink.replace(/\/$/, ""));
           const relevanceScore = scoreThread(post, keyword, ranksOnGoogle);
-          if (relevanceScore < 20) continue; // noise floor
+          if (relevanceScore < 10) continue; // noise floor
 
           allOpportunities.push({
             ...post,

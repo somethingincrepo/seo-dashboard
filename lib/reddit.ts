@@ -59,8 +59,6 @@ export async function searchRedditByKeyword(
   url.searchParams.set("q", keyword);
   url.searchParams.set("size", String(limit));
   url.searchParams.set("after", String(afterTs));
-  url.searchParams.set("sort", "score");
-  url.searchParams.set("sort_type", "desc");
 
   const res = await fetch(url.toString(), { cache: "no-store" });
 
