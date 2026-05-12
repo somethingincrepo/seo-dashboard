@@ -443,6 +443,26 @@ export default function IndexationPage() {
  );
  }
 
+ // When GSC isn't configured or accessible, show only the setup guide
+ if (!hasGsc || gscError) {
+ return (
+ <div className="max-w-2xl">
+ <div className="mb-8">
+ <h1 className="text-2xl font-bold text-slate-900">Indexation</h1>
+ <p className="text-sm text-slate-500 mt-1">Real-time Google index status for every page we&apos;ve updated.</p>
+ </div>
+ <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-4 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]">
+ <div>
+ <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-1">SETUP REQUIRED</div>
+ <div className="text-sm font-semibold text-slate-900">Connect Google Search Console</div>
+ <div className="text-xs text-slate-500 mt-1">Index status checks are disabled until GSC is connected.</div>
+ </div>
+ <GscGuide token={token} mode={gscError ? "error" : "setup"} />
+ </div>
+ </div>
+ );
+ }
+
  return (
  <div className="max-w-4xl">
  {/* Header */}
@@ -503,18 +523,6 @@ export default function IndexationPage() {
  </div>
  <p className="mt-2 text-[11px] text-slate-400">Tells Google to re-crawl this URL and update its index. Results appear in the Google status column within a few days.</p>
  </div>
-
- {/* No GSC warning */}
- {(!hasGsc || gscError) && (
- <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 space-y-4 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]">
- <div>
- <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-1">SETUP REQUIRED</div>
- <div className="text-sm font-semibold text-slate-900">Connect Google Search Console</div>
- <div className="text-xs text-slate-500 mt-1">Index status checks are disabled until GSC is connected.</div>
- </div>
- <GscGuide token={token} mode={gscError ? "error" : "setup"} />
- </div>
- )}
 
  {/* Filter tabs */}
  <div className="flex items-center gap-1 mb-4">
