@@ -65,25 +65,13 @@ function ThreadDetailPanel({
     setCommentsLoading(true);
     setCommentsError(false);
     try {
-      const redditUrl = `${o.permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
-      // corsproxy.io format: ?{url} — NOT ?url={url}
-      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(redditUrl)}`);
+      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
       if (!res.ok) throw new Error(`${res.status}`);
-      const json = await res.json() as unknown[];
-      if (!Array.isArray(json) || json.length < 2) throw new Error("bad format");
-      const listing = json[1] as { data: { children: Array<{ kind: string; data: Record<string, unknown> }> } };
-      const result: Array<{ author: string; body: string; score: number }> = [];
-      for (const child of (listing.data?.children ?? []).slice(0, 5)) {
-        if (child.kind !== "t1") continue;
-        const d = child.data;
-        if (!d.body || d.body === "[deleted]" || d.body === "[removed]") continue;
-        result.push({
-          author: (d.author as string) ?? "unknown",
-          body: ((d.body as string) ?? "").slice(0, 500),
-          score: (d.score as number) ?? 0,
-        });
-      }
-      setComments(result);
+      const data = await res.json() as {
+        comments: Array<{ author: string; body: string; score: number }>;
+        selftext?: string;
+      };
+      setComments(data.comments ?? []);
     } catch {
       setCommentsError(true);
     } finally {
