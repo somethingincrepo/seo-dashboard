@@ -319,15 +319,10 @@ export default async function PortalDashboard({
               <div
                 key={wIdx}
                 className={cn(
-                  "relative p-5 pt-4",
+                  "p-5",
                   isCurrent && "bg-indigo-50/40"
                 )}
               >
-                {/* Current week top accent bar */}
-                {isCurrent && (
-                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-violet-500" />
-                )}
-
                 {/* Week header */}
                 <div className="flex items-center justify-between mb-0.5">
                   <span className={cn(
