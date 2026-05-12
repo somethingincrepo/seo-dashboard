@@ -1059,23 +1059,23 @@ function RuleDetail({
 
  {/* Bulk approval bar */}
  <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
- <div className="text-[12px] text-slate-600">
+ <div className="text-[12px] text-slate-600 flex items-center gap-1.5 flex-wrap">
+ {resolvedIds.length === group.issues.length ? (
+ <span className="text-slate-600 font-medium">All pages resolved.</span>
+ ) : approvedIds.length === group.issues.length ? (
+ <span className="text-emerald-700 font-medium">All pages approved.</span>
+ ) : (
+ <>
  {approvedIds.length > 0 && (
- <span>
- <span className="text-emerald-700 font-medium tabular-nums">{approvedIds.length}</span> approved
- {pendingIds.length > 0 && <span className="text-slate-400"> · </span>}
- </span>
+ <span className="text-emerald-700"><span className="font-medium tabular-nums">{approvedIds.length}</span> approved</span>
+ )}
+ {approvedIds.length > 0 && pendingIds.length > 0 && (
+ <span className="text-slate-300">·</span>
  )}
  {pendingIds.length > 0 && (
- <span>
- <span className="text-slate-700 font-medium tabular-nums">{pendingIds.length}</span> pending
- </span>
+ <span><span className="font-medium tabular-nums">{pendingIds.length}</span> pending</span>
  )}
- {approvedIds.length === group.issues.length && (
- <span className="text-emerald-700 font-medium">All pages approved.</span>
- )}
- {resolvedIds.length === group.issues.length && (
- <span className="text-slate-600 font-medium">All pages resolved.</span>
+ </>
  )}
  </div>
  <div className="flex items-center gap-2">
@@ -1117,18 +1117,26 @@ function RuleDetail({
  <button
  key={i.id}
  onClick={() => onPickIssue(i.id)}
- className={`w-full text-left px-3.5 py-2 hover:bg-slate-50 transition-colors group ${d === "dismissed" ? "opacity-50" : ""}`}
+ className={`w-full text-left px-3.5 py-2.5 hover:bg-indigo-50/50 transition-colors group ${d === "dismissed" ? "opacity-50" : ""}`}
  >
  <div className="flex items-center justify-between gap-3">
- <span className="text-sm text-slate-700 truncate group-hover:text-indigo-700">{pageLabel(i.page_url)}</span>
+ <div className="min-w-0">
+ <span className="text-sm text-slate-700 truncate group-hover:text-indigo-800 block">{pageLabel(i.page_url)}</span>
+ <span className="text-[11px] text-slate-400 truncate block">{truncate(i.page_url ?? "", 50)}</span>
+ </div>
  <div className="flex items-center gap-2 shrink-0">
  {d === "approved" && (
  <span className="text-[10px] text-emerald-600 font-medium">✓ approved</span>
  )}
+ {d === "resolved" && (
+ <span className="text-[10px] text-slate-500 font-medium">✓ resolved</span>
+ )}
  {d === "dismissed" && (
  <span className="text-[10px] text-slate-400">dismissed</span>
  )}
- <span className="text-[11px] text-slate-400 truncate max-w-[14rem]">{truncate(i.page_url ?? "", 40)}</span>
+ <span className="text-[11.5px] font-medium text-indigo-500 group-hover:text-indigo-700 whitespace-nowrap">
+ View fix →
+ </span>
  </div>
  </div>
  </button>
