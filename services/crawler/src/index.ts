@@ -172,7 +172,7 @@ async function runFullPipeline(args: {
   }
 }
 
-// Reddit JSON proxy — Fly.io IPs are not blocked by Reddit unlike Vercel
+// Reddit JSON proxy — uses Playwright so real browser fingerprint bypasses Reddit's bot detection
 app.get("/reddit-thread", async (req, res) => {
   const auth = req.header("authorization") ?? "";
   if (!SHARED_TOKEN || auth !== `Bearer ${SHARED_TOKEN}`) {
@@ -181,25 +181,34 @@ app.get("/reddit-thread", async (req, res) => {
   }
   const { url } = req.query as { url?: string };
   if (!url) { res.status(400).json({ error: "url required" }); return; }
+
+  const jsonUrl = `${(url as string).replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
+  let browser;
   try {
-    const jsonUrl = `${url.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
-    const response = await fetch(jsonUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "no-cache",
-      },
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--disable-dev-shm-usage", "--no-sandbox"],
     });
-    if (!response.ok) {
-      res.status(response.status).json({ error: `Reddit returned ${response.status}` });
+    const context = await browser.newContext({
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    });
+    const page = await context.newPage();
+    const response = await page.goto(jsonUrl, { waitUntil: "load", timeout: 20_000 });
+
+    if (!response?.ok()) {
+      res.status(response?.status() ?? 503).json({ error: `Reddit returned ${response?.status()}` });
       return;
     }
-    const data = await response.json();
+
+    // Reddit JSON pages render as plain text in a browser — grab the raw body
+    const text = await page.evaluate(() => document.body.innerText);
+    const data = JSON.parse(text) as unknown;
     res.json(data);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
+  } finally {
+    if (browser) await browser.close();
   }
 });
 

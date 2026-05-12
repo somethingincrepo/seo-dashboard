@@ -52,6 +52,7 @@ function ThreadDetailPanel({
   const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
   const [comments, setComments] = useState<ThreadComment[] | null>(null);
+  const [fullText, setFullText] = useState<string | null>(null);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
 
@@ -79,9 +80,10 @@ function ThreadDetailPanel({
     setCommentsError(null);
     try {
       const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
-      const data = await res.json() as { comments?: ThreadComment[]; error?: string };
+      const data = await res.json() as { selftext?: string; comments?: ThreadComment[]; error?: string };
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
       setComments(data.comments ?? []);
+      if (data.selftext && data.selftext.trim()) setFullText(data.selftext);
     } catch (e) {
       setCommentsError(e instanceof Error ? e.message : "Failed to load comments");
     } finally {
@@ -143,11 +145,15 @@ function ThreadDetailPanel({
           </div>
         )}
 
-        {/* Snippet from DataForSEO */}
-        {o.snippet && (
+        {/* Thread body — full text when loaded, else DataForSEO snippet */}
+        {(fullText || o.snippet) && (
           <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Thread Preview</div>
-            <p className="text-sm text-slate-700 leading-relaxed">{o.snippet}</p>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              {fullText ? "Thread Content" : "Thread Preview"}
+            </div>
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+              {fullText ?? o.snippet}
+            </p>
           </div>
         )}
 
@@ -208,7 +214,7 @@ function ThreadDetailPanel({
             href={o.permalink}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-center gap-2 w-full text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-4 py-3 rounded-xl transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-4 py-2.5 rounded-xl transition-colors"
           >
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <circle cx="10" cy="10" r="10" />
