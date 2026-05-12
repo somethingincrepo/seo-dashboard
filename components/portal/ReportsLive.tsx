@@ -339,22 +339,58 @@ export function ReportsLive({ token, initialGsc }: ReportsLiveProps) {
 
  {/* ── Live Search Performance ─────────────────────────────────────────── */}
  {gsc?.connected === false ? (
- <GlassCard className="p-5">
- <div className="flex items-center gap-3">
- <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm">◎</div>
+ <GlassCard className="p-6">
+ {gsc.error_reason && gsc.error_reason !== "no_property" ? (
+ /* Property is set but API returned an error (usually 403 — not invited as user) */
+ <div className="space-y-4">
+ <div className="flex items-start gap-3">
+ <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">!</div>
  <div>
- <div className="text-sm font-medium text-slate-700">
- {gsc.error_reason && gsc.error_reason !== "no_property"
- ? "Google Search Console error"
- : "Google Search Console not connected"}
- </div>
- <div className="text-xs text-slate-400 mt-0.5">
- {gsc.error_reason && gsc.error_reason !== "no_property"
- ? gsc.error_reason
- : "Live performance data will appear here once GSC is linked in settings."}
+ <div className="text-sm font-semibold text-slate-800">Google Search Console access error</div>
+ <div className="text-xs text-slate-500 mt-0.5 font-mono">{gsc.error_reason}</div>
  </div>
  </div>
+ <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 space-y-2 text-sm text-amber-900">
+ <p className="font-medium">Your GSC property is set but we can&apos;t read it. This usually means our reporting account hasn&apos;t been invited.</p>
+ <ol className="space-y-1 text-xs text-amber-800 list-decimal list-inside">
+ <li>Go to <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-amber-900">Search Console → Settings → Users and permissions ↗</a></li>
+ <li>Click <strong>Add user</strong></li>
+ <li>Enter <strong>reporting@somethingincorporated.io</strong> and set permission to <strong>Full</strong></li>
+ <li>Click Add — data will appear here within a few minutes</li>
+ </ol>
  </div>
+ <a href="../settings#integrations" className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 transition-colors font-medium">
+ View your GSC property in Settings →
+ </a>
+ </div>
+ ) : (
+ /* No GSC property configured at all */
+ <div className="space-y-4">
+ <div className="flex items-start gap-3">
+ <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">◎</div>
+ <div>
+ <div className="text-sm font-semibold text-slate-800">Google Search Console not connected</div>
+ <div className="text-xs text-slate-500 mt-0.5">Connect it to see clicks, impressions, and keyword rankings.</div>
+ </div>
+ </div>
+ <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 space-y-2 text-sm text-slate-700">
+ <p className="font-medium text-slate-800">Two steps to connect:</p>
+ <div className="space-y-3 text-xs text-slate-600">
+ <div>
+ <p className="font-semibold mb-0.5">Step 1 — Add our reporting account to your GSC</p>
+ <ol className="space-y-1 list-decimal list-inside">
+ <li>Go to <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-800">Search Console → Settings → Users and permissions ↗</a></li>
+ <li>Click <strong>Add user</strong>, enter <strong>reporting@somethingincorporated.io</strong>, set permission to <strong>Full</strong></li>
+ </ol>
+ </div>
+ <div>
+ <p className="font-semibold mb-0.5">Step 2 — Enter your property in Settings</p>
+ <p>Go to <a href="../settings#integrations" className="underline underline-offset-2 hover:text-slate-800">Settings → Integrations</a> and enter your GSC property (e.g. <code className="bg-slate-100 px-1 rounded">sc-domain:yoursite.com</code>).</p>
+ </div>
+ </div>
+ </div>
+ </div>
+ )}
  </GlassCard>
  ) : gsc?.connected ? (
  <GlassCard>

@@ -80,6 +80,34 @@ app.post("/crawl", async (req, res) => {
   });
 });
 
+// Single-page JS-rendered fetch — used by extract_page fallback for Wix/SPA sites.
+// POST /fetch  { url: string }  → { html: string, status: number }
+app.post("/fetch", async (req, res) => {
+  const auth = req.header("authorization") ?? "";
+  if (!SHARED_TOKEN || auth !== `Bearer ${SHARED_TOKEN}`) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const { url } = req.body as { url?: string };
+  if (!url) { res.status(400).json({ error: "url required" }); return; }
+
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage", "--no-sandbox"] });
+    const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({ "User-Agent": "Mozilla/5.0 (compatible; SomethingIncBot/1.0)" });
+    const response = await page.goto(url, { waitUntil: "networkidle", timeout: 25_000 });
+    const status = response?.status() ?? 0;
+    const html = await page.content();
+    res.json({ ok: true, html, status });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ ok: false, error: msg });
+  } finally {
+    if (browser) await browser.close();
+  }
+});
+
 async function runFullPipeline(args: {
   auditRunId: string;
   clientId: string;

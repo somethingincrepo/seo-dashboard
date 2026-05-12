@@ -455,30 +455,23 @@ export default function SettingsPage() {
  <li className="flex gap-2">
  <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">1</span>
  <span className="text-indigo-800">
- Go to{" "}
- <a href="https://search.google.com/search-console" target="_blank" rel="noreferrer"
+ Open{" "}
+ <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer"
  className="underline underline-offset-2 font-medium">
- Google Search Console
- </a>{" "}
- and open your property
+ Search Console → Settings → Users and permissions ↗
+ </a>
  </span>
  </li>
  <li className="flex gap-2">
  <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">2</span>
  <span className="text-indigo-800">
- Go to <strong>Settings → Users and permissions</strong>
+ Click <strong>Add user</strong>, enter <strong>reporting@somethingincorporated.io</strong>, set permission to <strong>Full</strong>
  </span>
  </li>
  <li className="flex gap-2">
  <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">3</span>
  <span className="text-indigo-800">
- Add <strong className="font-semibold">reporting@somethingincorporated.io</strong> as a <strong>Full User</strong>
- </span>
- </li>
- <li className="flex gap-2">
- <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">4</span>
- <span className="text-indigo-800">
- Enter your property URL below and click <strong>Save &amp; verify</strong>
+ Enter your GSC property below and click <strong>Save &amp; verify</strong>
  </span>
  </li>
  </ol>
@@ -500,9 +493,15 @@ export default function SettingsPage() {
  </div>
  )}
  {gscResult?.verified === false && (
- <div className="text-[13px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
- <strong>Saved, but couldn&apos;t verify access.</strong> Make sure you&apos;ve added{" "}
- <span className="font-medium">reporting@somethingincorporated.io</span> as a Full User in GSC.
+ <div className="text-[13px] bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 space-y-2">
+ <p className="font-semibold text-amber-900">Property saved, but access was denied.</p>
+ <p className="text-amber-800 text-xs">Our reporting account hasn&apos;t been invited to your Search Console property yet. Fix it in 30 seconds:</p>
+ <ol className="space-y-1 text-xs text-amber-800 list-decimal list-inside">
+ <li>Open <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 font-medium hover:text-amber-900">Search Console → Settings → Users and permissions ↗</a></li>
+ <li>Click <strong>Add user</strong></li>
+ <li>Enter <strong>reporting@somethingincorporated.io</strong> and set permission to <strong>Full</strong></li>
+ <li>Click Add, then come back here and hit <strong>Save &amp; verify</strong> again</li>
+ </ol>
  {gscResult.test_error && (
  <span className="block text-[11px] text-amber-600 mt-1 font-mono">{gscResult.test_error}</span>
  )}
