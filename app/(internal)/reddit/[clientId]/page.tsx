@@ -72,7 +72,7 @@ export default async function RedditClientPage({
   ];
 
   return (
-    <div className="flex gap-6 min-h-screen">
+    <div className="flex gap-6" style={{ height: "calc(100vh - 64px)" }}>
       {/* ── Left sidebar ──────────────────────────────────────────────────────── */}
       <div className="w-56 shrink-0">
         <div className="sticky top-6 space-y-1">
@@ -123,19 +123,7 @@ export default async function RedditClientPage({
       </div>
 
       {/* ── Main content ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {section === "opportunities" ? "New Opportunities"
-               : section === "mentions" ? "Mentions"
-               : "Archive"}
-            </h1>
-            <p className="text-xs text-slate-400 mt-0.5">{total} posts found</p>
-          </div>
-        </div>
-
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <RedditDashboard
           initialItems={items}
           total={total}

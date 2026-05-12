@@ -271,7 +271,8 @@ export function RedditDashboard({
   }
 
   return (
-    <div className="flex gap-0 border border-slate-200 rounded-xl overflow-hidden bg-white" style={{ height: "calc(100vh - 200px)", minHeight: 500 }}>
+    <div className="flex flex-col h-full">
+    <div className="flex flex-1 min-h-0 border border-slate-200 rounded-xl overflow-hidden bg-white">
       {/* Left: thread list */}
       <div className="w-[360px] shrink-0 border-r border-slate-100 flex flex-col">
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
@@ -305,6 +306,7 @@ export function RedditDashboard({
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
