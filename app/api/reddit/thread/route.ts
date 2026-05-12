@@ -2,98 +2,98 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Module-level token cache — reused across requests within the same serverless instance
-let _cachedToken: { token: string; expiresAt: number } | null = null;
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#32;/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#\d+;/g, "");
+}
 
-async function getRedditToken(): Promise<string> {
-  if (_cachedToken && Date.now() < _cachedToken.expiresAt - 60_000) {
-    return _cachedToken.token;
+function stripHtml(html: string): string {
+  return decodeHtmlEntities(html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+function parseRedditRss(xml: string): {
+  selftext: string;
+  comments: Array<{ author: string; body: string; score: number }>;
+} | null {
+  // Split into entries
+  const entryMatches = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
+  if (entryMatches.length === 0) return null;
+
+  function extractEntry(raw: string) {
+    const authorMatch = raw.match(/<name>([^<]+)<\/name>/);
+    const author = (authorMatch?.[1] ?? "unknown").replace(/^\/u\//, "");
+
+    // Content is HTML-encoded inside the content tag
+    const contentStart = raw.indexOf('<content type="html">') + '<content type="html">'.length;
+    const contentEnd = raw.lastIndexOf("</content>");
+    if (contentStart <= 0 || contentEnd <= 0) return { author, body: "" };
+
+    const encodedHtml = raw.slice(contentStart, contentEnd);
+    // First decode the outer entity encoding, then strip the inner HTML tags
+    const decodedHtml = decodeHtmlEntities(encodedHtml);
+    // Strip the "submitted by" footer that Reddit appends
+    const bodyPart = decodedHtml.split(/submitted by/i)[0].trim();
+    const body = stripHtml(bodyPart);
+    return { author, body };
   }
 
-  const clientId = process.env.REDDIT_CLIENT_ID;
-  const clientSecret = process.env.REDDIT_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error("REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET not configured");
-  }
+  const [postEntry, ...commentEntries] = entryMatches.map(m => extractEntry(m[1]));
 
-  const creds = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const res = await fetch("https://www.reddit.com/api/v1/access_token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${creds}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": "SEODashboard/1.0 by reporting@somethingincorporated.io",
-    },
-    body: "grant_type=client_credentials",
-  });
+  const comments = commentEntries
+    .filter(c => c.body && c.body.length > 0)
+    .slice(0, 5)
+    .map(c => ({ author: c.author, body: c.body.slice(0, 600), score: 0 }));
 
-  if (!res.ok) throw new Error(`Reddit OAuth failed: ${res.status}`);
-  const data = await res.json() as { access_token: string; expires_in: number };
-  _cachedToken = {
-    token: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
+  return {
+    selftext: postEntry.body.slice(0, 2000),
+    comments,
   };
-  return data.access_token;
 }
 
 export async function GET(request: NextRequest) {
   const permalink = request.nextUrl.searchParams.get("permalink");
   if (!permalink) return NextResponse.json({ error: "permalink required" }, { status: 400 });
 
-  // Extract subreddit + post ID from permalink
-  // Format: https://www.reddit.com/r/{sub}/comments/{id}/...
-  const match = permalink.match(/\/r\/([^/]+)\/comments\/([a-z0-9]+)/i);
-  if (!match) return NextResponse.json({ error: "Invalid Reddit permalink" }, { status: 400 });
-  const [, subreddit, postId] = match;
+  // Build RSS URL: strip query params and trailing slash, append .rss
+  const cleanUrl = permalink.replace(/[?#].*$/, "").replace(/\/$/, "");
+  const rssUrl = `${cleanUrl}.rss`;
 
   try {
-    const token = await getRedditToken();
-
-    const res = await fetch(
-      `https://oauth.reddit.com/r/${subreddit}/comments/${postId}?limit=5&sort=best&raw_json=1&depth=1`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "User-Agent": "SEODashboard/1.0 by reporting@somethingincorporated.io",
-        },
-      }
-    );
+    const res = await fetch(rssUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml, application/atom+xml, text/xml, */*",
+      },
+      // 10-second timeout
+      signal: AbortSignal.timeout(10_000),
+    });
 
     if (!res.ok) {
       return NextResponse.json({ error: `Reddit returned ${res.status}` }, { status: res.status });
     }
 
-    const json = await res.json() as unknown[];
-    if (!Array.isArray(json) || json.length < 2) {
-      return NextResponse.json({ error: "Unexpected Reddit format" }, { status: 500 });
+    const xml = await res.text();
+    const parsed = parseRedditRss(xml);
+
+    if (!parsed) {
+      return NextResponse.json({ error: "Could not parse Reddit feed" }, { status: 500 });
     }
 
-    const postChildren = ((json[0] as Record<string, unknown>).data as Record<string, unknown>).children as unknown[];
-    const post = (postChildren[0] as Record<string, unknown>).data as Record<string, unknown>;
-
-    const commentChildren = ((json[1] as Record<string, unknown>).data as Record<string, unknown>).children as unknown[];
-    const comments: Array<{ author: string; body: string; score: number }> = [];
-
-    for (const child of commentChildren.slice(0, 5)) {
-      const c = child as Record<string, unknown>;
-      if (c.kind !== "t1") continue;
-      const cd = c.data as Record<string, unknown>;
-      if (!cd.body || cd.body === "[deleted]" || cd.body === "[removed]") continue;
-      comments.push({
-        author: (cd.author as string) ?? "unknown",
-        body: ((cd.body as string) ?? "").slice(0, 600),
-        score: (cd.score as number) ?? 0,
-      });
-    }
+    // Extract title from XML
+    const titleMatch = xml.match(/<title>([^<]+)<\/title>/);
+    const title = titleMatch ? decodeHtmlEntities(titleMatch[1]) : "";
 
     return NextResponse.json({
-      title: (post.title as string) ?? "",
-      selftext: ((post.selftext as string) ?? "").slice(0, 2000),
-      author: (post.author as string) ?? "",
-      subreddit: (post.subreddit as string) ?? "",
-      score: (post.score as number) ?? 0,
-      num_comments: (post.num_comments as number) ?? 0,
-      comments,
+      title,
+      selftext: parsed.selftext,
+      comments: parsed.comments,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
