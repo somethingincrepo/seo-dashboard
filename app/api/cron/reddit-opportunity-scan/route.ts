@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         const googleUrls = await getGoogleRankingRedditUrls(keyword);
 
         // Search Reddit
-        const posts = await searchRedditByKeyword(keyword, { limit: 25, daysBack: 90 });
+        const posts = await searchRedditByKeyword(keyword, { limit: 25, timeframe: "month" });
         keywordsScanned++;
 
         for (const post of posts) {

@@ -1,6 +1,6 @@
 import { getSupabase } from "@/lib/supabase";
 
-const PULLPUSH_BASE = "https://api.pullpush.io/reddit/search/submission";
+const REDDIT_SEARCH_BASE = "https://www.reddit.com/search.json";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,39 +45,42 @@ export type RedditOpportunity = {
   updated_at: string;
 };
 
-// ─── Search (PullPush — no API key required) ──────────────────────────────────
+// ─── Search (Reddit public JSON API — no auth required) ───────────────────────
 
 export async function searchRedditByKeyword(
   keyword: string,
-  opts: { limit?: number; daysBack?: number } = {}
+  opts: { limit?: number; timeframe?: "week" | "month" | "year" } = {}
 ): Promise<RedditPost[]> {
-  const { limit = 25, daysBack = 365 } = opts;
+  const { limit = 25, timeframe = "month" } = opts;
 
-  const afterTs = Math.floor(Date.now() / 1000) - daysBack * 86400;
-
-  const url = new URL(PULLPUSH_BASE);
+  const url = new URL(REDDIT_SEARCH_BASE);
   url.searchParams.set("q", keyword);
-  url.searchParams.set("size", String(limit));
-  url.searchParams.set("after", String(afterTs));
-  url.searchParams.set("sort", "desc"); // newest first
+  url.searchParams.set("sort", "new");
+  url.searchParams.set("t", timeframe);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("type", "link");
 
-  const res = await fetch(url.toString(), { cache: "no-store" });
+  const res = await fetch(url.toString(), {
+    headers: { "User-Agent": "SEODashboard/1.0" },
+    cache: "no-store",
+  });
 
-  if (res.status === 429) throw new Error("PullPush rate limit hit");
-  if (!res.ok) throw new Error(`PullPush search failed: ${res.status}`);
+  if (res.status === 429) throw new Error("Reddit rate limit hit");
+  if (!res.ok) throw new Error(`Reddit search failed: ${res.status}`);
 
-  const data = await res.json() as { data: Array<Record<string, unknown>> };
+  const data = await res.json() as {
+    data: { children: Array<{ data: Record<string, unknown> }> };
+  };
 
-  return (data.data ?? []).map((p) => {
+  return (data.data?.children ?? []).map((child) => {
+    const p = child.data;
     const id = p.id as string;
     return {
       id,
       fullname: `t3_${id}`,
       title: (p.title as string) ?? "",
       url: (p.url as string) ?? "",
-      permalink: p.full_link
-        ? (p.full_link as string)
-        : `https://reddit.com/r/${p.subreddit}/comments/${id}/`,
+      permalink: `https://reddit.com${p.permalink as string}`,
       selftext: ((p.selftext as string) ?? "").slice(0, 500),
       subreddit: (p.subreddit as string) ?? "",
       score: (p.score as number) ?? 0,
