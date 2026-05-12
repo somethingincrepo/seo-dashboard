@@ -13,7 +13,7 @@ export type PackageDeliverables = {
   // Each approved suggestion triggers full page content generation.
   page_creation_suggestions: number;  // per month (mirrors content_refreshes quota)
   internal_links: number;      // per month
-  reddit_comments: number;     // per month
+  reddit_comments: number;     // reddit threads found per month
 };
 
 export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
@@ -24,7 +24,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     content_refreshes: 2,
     page_creation_suggestions: 2,
     internal_links: 4,
-    reddit_comments: 2,
+    reddit_comments: 10,
   },
   growth: {
     articles_standard: 14,
@@ -33,7 +33,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     content_refreshes: 6,
     page_creation_suggestions: 6,
     internal_links: 10,
-    reddit_comments: 5,
+    reddit_comments: 20,
   },
   authority: {
     articles_standard: 26,
@@ -42,7 +42,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     content_refreshes: 12,
     page_creation_suggestions: 12,
     internal_links: 20,
-    reddit_comments: 10,
+    reddit_comments: 40,
   },
 };
 

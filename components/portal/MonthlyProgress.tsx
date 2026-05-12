@@ -252,7 +252,7 @@ export async function MonthlyProgressSidebar({ client }: { client: Client }) {
  {/* Outreach */}
  <SidebarSectionLabel>Outreach</SidebarSectionLabel>
  <div className="space-y-2">
- <SidebarProgressRow label="Reddit comments" actual={actuals.reddit_comments} target={targets.reddit_comments} />
+ <SidebarProgressRow label="Reddit threads found" actual={actuals.reddit_comments} target={targets.reddit_comments} />
  </div>
 
  {/* Deliverables link */}
@@ -357,7 +357,7 @@ export async function MonthlyProgress({ client }: { client: Client }) {
  target={targets.internal_links}
  />
  <ProgressRow
- label="Reddit comments"
+ label="Reddit threads found"
  actual={actuals.reddit_comments}
  target={targets.reddit_comments}
  />
