@@ -276,12 +276,8 @@ export default async function PortalDashboard({
       <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-[0_2px_8px_rgba(16,24,40,0.06)]">
 
         {/* Gradient header */}
-        <div className="relative px-7 py-6 bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 overflow-hidden">
-          {/* Decorative circles */}
-          <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/5" />
-          <div className="absolute -right-2 top-4 w-20 h-20 rounded-full bg-white/5" />
-
-          <div className="relative flex items-end justify-between">
+        <div className="px-7 py-6 bg-gradient-to-r from-indigo-600 to-violet-600">
+          <div className="flex items-end justify-between">
             <div>
               <p className="text-indigo-200 text-[11px] font-semibold uppercase tracking-widest mb-1">Delivery Schedule</p>
               <h2 className="text-white text-2xl font-bold tracking-tight">{monthFull}</h2>
