@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getClients } from "@/lib/clients";
 import { getEngainMentionStats } from "@/lib/engain";
+import { getOpportunityCountsByClient } from "@/lib/reddit";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PACKAGES, PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
@@ -37,26 +38,29 @@ export default async function RedditPage() {
   const linked = clients.filter((c) => c.fields.engain_project_id);
   const unlinked = clients.filter((c) => !c.fields.engain_project_id);
 
-  const rows: ClientRow[] = await Promise.all(
-    linked.map(async (c) => {
-      const projectId = c.fields.engain_project_id;
-      const pkg = (c.fields.package as PackageTier) || null;
-      try {
-        const stats = await getEngainMentionStats(projectId);
-        return { recordId: c.id, name: c.fields.company_name, siteUrl: c.fields.site_url, projectId, package: pkg, stats };
-      } catch (err) {
-        return {
-          recordId: c.id,
-          name: c.fields.company_name,
-          siteUrl: c.fields.site_url,
-          projectId,
-          package: pkg,
-          stats: null,
-          error: err instanceof Error ? err.message : "Failed to load",
-        };
-      }
-    })
-  );
+  const [rows, opportunityCounts] = await Promise.all([
+    Promise.all(
+      linked.map(async (c) => {
+        const projectId = c.fields.engain_project_id;
+        const pkg = (c.fields.package as PackageTier) || null;
+        try {
+          const stats = await getEngainMentionStats(projectId);
+          return { recordId: c.id, name: c.fields.company_name, siteUrl: c.fields.site_url, projectId, package: pkg, stats };
+        } catch (err) {
+          return {
+            recordId: c.id,
+            name: c.fields.company_name,
+            siteUrl: c.fields.site_url,
+            projectId,
+            package: pkg,
+            stats: null,
+            error: err instanceof Error ? err.message : "Failed to load",
+          };
+        }
+      })
+    ),
+    getOpportunityCountsByClient().catch(() => ({} as Record<string, number>)),
+  ]);
 
   const totalMentions = rows.reduce((s, r) => s + (r.stats?.total ?? 0), 0);
   const totalPositive = rows.reduce((s, r) => s + (r.stats?.positive ?? 0), 0);
@@ -111,9 +115,16 @@ export default async function RedditPage() {
                           <div className="text-xs text-slate-400 truncate mt-0.5">{row.siteUrl}</div>
                         )}
                       </div>
-                      {row.package && (
-                        <StatusBadge value={row.package} variant="plan_status" className="shrink-0" />
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {(opportunityCounts[row.recordId] ?? 0) > 0 && (
+                          <span className="text-[10px] font-semibold bg-orange-100 text-orange-600 rounded-full px-2 py-0.5">
+                            {opportunityCounts[row.recordId]} new
+                          </span>
+                        )}
+                        {row.package && (
+                          <StatusBadge value={row.package} variant="plan_status" />
+                        )}
+                      </div>
                     </div>
 
                     {row.error ? (
