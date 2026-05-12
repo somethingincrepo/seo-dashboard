@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { RedditOpportunity } from "@/lib/reddit";
 
 
@@ -51,6 +51,34 @@ function ThreadDetailPanel({
 }) {
   const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [liveComments, setLiveComments] = useState<StoredComment[] | null>(null);
+  const [liveSelftext, setLiveSelftext] = useState<string | null>(null);
+
+  // Reset live data when a different thread is selected
+  useEffect(() => {
+    setLiveComments(null);
+    setLiveSelftext(null);
+    setFetchError(null);
+  }, [o.id]);
+
+  async function fetchThread() {
+    if (fetching) return;
+    setFetching(true);
+    setFetchError(null);
+    try {
+      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
+      const data = await res.json() as { selftext?: string; comments?: StoredComment[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      if (data.selftext) setLiveSelftext(data.selftext);
+      setLiveComments(data.comments ?? []);
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : "Fetch failed");
+    } finally {
+      setFetching(false);
+    }
+  }
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
@@ -112,7 +140,7 @@ function ThreadDetailPanel({
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      <div className="flex-1 overflow-y-auto bg-white p-5 space-y-5">
         {/* Title */}
         <h2 className="text-[15px] font-semibold text-slate-900 leading-snug">{o.title}</h2>
 
@@ -134,38 +162,47 @@ function ThreadDetailPanel({
           </div>
         )}
 
-        {/* Thread content */}
-        {snippet && (
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Thread Preview</div>
-            <p className="text-sm text-slate-700 leading-relaxed">{snippet}</p>
+        {/* Thread content — live selftext if fetched, else stored snippet */}
+        <div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            {liveSelftext ? "Thread Content" : "Thread Preview"}
           </div>
-        )}
-
-        {/* Comments — from DB if stored, otherwise prompt to open Reddit */}
-        <div className="border-t border-slate-100 pt-4">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-            Top Comments {storedComments && storedComments.length > 0 ? `(${storedComments.length})` : ""}
-          </div>
-
-          {storedComments && storedComments.length > 0 ? (
-            <div className="space-y-3">
-              {storedComments.map((c, i) => (
-                <div key={i} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold text-slate-600">u/{c.author}</span>
-                    {c.score > 0 && <span className="text-[10px] text-slate-400">▲ {c.score}</span>}
-                  </div>
-                  <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Open the thread on Reddit to read and join the conversation.
-            </p>
-          )}
+          <p className="text-sm text-slate-700 leading-relaxed">
+            {liveSelftext ?? snippet ?? "Open the thread on Reddit to read the full post."}
+          </p>
         </div>
+
+        {/* Comments — live if fetched, stored as fallback */}
+        {(() => {
+          const displayComments = liveComments ?? storedComments;
+          const isLive = !!liveComments;
+          return (
+            <div className="border-t border-slate-100 pt-4">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center justify-between">
+                <span>Top Comments {displayComments && displayComments.length > 0 ? `(${displayComments.length})` : ""}</span>
+                {isLive && <span className="text-emerald-600 normal-case font-medium">Live from Reddit</span>}
+              </div>
+              {displayComments && displayComments.length > 0 ? (
+                <div className="space-y-3">
+                  {displayComments.map((c, i) => (
+                    <div key={i} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-semibold text-slate-600">u/{c.author}</span>
+                        {c.score > 0 && <span className="text-[10px] text-slate-400">▲ {c.score}</span>}
+                      </div>
+                      <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : !fetching ? (
+                <p className="text-[11px] text-slate-400">Click &ldquo;Fetch Comments&rdquo; to load the full thread.</p>
+              ) : null}
+              {fetchError && (
+                <p className="text-[11px] text-red-500 bg-red-50 rounded-lg px-3 py-2 mt-2">{fetchError}</p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Keyword */}
         <div className="text-[11px] text-slate-400">
@@ -187,17 +224,28 @@ function ThreadDetailPanel({
             Open Thread &amp; Reply on Reddit
           </a>
 
-          <a
-            href={o.permalink}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:border-slate-400 hover:text-slate-800 px-4 py-2.5 rounded-xl transition-all"
+          <button
+            onClick={fetchThread}
+            disabled={fetching}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:border-slate-400 hover:text-slate-800 disabled:opacity-50 px-4 py-2.5 rounded-xl transition-all"
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            Fetch Comments
-          </a>
+            {fetching ? (
+              <>
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                Fetching…
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                {liveComments ? "Refresh Comments" : "Fetch Comments"}
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -328,7 +376,7 @@ export function RedditDashboard({
         </div>
 
         {/* Right: thread detail */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden bg-white">
           {selected ? (
             <ThreadDetailPanel
               key={selected.id}
