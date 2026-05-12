@@ -148,6 +148,7 @@ export interface WeeklyTargets {
   articles: number;     // articles_standard + articles_longform combined
   faq_sections: number;
   content_refreshes: number;
+  page_creation_suggestions: number;
   internal_links: number;
   reddit_comments: number;
 }
