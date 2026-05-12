@@ -62,15 +62,17 @@ function clientFilter(clientId: string): string {
   return `OR(FIND("${clientId}",{client_id}),{client_id}="${clientId}")`;
 }
 
+const EXCLUDED_TYPES = `AND({type}!="Reddit",{type}!="Reddit Comment",{type}!="reddit")`;
+
 export async function getPendingApprovals(clientId?: string, recordId?: string): Promise<Change[]> {
   let filter: string;
   if (!clientId && !recordId) {
-    filter = `{approval}="pending"`;
+    filter = `AND({approval}="pending",${EXCLUDED_TYPES})`;
   } else if (clientId && recordId && clientId !== recordId) {
-    filter = `AND({approval}="pending",OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id})))`;
+    filter = `AND({approval}="pending",${EXCLUDED_TYPES},OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id})))`;
   } else {
     const id = clientId || recordId!;
-    filter = `AND({approval}="pending",${clientFilter(id)})`;
+    filter = `AND({approval}="pending",${EXCLUDED_TYPES},${clientFilter(id)})`;
   }
   return airtableFetch<Change>(TABLE, {
     filterByFormula: filter,

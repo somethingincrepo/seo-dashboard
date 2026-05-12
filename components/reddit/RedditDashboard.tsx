@@ -56,54 +56,7 @@ function ThreadDetailPanel({
 }) {
   const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
-  const [comments, setComments] = useState<RedditComment[] | null>(null);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentsError, setCommentsError] = useState(false);
-
-  function parseComments(data: unknown): RedditComment[] {
-    if (!data || typeof data !== "object") return [];
-    const d = data as Record<string, unknown>;
-    if (d.kind !== "Listing") return [];
-    const children = ((d.data as Record<string, unknown>).children as unknown[]) ?? [];
-    const result: RedditComment[] = [];
-    for (const child of children.slice(0, 5)) {
-      const c = child as Record<string, unknown>;
-      if (c.kind !== "t1") continue;
-      const cd = c.data as Record<string, unknown>;
-      if (!cd.body || cd.body === "[deleted]" || cd.body === "[removed]") continue;
-      result.push({
-        id: cd.id as string,
-        author: (cd.author as string) ?? "[deleted]",
-        body: cd.body as string,
-        score: (cd.score as number) ?? 0,
-        replies: [],
-      });
-    }
-    return result;
-  }
-
-  async function fetchComments() {
-    if (commentsLoading || comments) return;
-    setCommentsLoading(true);
-    setCommentsError(false);
-    try {
-      const redditUrl = `${o.permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
-      // Reddit blocks CORS — proxy through corsproxy.io
-      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(redditUrl)}`;
-      const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error(`${res.status}`);
-      const json = await res.json() as unknown[];
-      if (Array.isArray(json) && json.length >= 2) {
-        setComments(parseComments(json[1]));
-      } else {
-        setCommentsError(true);
-      }
-    } catch {
-      setCommentsError(true);
-    } finally {
-      setCommentsLoading(false);
-    }
-  }
+  const storedComments = o.top_comments ?? null;
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
@@ -193,51 +146,33 @@ function ThreadDetailPanel({
         {/* Comments */}
         <div className="border-t border-slate-100 pt-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Top Comments</div>
-            <div className="flex items-center gap-2">
-              {!comments && !commentsLoading && (
-                <button
-                  onClick={fetchComments}
-                  className="text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-400 rounded-lg px-3 py-1.5 transition-all bg-white flex items-center gap-1.5"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  Fetch Comments
-                </button>
-              )}
-              <a
-                href={o.permalink}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-orange-500 hover:text-orange-700 font-medium flex items-center gap-1 transition-colors"
-              >
-                View on Reddit ↗
-              </a>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Top Comments {storedComments && storedComments.length > 0 && `(${storedComments.length})`}
             </div>
+            <a
+              href={o.permalink}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-orange-500 hover:text-orange-700 font-medium flex items-center gap-1 transition-colors"
+            >
+              View on Reddit ↗
+            </a>
           </div>
 
-          {commentsLoading && (
-            <div className="text-sm text-slate-400">Fetching comments…</div>
-          )}
-
-          {commentsError && (
+          {!storedComments && (
             <div className="text-sm text-slate-400">
-              Could not load comments.{" "}
-              <a href={o.permalink} target="_blank" rel="noreferrer" className="text-orange-500 hover:text-orange-700">
-                Read on Reddit ↗
-              </a>
+              Comments load on next daily scan (6am UTC).
             </div>
           )}
 
-          {comments && comments.length === 0 && (
-            <div className="text-sm text-slate-400">No comments yet.</div>
+          {storedComments && storedComments.length === 0 && (
+            <div className="text-sm text-slate-400">No comments on this thread yet.</div>
           )}
 
-          {comments && comments.length > 0 && (
+          {storedComments && storedComments.length > 0 && (
             <div className="space-y-3">
-              {comments.map(c => (
-                <div key={c.id} className="bg-slate-50 rounded-lg p-3 space-y-1">
+              {storedComments.map((c, i) => (
+                <div key={i} className="bg-slate-50 rounded-lg p-3 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold text-slate-700">u/{c.author}</span>
                     <span className="text-[10px] text-slate-400">▲ {c.score}</span>

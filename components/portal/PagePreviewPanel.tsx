@@ -192,45 +192,6 @@ function PreContentState({
   );
 }
 
-// ── Publishing guide ──────────────────────────────────────────────────────────
-
-function PublishingGuide({ s }: { s: PageCreationSuggestion }) {
-  const isPublished = s.status === "published";
-  return (
-    <div className="border-t border-slate-200 bg-slate-50 px-8 py-6 shrink-0">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">How this gets published</p>
-      <div className="space-y-4">
-        <Step n={1} done title="Content approved" desc="You've reviewed and approved the generated page." />
-        <Step n={2} done={isPublished} title="Page created in your CMS" desc={
-          <>
-            Our team creates this page at{" "}
-            <span className="font-mono text-[11px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-700">{s.suggested_slug}</span>
-            {" "}and adds internal links pointing to it from relevant existing pages.
-          </>
-        } />
-        <Step n={3} done={isPublished} title="Goes live" desc="Once published, this entry updates to 'Live' and the confirmed URL is shown." />
-        <Step n={4} done={false} title="SEO indexing" desc="The URL is submitted to Google Search Console so it gets crawled and indexed quickly." />
-      </div>
-    </div>
-  );
-}
-
-function Step({ n, done, title, desc }: { n: number; done: boolean; title: string; desc: React.ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold mt-0.5 ${
-        done ? "bg-emerald-100 text-emerald-700" : "bg-white border border-slate-300 text-slate-400"
-      }`}>
-        {done ? "✓" : n}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-[13px] font-semibold mb-0.5 ${done ? "text-emerald-700" : "text-slate-700"}`}>{title}</p>
-        <p className="text-[12px] text-slate-500 leading-relaxed">{desc}</p>
-      </div>
-    </div>
-  );
-}
-
 // ── Body with image injected at midpoint ──────────────────────────────────────
 
 function BodyWithImageInjected({ html }: { html: string }) {
@@ -253,17 +214,12 @@ function BodyWithImageInjected({ html }: { html: string }) {
 function FullPagePreview({
   s,
   companyName,
-  onApprove,
-  approving,
 }: {
   s: PageCreationSuggestion;
   companyName: string;
-  onApprove?: () => void;
-  approving?: boolean;
 }) {
   const accent = getAccent(s.page_type);
   const features = getFeatures(s.page_type);
-  const isApproved = s.status === "approved_for_publish" || s.status === "published";
 
   return (
     <div className="h-full flex flex-col overflow-y-auto bg-white">
@@ -362,22 +318,8 @@ function FullPagePreview({
         <p className="text-[11px] text-slate-400">© {new Date().getFullYear()} {companyName}</p>
       </div>
 
-      {/* Publishing guide — shown once approved */}
-      {isApproved && <PublishingGuide s={s} />}
-
-      {/* Approve bar — only when content_ready */}
-      {onApprove && !isApproved && (
-        <div className="sticky bottom-0 bg-white border-t border-indigo-200 px-8 py-3 flex items-center gap-3 shrink-0">
-          <p className="text-[12px] text-slate-500 flex-1">Happy with this page? Approve to send for publishing.</p>
-          <button
-            onClick={onApprove}
-            disabled={approving}
-            className="px-5 py-2 rounded-lg text-[13px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition-colors"
-          >
-            {approving ? "Approving…" : "Approve for Publishing"}
-          </button>
-        </div>
-      )}
+      {/* Approve bar and publishing guide are rendered by the parent (PageCreationSuggestions)
+          in a fixed position above the scrollable preview so they're always visible. */}
     </div>
   );
 }
@@ -424,12 +366,5 @@ export function PagePreviewPanel({
     );
   }
 
-  return (
-    <FullPagePreview
-      s={suggestion}
-      companyName={companyName}
-      onApprove={suggestion.status === "content_ready" ? onApprove : undefined}
-      approving={approving}
-    />
-  );
+  return <FullPagePreview s={suggestion} companyName={companyName} />;
 }

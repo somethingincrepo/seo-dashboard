@@ -34,6 +34,7 @@ export type ScoredOpportunity = RedditPost & {
   ranks_on_google: boolean;
   opportunity_type: OpportunityType;
   source: "dataforseo";
+  top_comments?: Array<{ author: string; body: string; score: number }>;
 };
 
 export type RedditOpportunity = {
@@ -55,6 +56,7 @@ export type RedditOpportunity = {
   opportunity_type: OpportunityType;
   ai_explanation: string | null;
   snippet: string;
+  top_comments: Array<{ author: string; body: string; score: number }> | null;
   status: "new" | "viewed" | "replied" | "dismissed";
   created_at: string;
   updated_at: string;
@@ -133,6 +135,43 @@ export async function searchRedditMentions(
   opts: { limit?: number } = {}
 ): Promise<RedditPost[]> {
   return dataforSeoSearch(`site:reddit.com "${brandName}"`, opts.limit ?? 10);
+}
+
+// ─── Comment fetching (best-effort during scan) ───────────────────────────────
+
+export async function fetchTopComments(
+  permalink: string
+): Promise<Array<{ author: string; body: string; score: number }>> {
+  try {
+    const url = `${permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const json = await res.json() as unknown[];
+    if (!Array.isArray(json) || json.length < 2) return [];
+
+    const listing = json[1] as { data: { children: Array<{ kind: string; data: Record<string, unknown> }> } };
+    const comments: Array<{ author: string; body: string; score: number }> = [];
+    for (const child of (listing.data?.children ?? []).slice(0, 5)) {
+      if (child.kind !== "t1") continue;
+      const d = child.data;
+      if (!d.body || d.body === "[deleted]" || d.body === "[removed]") continue;
+      comments.push({
+        author: (d.author as string) ?? "unknown",
+        body: ((d.body as string) ?? "").slice(0, 500),
+        score: (d.score as number) ?? 0,
+      });
+    }
+    return comments;
+  } catch {
+    return [];
+  }
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
@@ -251,6 +290,7 @@ export async function upsertOpportunities(
     opportunity_type: o.opportunity_type,
     snippet: o.selftext ?? "",
     ai_explanation: explanations[o.id] ?? null,
+    top_comments: o.top_comments ?? null,
     updated_at: new Date().toISOString(),
   }));
 

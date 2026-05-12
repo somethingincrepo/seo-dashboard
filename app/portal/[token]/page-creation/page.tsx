@@ -58,6 +58,7 @@ export default async function PageCreationPage({
           token={token}
           clientPackage={clientPackage}
           companyName={client.fields.company_name || ""}
+          cms={(client.fields.cms ?? "").toLowerCase()}
         />
       </div>
     </div>

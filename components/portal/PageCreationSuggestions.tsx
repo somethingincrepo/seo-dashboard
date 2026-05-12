@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import type { PageCreationSuggestion, PageCreationStatus } from "@/lib/supabase";
 import { PagePreviewPanel } from "./PagePreviewPanel";
@@ -225,24 +225,122 @@ function EmptyState() {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+// ── CMS publishing guide ──────────────────────────────────────────────────────
+
+type CmsGuideStep = { done: boolean; title: string; desc: React.ReactNode };
+
+function GuideStep({ done, title, desc }: CmsGuideStep) {
+  return (
+    <div className="flex gap-3">
+      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold mt-0.5 ${
+        done ? "bg-emerald-100 text-emerald-700" : "bg-white border border-slate-300 text-slate-400"
+      }`}>{done ? "✓" : "·"}</div>
+      <div className="flex-1 min-w-0 pb-3 border-b border-slate-100 last:border-0">
+        <p className={`text-[13px] font-semibold leading-tight ${done ? "text-emerald-700" : "text-slate-800"}`}>{title}</p>
+        <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+function CmsPublishingGuide({
+  cms,
+  slug,
+  isPublished,
+}: {
+  cms: string;
+  slug: string;
+  isPublished: boolean;
+}) {
+  const slugChip = (
+    <span className="font-mono text-[11px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700">
+      {slug}
+    </span>
+  );
+
+  let cmsLabel = "your CMS";
+  let steps: CmsGuideStep[] = [];
+
+  if (cms === "wordpress") {
+    cmsLabel = "WordPress";
+    steps = [
+      { done: true,       title: "Content approved",            desc: "Full page content is ready — H1, body, FAQs, and meta fields." },
+      { done: isPublished, title: "Page created in WordPress",  desc: <>We create a new page at {slugChip}, paste the generated content, and configure title + meta via Yoast or RankMath. No action needed from you.</> },
+      { done: isPublished, title: "Internal links added",       desc: "We insert links to this new page from your most relevant existing pages so it gets crawl authority immediately." },
+      { done: isPublished, title: "Goes live",                  desc: "The page is published in WordPress and updates here to 'Live'." },
+      { done: false,       title: "Indexed by Google",          desc: "We submit the URL to Google Search Console for fast crawling. Expect search visibility within 2–4 weeks." },
+    ];
+  } else if (cms === "shopify") {
+    cmsLabel = "Shopify";
+    steps = [
+      { done: true,        title: "Content approved",           desc: "Full page content is ready." },
+      { done: isPublished, title: "Page created in Shopify",   desc: <>Go to <strong>Online Store → Pages → Add page</strong>. Set the title to the H1 shown in the preview. Set the URL handle to {slugChip}.</> },
+      { done: isPublished, title: "Paste the content",         desc: "Copy the body from the preview and paste it into the Shopify page editor. Set the SEO meta title and description from the meta strip." },
+      { done: isPublished, title: "Publish the page",          desc: "Save and set visibility to 'Visible'. Let us know once it's live so we can add internal links." },
+      { done: false,       title: "Indexed by Google",         desc: "We'll submit the URL to Search Console once the page is live." },
+    ];
+  } else if (cms === "webflow") {
+    cmsLabel = "Webflow";
+    steps = [
+      { done: true,        title: "Content approved",           desc: "Full page content is ready." },
+      { done: isPublished, title: "Page created in Webflow",   desc: <>In the Webflow Designer, add a new static page and set its slug to {slugChip}. Or we can create it directly if your project is connected.</> },
+      { done: isPublished, title: "Content pasted in",         desc: "Add a Rich Text element and paste the body content. Set the page title and meta description in the page SEO settings." },
+      { done: isPublished, title: "Published",                 desc: "Publish the Webflow project to push the new page live. Let us know once done." },
+      { done: false,       title: "Indexed by Google",         desc: "We'll submit to Search Console after publishing." },
+    ];
+  } else if (cms === "hubspot") {
+    cmsLabel = "HubSpot";
+    steps = [
+      { done: true,        title: "Content approved",           desc: "Full page content is ready." },
+      { done: isPublished, title: "Page created in HubSpot",   desc: <>In HubSpot, go to <strong>Marketing → Website → Website Pages</strong> and create a new page. Set the URL to {slugChip}.</> },
+      { done: isPublished, title: "Content added",             desc: "Add the body content via the drag-and-drop editor or HTML module. Set the meta title and description in the page settings." },
+      { done: isPublished, title: "Published",                 desc: "Publish the page and share the live URL so we can add internal links." },
+      { done: false,       title: "Indexed by Google",         desc: "Submitted to Search Console after publishing." },
+    ];
+  } else {
+    cmsLabel = "your site";
+    steps = [
+      { done: true,        title: "Content approved",           desc: "Full page content is ready — you can copy it from the preview." },
+      { done: isPublished, title: "Page created manually",     desc: <>Create a new page on your site at {slugChip}. Paste in the H1, body copy, and FAQ section from the preview.</> },
+      { done: isPublished, title: "SEO fields set",            desc: "Add the meta title and description (shown in the meta strip at the top of the preview) to your page's SEO settings." },
+      { done: isPublished, title: "Goes live",                 desc: "Once published, let us know so we can add internal links and submit to Search Console." },
+      { done: false,       title: "Indexed by Google",         desc: "We'll request indexing via Search Console to speed up discovery." },
+    ];
+  }
+
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+        How it gets published · {cmsLabel}
+      </p>
+      <div className="space-y-0">
+        {steps.map((s, i) => <GuideStep key={i} {...s} />)}
+      </div>
+    </div>
+  );
+}
+
 export function PageCreationSuggestions({
   items,
   historicalItems,
   token,
   clientPackage,
   companyName = "",
+  cms = "",
 }: {
   items: PageCreationSuggestion[];
   historicalItems: PageCreationSuggestion[];
   token: string;
   clientPackage: string;
   companyName?: string;
+  cms?: string;
 }) {
   const all = [...items, ...historicalItems];
   const [localAll, setLocalAll] = useState(all);
   const [stageFilter, setStageFilter] = useState<StageKey | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   // Auto-select: prefer first content_ready, else first non-skipped
   useEffect(() => {
@@ -356,7 +454,7 @@ export function PageCreationSuggestions({
         </div>
 
         {/* Right: page preview */}
-        <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-slate-200 shadow-sm flex flex-col">
           {/* Browser chrome */}
           <div className="flex items-center gap-3 px-4 py-2 bg-slate-100 border-b border-slate-200 shrink-0">
             <div className="flex gap-1.5">
@@ -368,12 +466,66 @@ export function PageCreationSuggestions({
               {selectedSuggestion?.suggested_slug ?? "—"}
             </div>
           </div>
-          {/* Preview content */}
-          <div className="h-full overflow-y-auto">
+
+          {/* ── Fixed action bar (content_ready) ── */}
+          {selectedSuggestion?.status === "content_ready" && (
+            <div className="flex items-center gap-3 px-5 py-3 bg-indigo-50 border-b border-indigo-100 shrink-0">
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-indigo-900 leading-tight">Ready for your approval</p>
+                <p className="text-[11px] text-indigo-500 mt-0.5">Review the page below, then approve when happy.</p>
+              </div>
+              <button
+                onClick={() => setGuideOpen(v => !v)}
+                className="text-[12px] font-medium text-indigo-500 hover:text-indigo-700 whitespace-nowrap shrink-0"
+              >
+                {guideOpen ? "Hide guide ↑" : "How it gets published →"}
+              </button>
+              <button
+                onClick={handleApproveContent}
+                disabled={approving}
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition-colors shrink-0"
+              >
+                {approving ? "Approving…" : "Approve for Publishing"}
+              </button>
+            </div>
+          )}
+
+          {/* ── Fixed action bar (approved / published) ── */}
+          {(selectedSuggestion?.status === "approved_for_publish" || selectedSuggestion?.status === "published") && (
+            <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border-b border-emerald-100 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <p className="text-[13px] font-semibold text-emerald-800 flex-1">
+                {selectedSuggestion.status === "published" ? "Published" : "Approved — pending publish"}
+              </p>
+              <button
+                onClick={() => setGuideOpen(v => !v)}
+                className="text-[12px] font-medium text-emerald-600 hover:text-emerald-800 whitespace-nowrap"
+              >
+                {guideOpen ? "Hide guide ↑" : "Publishing guide →"}
+              </button>
+            </div>
+          )}
+
+          {/* ── Publishing guide (expandable, fixed above preview) ── */}
+          {guideOpen && selectedSuggestion && (
+            selectedSuggestion.status === "content_ready" ||
+            selectedSuggestion.status === "approved_for_publish" ||
+            selectedSuggestion.status === "published"
+          ) && (
+            <div className="overflow-y-auto max-h-72 shrink-0">
+              <CmsPublishingGuide
+                cms={cms}
+                slug={selectedSuggestion!.suggested_slug}
+                isPublished={selectedSuggestion!.status === "published"}
+              />
+            </div>
+          )}
+
+          {/* Scrollable page preview */}
+          <div className="flex-1 overflow-y-auto min-h-0">
             <PagePreviewPanel
               suggestion={selectedSuggestion}
               companyName={companyName}
-              onApprove={selectedSuggestion?.status === "content_ready" ? handleApproveContent : undefined}
               onApproveSuggestion={selectedSuggestion?.status === "suggested" ? handleApproveSuggestion : undefined}
               onSkipSuggestion={selectedSuggestion?.status === "suggested" ? handleSkipSuggestion : undefined}
               approving={approving}
