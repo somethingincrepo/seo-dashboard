@@ -147,7 +147,7 @@ export type GscWeek = {
   avg_position: number | null;
 };
 
-export function GscTrendChart({ weeks }: { weeks: GscWeek[] }) {
+export function GscTrendChart({ weeks, compact }: { weeks: GscWeek[]; compact?: boolean }) {
   if (weeks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -160,12 +160,6 @@ export function GscTrendChart({ weeks }: { weeks: GscWeek[] }) {
   const ordered = [...weeks].sort((a, b) => a.week_start.localeCompare(b.week_start));
   const maxClicks = Math.max(...ordered.map((w) => w.clicks), 1);
   const maxImpressions = Math.max(...ordered.map((w) => w.impressions), 1);
-  const totalClicks = ordered.reduce((s, w) => s + w.clicks, 0);
-  const totalImpressions = ordered.reduce((s, w) => s + w.impressions, 0);
-  const latestPosition = ordered[ordered.length - 1]?.avg_position;
-
-  const fmtNum = (n: number) =>
-    n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
   const weekLabel = (iso: string) => {
     const d = new Date(iso + "T12:00:00Z");
@@ -174,27 +168,6 @@ export function GscTrendChart({ weeks }: { weeks: GscWeek[] }) {
 
   return (
     <div>
-      {/* Summary row */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
-        <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <div className="text-xs text-slate-400 mb-1">Total Clicks</div>
-          <div className="text-xl font-bold text-slate-800 tabular-nums">{fmtNum(totalClicks)}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">last {ordered.length} weeks</div>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <div className="text-xs text-slate-400 mb-1">Impressions</div>
-          <div className="text-xl font-bold text-slate-800 tabular-nums">{fmtNum(totalImpressions)}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">last {ordered.length} weeks</div>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <div className="text-xs text-slate-400 mb-1">Avg. Position</div>
-          <div className="text-xl font-bold text-slate-800 tabular-nums">
-            {latestPosition != null ? latestPosition.toFixed(1) : "—"}
-          </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">latest week</div>
-        </div>
-      </div>
-
       {/* Dual bar chart: impressions behind, clicks in front */}
       <div className="relative">
         <div className="flex items-end gap-[3px] h-24">
