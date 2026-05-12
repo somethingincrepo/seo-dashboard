@@ -183,11 +183,15 @@ export default async function GuidePage({
  <div className="text-[12px] font-semibold text-slate-700 mb-3">What's fully automatic</div>
  <div className="space-y-2">
  {[
- "Monthly SEO audit of your entire site",
+ "Monthly site crawl and issue detection",
  "Implementation of approved changes (WordPress)",
  "Blog title proposals — 2 to 4 per month",
- "Monthly performance reports",
  "Content generation for approved titles",
+ "Content refresh drafts for underperforming pages",
+ "Page creation suggestions from keyword and gap analysis",
+ "Internal link proposals from your site graph",
+ "Reddit thread discovery for your keywords",
+ "Monthly performance reports",
  ].map((item) => (
  <div key={item} className="flex items-start gap-2.5 text-[13px] text-slate-600">
  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
@@ -500,8 +504,8 @@ export default async function GuidePage({
  <div className="space-y-1.5">
  {[
  ["Starter", "2 refreshes per month"],
- ["Growth", "4 refreshes per month"],
- ["Authority", "8 refreshes per month"],
+ ["Growth", "6 refreshes per month"],
+ ["Authority", "12 refreshes per month"],
  ].map(([plan, desc]) => (
  <div key={plan} className="grid grid-cols-[80px_1fr] gap-2">
  <span className="text-[12px] font-medium text-slate-700">{plan}</span>
@@ -547,6 +551,226 @@ export default async function GuidePage({
  ].map(([status, desc]) => (
  <div key={status} className="grid grid-cols-[130px_1fr] gap-2">
  <span className="text-[12px] font-medium text-slate-700">{status}</span>
+ <span className="text-[12px] text-slate-500">{desc}</span>
+ </div>
+ ))}
+ </div>
+ </AccordionItem>
+ </div>
+ </GlassCard>
+ </section>
+
+
+ {/* Site Audit */}
+ <section id="site-audit">
+ <GlassCard className="overflow-hidden">
+ <div className="p-6">
+ <SectionLabel>Site audit</SectionLabel>
+ <p className="text-sm text-slate-600 leading-relaxed">
+ Your site is crawled automatically each month. Every page is checked against a deterministic
+ rules engine — title tags, meta descriptions, heading structure, canonical tags, schema markup,
+ image alt text, broken links, and more. Results appear in the{" "}
+ <strong className="text-slate-700">Site Audit</strong> tab, split into two views.
+ </p>
+ </div>
+ <Divider />
+ <div className="p-6 space-y-2">
+ <AccordionItem label="Issues">
+ <p className="mb-3">
+ The Issues view lists every rule violation found on your site, organized by severity
+ (Critical, High, Medium, Low) and category (Technical, On-Page, Content, AI-GEO).
+ Each issue shows the affected page, what's wrong, and what the fix should be.
+ </p>
+ <p>
+ You decide which issues to act on. Use the <strong className="text-slate-700">Approve</strong> button
+ on an issue to queue it for fix generation — our system writes the proposed fix and adds it to your
+ Approvals queue. Use <strong className="text-slate-700">Dismiss</strong> to skip an issue permanently.
+ </p>
+ </AccordionItem>
+ <AccordionItem label="Site Health">
+ <p className="mb-3">
+ The Site Health tab shows foundational, site-wide checks that don't belong to a single page:
+ </p>
+ <div className="space-y-1.5">
+ {[
+ ["robots.txt", "Whether a robots.txt file is present and correctly formatted."],
+ ["XML sitemap", "Whether a sitemap exists and how many URLs it contains."],
+ ["HTTPS", "Whether the site enforces HTTPS and redirects HTTP traffic correctly."],
+ ["HSTS header", "Whether HTTP Strict Transport Security is set."],
+ ["llms.txt", "Whether an llms.txt file is present to guide AI crawlers."],
+ ].map(([label, desc]) => (
+ <div key={String(label)} className="grid grid-cols-[120px_1fr] gap-2">
+ <span className="text-[12px] font-medium text-slate-700">{label}</span>
+ <span className="text-[12px] text-slate-500">{desc}</span>
+ </div>
+ ))}
+ </div>
+ </AccordionItem>
+ </div>
+ </GlassCard>
+ </section>
+
+
+ {/* Page Creation */}
+ <section id="page-creation">
+ <GlassCard className="overflow-hidden">
+ <div className="p-6">
+ <SectionLabel>Page creation</SectionLabel>
+ <p className="text-sm text-slate-600 leading-relaxed">
+ Each month our system analyzes your keyword groups, competitor sites, and the gaps in your
+ site architecture to identify net-new pages that should exist. These appear in the{" "}
+ <strong className="text-slate-700">Page Creation</strong> tab as suggestions, not automatic
+ drafts — you decide what gets built.
+ </p>
+ </div>
+ <Divider />
+ <div className="p-6 space-y-2">
+ <AccordionItem label="What a suggestion includes">
+ <div className="space-y-1.5">
+ {[
+ ["Target keyword", "The primary search term this page is being built around."],
+ ["Suggested slug", "A recommended URL path for the new page."],
+ ["Page type", "Service page, location page, use-case page, industry page, etc."],
+ ["Reasoning", "Why this gap exists and why the page is worth creating."],
+ ].map(([label, desc]) => (
+ <div key={String(label)} className="grid grid-cols-[130px_1fr] gap-2">
+ <span className="text-[12px] font-medium text-slate-700">{label}</span>
+ <span className="text-[12px] text-slate-500">{desc}</span>
+ </div>
+ ))}
+ </div>
+ </AccordionItem>
+ <AccordionItem label="How approval works">
+ <p className="mb-3">
+ There are two approval steps:
+ </p>
+ <div className="space-y-1.5 mb-3">
+ {[
+ ["Concept approval", "You review the suggestion and decide whether you want this page to exist. Approve it to trigger content generation."],
+ ["Content approval", "Once the full page draft is written, it appears here for review before publishing. You can read the H1, body, and meta before anything goes live."],
+ ].map(([label, desc]) => (
+ <div key={String(label)} className="grid grid-cols-[130px_1fr] gap-2">
+ <span className="text-[12px] font-medium text-slate-700">{label}</span>
+ <span className="text-[12px] text-slate-500">{desc}</span>
+ </div>
+ ))}
+ </div>
+ </AccordionItem>
+ <AccordionItem label="Monthly allocation">
+ <p className="mb-3">
+ The number of page creation suggestions per month depends on your plan:
+ </p>
+ <div className="space-y-1.5">
+ {[
+ ["Starter", "2 suggestions per month"],
+ ["Growth", "6 suggestions per month"],
+ ["Authority", "12 suggestions per month"],
+ ].map(([plan, desc]) => (
+ <div key={plan} className="grid grid-cols-[80px_1fr] gap-2">
+ <span className="text-[12px] font-medium text-slate-700">{plan}</span>
+ <span className="text-[12px] text-slate-500">{desc}</span>
+ </div>
+ ))}
+ </div>
+ </AccordionItem>
+ </div>
+ </GlassCard>
+ </section>
+
+
+ {/* Internal Links */}
+ <section id="internal-links">
+ <GlassCard className="overflow-hidden">
+ <div className="p-6">
+ <SectionLabel>Internal links</SectionLabel>
+ <p className="text-sm text-slate-600 leading-relaxed">
+ Each month our system analyzes your site graph and identifies the highest-value internal
+ link opportunities — existing pages that should be linking to each other but aren't.
+ Proposals appear in the <strong className="text-slate-700">Internal Links</strong> tab
+ for your review before anything is added to your site.
+ </p>
+ </div>
+ <Divider />
+ <div className="p-6 space-y-2">
+ <AccordionItem label="Why internal links matter">
+ <p className="mb-2">
+ Internal links do two things for SEO: they help search engines discover and understand the
+ relationship between your pages, and they pass ranking authority from high-traffic pages to
+ newer content that hasn't earned inbound links yet.
+ </p>
+ <p>
+ Adding links between relevant pages is one of the fastest, safest ways to lift rankings on
+ pages that are close to the first page but haven't broken through yet.
+ </p>
+ </AccordionItem>
+ <AccordionItem label="What each proposal shows">
+ <div className="space-y-1.5">
+ {[
+ ["Source page", "The existing page where the new link will be added."],
+ ["Anchor text", "The clickable text that will be used for the link."],
+ ["Target page", "The page on your site the link points to."],
+ ["Context", "The sentence or paragraph where the link will be inserted."],
+ ].map(([label, desc]) => (
+ <div key={String(label)} className="grid grid-cols-[110px_1fr] gap-2">
+ <span className="text-[12px] font-medium text-slate-700">{label}</span>
+ <span className="text-[12px] text-slate-500">{desc}</span>
+ </div>
+ ))}
+ </div>
+ </AccordionItem>
+ <AccordionItem label="Monthly allocation">
+ <div className="space-y-1.5">
+ {[
+ ["Starter", "4 internal links per month"],
+ ["Growth", "10 internal links per month"],
+ ["Authority", "20 internal links per month"],
+ ].map(([plan, desc]) => (
+ <div key={plan} className="grid grid-cols-[80px_1fr] gap-2">
+ <span className="text-[12px] font-medium text-slate-700">{plan}</span>
+ <span className="text-[12px] text-slate-500">{desc}</span>
+ </div>
+ ))}
+ </div>
+ </AccordionItem>
+ </div>
+ </GlassCard>
+ </section>
+
+
+ {/* Reddit */}
+ <section id="reddit">
+ <GlassCard className="overflow-hidden">
+ <div className="p-6">
+ <SectionLabel>Reddit</SectionLabel>
+ <p className="text-sm text-slate-600 leading-relaxed">
+ The Reddit tab surfaces threads across Reddit where your keywords, industry, or business
+ are being discussed. AI models like ChatGPT and Perplexity frequently cite Reddit as a
+ source — being present in relevant conversations builds brand credibility with both humans
+ and AI.
+ </p>
+ </div>
+ <Divider />
+ <div className="p-6 space-y-2">
+ <AccordionItem label="How threads are found">
+ <p className="mb-2">
+ Our system scans Reddit for posts matching your keyword groups and marks each one with a
+ relevance score. Threads where your topic ranks on Google are flagged separately, since those
+ are the highest-value conversations to be present in.
+ </p>
+ <p>
+ New threads appear with a <strong className="text-slate-700">New</strong> badge. Once you've
+ viewed or acted on a thread, it moves to Viewed or Replied status.
+ </p>
+ </AccordionItem>
+ <AccordionItem label="Monthly allocation">
+ <div className="space-y-1.5">
+ {[
+ ["Starter", "10 Reddit threads found per month"],
+ ["Growth", "20 Reddit threads found per month"],
+ ["Authority", "40 Reddit threads found per month"],
+ ].map(([plan, desc]) => (
+ <div key={plan} className="grid grid-cols-[80px_1fr] gap-2">
+ <span className="text-[12px] font-medium text-slate-700">{plan}</span>
  <span className="text-[12px] text-slate-500">{desc}</span>
  </div>
  ))}
