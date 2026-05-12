@@ -187,6 +187,7 @@ export default function IndexationPage() {
  const [submitting, setSubmitting] = useState(false);
  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
  const [hasGsc, setHasGsc] = useState(true);
+ const [gscError, setGscError] = useState<string | null>(null);
  const autoInspectRan = useRef(false);
  const [manualUrl, setManualUrl] = useState("");
  const [manualSubmitting, setManualSubmitting] = useState(false);
@@ -241,6 +242,7 @@ export default function IndexationPage() {
  const data = await res.json();
  if (data.changes) setRows(buildRows(data.changes));
  if (!data.gsc_property) setHasGsc(false);
+     if (data.gsc_error) setGscError(data.gsc_error);
  } finally {
  setLoading(false);
  }
@@ -250,7 +252,7 @@ export default function IndexationPage() {
 
  // Auto-inspect stale URLs once after initial load
  useEffect(() => {
- if (loading || autoInspectRan.current || !hasGsc || rows.length === 0) return;
+ if (loading || autoInspectRan.current || !hasGsc || !!gscError || rows.length === 0) return;
  autoInspectRan.current = true;
 
  const staleUrls = rows.filter((r) => isStale(r.gsc_last_checked)).map((r) => r.url);
@@ -476,7 +478,7 @@ export default function IndexationPage() {
  <Tile label="Total pages" value={counts.total} />
  <Tile label="Indexed" value={counts.indexed} color={counts.indexed > 0 ? "green" : "slate"} sub="confirmed by Google" />
  <Tile label="Issues" value={counts.issues} color={counts.issues > 0 ? "amber" : "slate"} sub="not indexed or blocked" />
- <Tile label="Not checked" value={counts.unchecked} color="slate" sub={hasGsc ? "auto-checks on load" : "no GSC configured"} />
+ <Tile label="Not checked" value={counts.unchecked} color="slate" sub={!hasGsc ? "no GSC configured" : gscError ? "GSC not connected" : "auto-checks on load"} />
  </div>
 
  {/* Manual URL submit */}
@@ -503,14 +505,14 @@ export default function IndexationPage() {
  </div>
 
  {/* No GSC warning */}
- {!hasGsc && (
+ {(!hasGsc || gscError) && (
  <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 space-y-4 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]">
  <div>
  <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-1">SETUP REQUIRED</div>
  <div className="text-sm font-semibold text-slate-900">Connect Google Search Console</div>
  <div className="text-xs text-slate-500 mt-1">Index status checks are disabled until GSC is connected.</div>
  </div>
- <GscGuide token={token} mode="setup" />
+ <GscGuide token={token} mode={gscError ? "error" : "setup"} />
  </div>
  )}
 

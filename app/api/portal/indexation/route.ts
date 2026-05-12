@@ -3,6 +3,7 @@ import { getClientByToken } from "@/lib/clients";
 import { requirePortalAuth } from "@/lib/portal-auth";
 import { airtableFetch } from "@/lib/airtable";
 import { batchSubmitUrls, updateIndexingStatusForUrls } from "@/lib/tools/google-indexing";
+import { executeGscQuery } from "@/lib/tools/gsc";
 import type { Change } from "@/lib/changes";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,20 @@ export async function GET(request: NextRequest) {
       gsc_last_crawled: f(r, "gsc_last_crawled"),
     }));
 
-  return NextResponse.json({ changes, gsc_property: client.fields.gsc_property || null });
+  const gscProperty = client.fields.gsc_property || null;
+
+  // Quick GSC access check — only if a property is configured
+  let gscError: string | null = null;
+  if (gscProperty) {
+    try {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      await executeGscQuery({ property: gscProperty, start_date: yesterday, end_date: yesterday, dimensions: ["query"], row_limit: 1 });
+    } catch (err) {
+      gscError = String(err).includes("403") ? "permission_denied" : "error";
+    }
+  }
+
+  return NextResponse.json({ changes, gsc_property: gscProperty, gsc_error: gscError });
 }
 
 /**
