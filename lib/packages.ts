@@ -9,6 +9,9 @@ export type PackageDeliverables = {
   // priority-ordered by nav importance + traffic + age + thinness. Replaces
   // the former separate `pages_optimized` deliverable.
   content_refreshes: number;   // per month
+  // Net-new page gap suggestions (industry, location, service, use-case, job-title).
+  // Each approved suggestion triggers full page content generation.
+  page_creation_suggestions: number;  // per month (mirrors content_refreshes quota)
   internal_links: number;      // per month
   reddit_comments: number;     // per month
 };
@@ -19,6 +22,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_longform: 0,
     faq_sections: 1,
     content_refreshes: 2,
+    page_creation_suggestions: 2,
     internal_links: 4,
     reddit_comments: 2,
   },
@@ -27,6 +31,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_longform: 2,
     faq_sections: 3,
     content_refreshes: 6,
+    page_creation_suggestions: 6,
     internal_links: 10,
     reddit_comments: 5,
   },
@@ -35,6 +40,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_longform: 4,
     faq_sections: 6,
     content_refreshes: 12,
+    page_creation_suggestions: 12,
     internal_links: 20,
     reddit_comments: 10,
   },
@@ -83,6 +89,7 @@ export type WeeklyVolumes = {
   articles_longform: number[];
   faq_sections: number[];
   content_refreshes: number[];
+  page_creation_suggestions: number[];
   internal_links: number[];
   reddit_comments: number[];
 };
@@ -108,6 +115,7 @@ export function getWeeklyVolumes(tier: PackageTier): WeeklyVolumes {
     articles_longform: splitMonthlyToWeekly(m.articles_longform),
     faq_sections: splitMonthlyToWeekly(m.faq_sections),
     content_refreshes: splitMonthlyToWeekly(m.content_refreshes),
+    page_creation_suggestions: splitMonthlyToWeekly(m.page_creation_suggestions),
     internal_links: splitMonthlyToWeekly(m.internal_links),
     reddit_comments: splitMonthlyToWeekly(m.reddit_comments),
   };
@@ -140,6 +148,7 @@ export interface WeeklyTargets {
   articles: number;     // articles_standard + articles_longform combined
   faq_sections: number;
   content_refreshes: number;
+  page_creation_suggestions: number;
   internal_links: number;
   reddit_comments: number;
 }

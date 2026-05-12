@@ -51,14 +51,16 @@ export async function searchRedditByKeyword(
   keyword: string,
   opts: { limit?: number; daysBack?: number } = {}
 ): Promise<RedditPost[]> {
-  const { limit = 25, daysBack = 30 } = opts;
+  const { limit = 25, daysBack = 365 } = opts;
+
+  const afterTs = Math.floor(Date.now() / 1000) - daysBack * 86400;
 
   const url = new URL(PULLPUSH_BASE);
   url.searchParams.set("q", keyword);
   url.searchParams.set("size", String(limit));
-  url.searchParams.set("after", `${daysBack}d`);
-  url.searchParams.set("sort_type", "score");
-  url.searchParams.set("sort", "desc");
+  url.searchParams.set("after", String(afterTs));
+  url.searchParams.set("sort", "score");
+  url.searchParams.set("sort_type", "desc");
 
   const res = await fetch(url.toString(), { cache: "no-store" });
 

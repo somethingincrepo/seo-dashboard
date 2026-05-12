@@ -117,13 +117,13 @@ export async function GET(request: NextRequest) {
           });
         }
 
-        // 600ms delay between Reddit API calls to stay under 100 req/min
-        await delay(600);
+        // 2s delay between PullPush calls to avoid rate limits
+        await delay(2000);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         console.error(`[reddit-scan] ${clientName} / ${keyword}:`, message);
         errors.push({ client: clientName, keyword, error: message });
-        await delay(600);
+        await delay(2000);
       }
     }
 
