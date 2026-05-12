@@ -101,19 +101,28 @@ async function fetchActuals(
  typeCount[type] = (typeCount[type] ?? 0) + 1;
  }
 
- // Count content_refreshes from Supabase. Only rows with actual output
- // (completed/approved/published) count as delivered — in-progress or
- // failed rows must not inflate the displayed count.
+ // Count content_refreshes and page_creation_suggestions from Supabase.
  let contentRefreshCount = 0;
+ let pageCreationCount = 0;
  try {
- const { data } = await getSupabase()
+ const [refreshData, pageCreationData] = await Promise.all([
+ getSupabase()
  .from("content_refreshes")
  .select("id")
  .eq("client_id", clientRecordId)
  .gte("proposed_at", `${monthStart}T00:00:00Z`)
  .in("status", ["completed", "approved_for_publish", "published"])
- .limit(200);
- contentRefreshCount = (data ?? []).length;
+ .limit(200),
+ getSupabase()
+ .from("page_creation_suggestions")
+ .select("id")
+ .eq("client_id", clientRecordId)
+ .gte("proposed_at", `${monthStart}T00:00:00Z`)
+ .not("status", "in", '("skipped","dismissed")')
+ .limit(200),
+ ]);
+ contentRefreshCount = (refreshData.data ?? []).length;
+ pageCreationCount = (pageCreationData.data ?? []).length;
  } catch {
  // non-fatal — fall back to 0
  }
@@ -153,6 +162,7 @@ async function fetchActuals(
  articles_longform: articlesLongformThisMonth,
  faq_sections: typeCount["FAQ"] ?? 0,
  content_refreshes: contentRefreshCount,
+ page_creation_suggestions: pageCreationCount,
  internal_links: typeCount["Internal Link"] ?? typeCount["Internal Links"] ?? 0,
  reddit_comments: typeCount["Reddit"] ?? typeCount["Reddit Comment"] ?? 0,
  };
@@ -228,6 +238,9 @@ export async function MonthlyProgressSidebar({ client }: { client: Client }) {
  )}
  <SidebarProgressRow label="FAQ sections" actual={actuals.faq_sections} target={targets.faq_sections} />
  <SidebarProgressRow label="Content refreshes" actual={actuals.content_refreshes} target={targets.content_refreshes} />
+ {targets.page_creation_suggestions > 0 && (
+ <SidebarProgressRow label="Page suggestions" actual={actuals.page_creation_suggestions} target={targets.page_creation_suggestions} />
+ )}
  </div>
 
  {/* On-Page */}
@@ -321,6 +334,13 @@ export async function MonthlyProgress({ client }: { client: Client }) {
  actual={actuals.content_refreshes}
  target={targets.content_refreshes}
  />
+ {targets.page_creation_suggestions > 0 && (
+ <ProgressRow
+ label="Page suggestions"
+ actual={actuals.page_creation_suggestions}
+ target={targets.page_creation_suggestions}
+ />
+ )}
  </div>
  </div>
 
