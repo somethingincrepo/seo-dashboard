@@ -4,7 +4,7 @@ import { getClient } from "@/lib/clients";
 import { listOpportunitiesForClient } from "@/lib/reddit";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
-import { ThreadCard } from "@/components/reddit/ThreadCard";
+import { RedditDashboard } from "@/components/reddit/RedditDashboard";
 import type { RedditOpportunity } from "@/lib/reddit";
 
 export const dynamic = "force-dynamic";
@@ -136,54 +136,17 @@ export default async function RedditClientPage({
           </div>
         </div>
 
-        {/* Thread list */}
-        {items.length === 0 ? (
-          <GlassCard className="p-12 text-center">
-            <div className="text-3xl mb-3">▲</div>
-            <div className="text-slate-600 font-medium mb-1">
-              {section === "archive" ? "No archived threads" : "No threads found yet"}
-            </div>
-            <div className="text-slate-400 text-sm">
-              {section === "archive"
-                ? "Threads you dismiss will appear here."
-                : "The daily scan runs at 6am UTC. Check back soon."}
-            </div>
-          </GlassCard>
-        ) : (
-          <div className="space-y-3">
-            {items.map((o: RedditOpportunity) => (
-              <ThreadCard
-                key={o.id}
-                opportunity={o}
-                clientId={clientId}
-                apiPath="/api/reddit/opportunities"
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {total > 25 && (
-          <div className="flex items-center justify-between pt-2">
-            <Link
-              href={page > 1 ? sectionUrl(section, { page: String(page - 1) }) : "#"}
-              className={`text-sm px-4 py-2 rounded-xl border transition-all ${
-                page <= 1 ? "text-slate-300 border-slate-100 pointer-events-none" : "text-slate-600 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              ← Previous
-            </Link>
-            <span className="text-xs text-slate-400">Page {page} of {Math.ceil(total / 25)}</span>
-            <Link
-              href={items.length === 25 ? sectionUrl(section, { page: String(page + 1) }) : "#"}
-              className={`text-sm px-4 py-2 rounded-xl border transition-all ${
-                items.length < 25 ? "text-slate-300 border-slate-100 pointer-events-none" : "text-slate-600 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              Next →
-            </Link>
-          </div>
-        )}
+        <RedditDashboard
+          initialItems={items}
+          total={total}
+          clientId={clientId}
+          apiPath="/api/reddit/opportunities"
+          emptyMessage={
+            section === "archive"
+              ? "No archived threads yet."
+              : "The daily scan runs at 6am UTC. Check back soon."
+          }
+        />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { getClientByToken } from "@/lib/clients";
 import { listOpportunitiesForClient } from "@/lib/reddit";
-import { ThreadCard } from "@/components/reddit/ThreadCard";
+import { RedditDashboard } from "@/components/reddit/RedditDashboard";
 import type { RedditOpportunity } from "@/lib/reddit";
 
 export const revalidate = 0;
@@ -87,54 +87,17 @@ export default async function PortalRedditPage({
         ))}
       </div>
 
-      {/* Thread list */}
-      {items.length === 0 ? (
-        <div className="bg-white rounded-xl border border-dashed border-slate-200 p-12 text-center">
-          <div className="text-3xl mb-3">▲</div>
-          <div className="text-slate-600 font-medium mb-1">
-            {section === "archive" ? "No archived threads" : "No threads found yet"}
-          </div>
-          <div className="text-slate-400 text-sm">
-            {section === "archive"
-              ? "Threads you dismiss will appear here."
-              : "We scan Reddit daily for relevant threads. Check back soon."}
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {items.map((o: RedditOpportunity) => (
-            <ThreadCard
-              key={o.id}
-              opportunity={o}
-              clientId={client.id}
-              apiPath={portalApiPath}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {total > 20 && (
-        <div className="flex items-center justify-between pt-2">
-          <a
-            href={page > 1 ? sectionUrl(section, { page: String(page - 1) }) : "#"}
-            className={`text-sm px-4 py-2 rounded-xl border transition-all ${
-              page <= 1 ? "text-slate-300 border-slate-100 pointer-events-none" : "text-slate-600 border-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            ← Previous
-          </a>
-          <span className="text-xs text-slate-400">Page {page} of {Math.ceil(total / 20)}</span>
-          <a
-            href={items.length === 20 ? sectionUrl(section, { page: String(page + 1) }) : "#"}
-            className={`text-sm px-4 py-2 rounded-xl border transition-all ${
-              items.length < 20 ? "text-slate-300 border-slate-100 pointer-events-none" : "text-slate-600 border-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            Next →
-          </a>
-        </div>
-      )}
+      <RedditDashboard
+        initialItems={items}
+        total={total}
+        clientId={client.id}
+        apiPath={portalApiPath}
+        emptyMessage={
+          section === "archive"
+            ? "No archived threads yet."
+            : "We scan Reddit daily for relevant threads. Check back soon."
+        }
+      />
     </div>
   );
 }
