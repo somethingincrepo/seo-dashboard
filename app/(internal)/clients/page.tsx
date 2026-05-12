@@ -79,7 +79,7 @@ export default async function ClientsPage() {
               </Link>
 
               {/* Portal link row */}
-              <div className="pt-3 border-t border-slate-200">
+              <div className="pt-3 border-t border-slate-200 space-y-1.5">
                 {portalUrl ? (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400 flex-1 truncate font-mono">
@@ -93,6 +93,14 @@ export default async function ClientsPage() {
                     className="text-xs text-amber-600 hover:text-amber-700 transition-colors"
                   >
                     ⚠ No portal token — click to generate
+                  </Link>
+                )}
+                {!client.fields.portal_password_hash && (
+                  <Link
+                    href={`/clients/${client.id}`}
+                    className="text-xs text-red-500 hover:text-red-600 transition-colors block"
+                  >
+                    ⚠ No login credentials — click to generate
                   </Link>
                 )}
               </div>
