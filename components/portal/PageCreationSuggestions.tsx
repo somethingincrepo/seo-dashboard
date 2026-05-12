@@ -274,6 +274,29 @@ export function PageCreationSuggestions({
     } finally { setApproving(false); }
   }, [selectedId, token, handleAction]);
 
+  const handleApproveSuggestion = useCallback(async () => {
+    if (!selectedId) return;
+    setApproving(true);
+    try {
+      await fetch(`/api/portal/page-creation/${selectedId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      handleAction(selectedId, "generating");
+    } finally { setApproving(false); }
+  }, [selectedId, token, handleAction]);
+
+  const handleSkipSuggestion = useCallback(async () => {
+    if (!selectedId) return;
+    await fetch(`/api/portal/page-creation/${selectedId}/skip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    handleAction(selectedId, "skipped");
+  }, [selectedId, token, handleAction]);
+
   const visible = stageFilter
     ? localAll.filter(s => s.status === stageFilter)
     : localAll.filter(s => s.status !== "skipped" && s.portal_approval !== "skipped");
@@ -321,16 +344,12 @@ export function PageCreationSuggestions({
               <p className="text-[12px] text-slate-400 py-4 text-center">Nothing here.</p>
             ) : (
               visible.map(s => (
-                <div key={s.id}>
-                  <ListItem
-                    s={s}
-                    isSelected={selectedId === s.id}
-                    onClick={() => setSelectedId(s.id)}
-                  />
-                  {selectedId === s.id && (s.status === "suggested" || s.status === "generating") && (
-                    <SuggestionActions s={s} token={token} onAction={handleAction} />
-                  )}
-                </div>
+                <ListItem
+                  key={s.id}
+                  s={s}
+                  isSelected={selectedId === s.id}
+                  onClick={() => setSelectedId(s.id)}
+                />
               ))
             )}
           </div>
@@ -355,6 +374,8 @@ export function PageCreationSuggestions({
               suggestion={selectedSuggestion}
               companyName={companyName}
               onApprove={selectedSuggestion?.status === "content_ready" ? handleApproveContent : undefined}
+              onApproveSuggestion={selectedSuggestion?.status === "suggested" ? handleApproveSuggestion : undefined}
+              onSkipSuggestion={selectedSuggestion?.status === "suggested" ? handleSkipSuggestion : undefined}
               approving={approving}
             />
           </div>

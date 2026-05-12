@@ -87,9 +87,10 @@ function ThreadDetailPanel({
     setCommentsLoading(true);
     setCommentsError(false);
     try {
-      // Fetch directly from browser — Reddit allows CORS on public JSON endpoints
-      const url = `${o.permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
-      const res = await fetch(url);
+      const redditUrl = `${o.permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
+      // Reddit blocks CORS — proxy through corsproxy.io
+      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(redditUrl)}`;
+      const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error(`${res.status}`);
       const json = await res.json() as unknown[];
       if (Array.isArray(json) && json.length >= 2) {

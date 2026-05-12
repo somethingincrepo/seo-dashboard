@@ -69,47 +69,125 @@ function getFeatures(type: string) {
   return FEATURE_SETS[type] ?? FEATURE_SETS["Service Page"];
 }
 
-// ── Pre-content placeholder ───────────────────────────────────────────────────
-// Shown when status = "suggested" or "generating". No fake page structure.
+// ── Page type pill (inline) ───────────────────────────────────────────────────
 
-function PreContentState({ s }: { s: PageCreationSuggestion }) {
-  const isGenerating = s.status === "generating";
+const PAGE_TYPE_COLORS: Record<string, string> = {
+  "Industry Page":   "bg-violet-50 text-violet-700 ring-violet-200/60",
+  "Location Page":   "bg-emerald-50 text-emerald-700 ring-emerald-200/60",
+  "Service Page":    "bg-blue-50 text-blue-700 ring-blue-200/60",
+  "Use-Case Page":   "bg-amber-50 text-amber-700 ring-amber-200/60",
+  "Job Title Page":  "bg-indigo-50 text-indigo-700 ring-indigo-200/60",
+  "Comparison Page": "bg-rose-50 text-rose-700 ring-rose-200/60",
+};
+function TypePill({ type }: { type: string }) {
+  const cls = PAGE_TYPE_COLORS[type] ?? "bg-slate-100 text-slate-600 ring-slate-200/60";
   return (
-    <div className="h-full flex flex-col items-center justify-center bg-slate-50 px-10 text-center gap-5">
-      {isGenerating ? (
-        <>
-          <div className="w-10 h-10 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
-          <div>
-            <p className="text-[14px] font-semibold text-slate-700 mb-1">Writing your page…</p>
-            <p className="text-[13px] text-slate-400 max-w-xs leading-relaxed">
-              Generating full content for <span className="font-medium text-slate-600">{s.page_title}</span>.
-              This usually takes 1–2 minutes — refresh to see it once ready.
-            </p>
+    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ring-1 ring-inset ${cls}`}>
+      {type}
+    </span>
+  );
+}
+
+// ── Pre-content state ─────────────────────────────────────────────────────────
+// Shown when status = "suggested" or "generating".
+// Suggested: shows full page brief + approve/skip actions.
+// Generating: shows spinner + brief.
+
+function PreContentState({
+  s,
+  onApprove,
+  onSkip,
+  approving,
+}: {
+  s: PageCreationSuggestion;
+  onApprove?: () => void;
+  onSkip?: () => void;
+  approving?: boolean;
+}) {
+  const isGenerating = s.status === "generating";
+
+  return (
+    <div className="h-full flex flex-col bg-slate-50">
+      {/* Header accent strip */}
+      <div className={`${getAccent(s.page_type).hero} px-8 py-8 shrink-0`}>
+        <div className="flex items-start gap-3 mb-3">
+          <span className="inline-block text-[10px] font-bold px-2.5 py-1 bg-white/20 text-white rounded-full uppercase tracking-wider">
+            {s.page_type}
+          </span>
+        </div>
+        <h2 className="text-[24px] font-bold text-white leading-tight mb-1">{s.page_title}</h2>
+        <p className="font-mono text-[12px] text-white/60">{s.suggested_slug}</p>
+      </div>
+
+      {/* Detail body */}
+      <div className="flex-1 overflow-y-auto px-8 py-7 space-y-6">
+        {/* Keyword */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Target Keyword</p>
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[13px] font-medium text-slate-700">
+            {s.target_keyword}
+          </span>
+        </div>
+
+        {/* Why this page */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Why this page</p>
+          <p className="text-[14px] text-slate-700 leading-[1.7]">{s.reasoning}</p>
+        </div>
+
+        {/* What we'll build */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">What we&apos;ll generate</p>
+          <div className="space-y-2">
+            {[
+              { icon: "H1", label: "Headline", desc: "A keyword-optimised page title" },
+              { icon: "¶",  label: "Body copy", desc: "700–1,000 words of prose-first content" },
+              { icon: "?",  label: "FAQ section", desc: "3–4 Q&A pairs targeting related queries" },
+              { icon: "⟨/⟩", label: "Meta title & description", desc: "Optimised for search previews" },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white border border-slate-200">
+                <span className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-[11px] font-bold text-slate-500 shrink-0">{icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-slate-800">{label}</p>
+                  <p className="text-[11px] text-slate-400">{desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        </>
-      ) : (
-        <>
-          <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center">
-            <svg className="w-7 h-7 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="12" y1="18" x2="12" y2="12"/>
-              <line x1="9" y1="15" x2="15" y2="15"/>
-            </svg>
+        </div>
+      </div>
+
+      {/* Action footer */}
+      <div className="border-t border-slate-200 bg-white px-8 py-4 shrink-0">
+        {isGenerating ? (
+          <div className="flex items-center gap-3 text-amber-600">
+            <div className="w-4 h-4 border-2 border-amber-200 border-t-amber-500 rounded-full animate-spin shrink-0" />
+            <div>
+              <p className="text-[13px] font-semibold">Generating content…</p>
+              <p className="text-[11px] text-amber-500">Usually 1–2 minutes. Refresh to see the preview.</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[15px] font-semibold text-slate-700 mb-2">Page preview will appear here</p>
-            <p className="text-[13px] text-slate-400 max-w-sm leading-relaxed">
-              Approve this suggestion and we&apos;ll write the full page — H1, body copy, FAQs, and meta tags.
-              You&apos;ll review everything before it goes live.
-            </p>
+        ) : onApprove ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onApprove}
+              disabled={approving}
+              className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+            >
+              {approving ? "Approving…" : "Approve & Generate Content"}
+            </button>
+            {onSkip && (
+              <button
+                onClick={onSkip}
+                disabled={approving}
+                className="py-2.5 px-4 rounded-lg text-[13px] font-medium text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+              >
+                Skip
+              </button>
+            )}
           </div>
-          <div className="mt-1 px-4 py-3 rounded-xl bg-white border border-slate-200 text-left w-full max-w-xs">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1">Proposed URL</p>
-            <p className="font-mono text-[12px] text-slate-600 break-all">{s.suggested_slug}</p>
-          </div>
-        </>
-      )}
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -310,11 +388,15 @@ export function PagePreviewPanel({
   suggestion,
   companyName,
   onApprove,
+  onApproveSuggestion,
+  onSkipSuggestion,
   approving,
 }: {
   suggestion: PageCreationSuggestion | null;
   companyName: string;
-  onApprove?: () => void;
+  onApprove?: () => void;          // content_ready → approved_for_publish
+  onApproveSuggestion?: () => void; // suggested → generating
+  onSkipSuggestion?: () => void;
   approving?: boolean;
 }) {
   if (!suggestion) {
@@ -331,9 +413,15 @@ export function PagePreviewPanel({
     );
   }
 
-  // Pre-content: no fake page structure, just a helpful placeholder
   if (suggestion.status === "suggested" || suggestion.status === "generating") {
-    return <PreContentState s={suggestion} />;
+    return (
+      <PreContentState
+        s={suggestion}
+        onApprove={onApproveSuggestion}
+        onSkip={onSkipSuggestion}
+        approving={approving}
+      />
+    );
   }
 
   return (
