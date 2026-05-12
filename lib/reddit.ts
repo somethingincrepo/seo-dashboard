@@ -23,6 +23,7 @@ export type RedditPost = {
   score: number;
   num_comments: number;
   created_utc: number;
+  google_rank: number; // position in Google SERP (1 = top result)
 };
 
 export type OpportunityType = "keyword" | "mention";
@@ -87,8 +88,10 @@ async function dataforSeoSearch(query: string, limit = 10): Promise<RedditPost[]
   const items = data?.tasks?.[0]?.result?.[0]?.items ?? [];
 
   const posts: RedditPost[] = [];
+  let rank = 0;
   for (const item of items) {
     if (item.type !== "organic") continue;
+    rank++;
     const url = (item.url as string) ?? "";
     if (!url.includes("reddit.com/r/")) continue;
 
@@ -106,6 +109,7 @@ async function dataforSeoSearch(query: string, limit = 10): Promise<RedditPost[]
       score: 0,
       num_comments: 0,
       created_utc: Math.floor(Date.now() / 1000),
+      google_rank: (item.rank_absolute as number) ?? rank,
     });
   }
 
@@ -131,23 +135,48 @@ export async function searchRedditMentions(
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
+// All our threads come from DataForSEO SERP so they already rank on Google.
+// Signals available: Google rank position, title/keyword match, snippet quality.
 
 export function scoreThread(
   thread: RedditPost,
   keyword: string,
-  ranksOnGoogle = false
+  _ranksOnGoogle = false // all DataForSEO results rank on Google
 ): number {
   let score = 0;
-  const ageDays = (Date.now() / 1000 - thread.created_utc) / 86400;
 
-  if (ageDays <= 7) score += 25;
-  else if (ageDays <= 30) score += 15;
-  else if (ageDays <= 90) score += 8;
+  // Google rank position (40 pts max) — top result is most valuable
+  const rank = thread.google_rank ?? 10;
+  if (rank === 1) score += 40;
+  else if (rank === 2) score += 35;
+  else if (rank === 3) score += 30;
+  else if (rank <= 5) score += 22;
+  else if (rank <= 7) score += 14;
+  else score += 8;
 
-  if (thread.score >= 10) score += 20;
-  if (thread.num_comments >= 5) score += 15;
-  if (thread.title.toLowerCase().includes(keyword.toLowerCase())) score += 20;
-  if (ranksOnGoogle) score += 30;
+  // Title relevance (30 pts max)
+  const title = thread.title.toLowerCase();
+  const kw = keyword.toLowerCase();
+  const kwWords = kw.split(/\s+/).filter(w => w.length > 2);
+  const exactMatch = title.includes(kw);
+  const wordMatches = kwWords.filter(w => title.includes(w)).length;
+  const matchRatio = kwWords.length > 0 ? wordMatches / kwWords.length : 0;
+
+  if (exactMatch) score += 30;
+  else if (matchRatio >= 0.75) score += 22;
+  else if (matchRatio >= 0.5) score += 14;
+  else if (matchRatio >= 0.25) score += 7;
+
+  // Snippet quality (15 pts max) — longer, richer snippet = more content
+  const snippetLen = thread.selftext.length;
+  if (snippetLen > 200) score += 15;
+  else if (snippetLen > 100) score += 10;
+  else if (snippetLen > 40) score += 5;
+
+  // Subreddit relevance signal (15 pts max)
+  const subreddit = thread.subreddit.toLowerCase();
+  const kwInSubreddit = kwWords.some(w => subreddit.includes(w));
+  if (kwInSubreddit) score += 15;
 
   return Math.min(score, 100);
 }
