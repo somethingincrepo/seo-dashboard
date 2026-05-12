@@ -118,8 +118,17 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Brand mention search ─────────────────────────────────────────────────
+    // Use a short brand name — strip common business suffixes and long descriptors
+    const brandName = clientName
+      .replace(/\b(LLC|Inc|Corp|Ltd|Charters?|&.*|Water Taxi|SF|AI|Co\.?)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .slice(0, 3)
+      .join(" ");
+
     try {
-      const mentionPosts = await searchRedditMentions(clientName, { limit: 10 });
+      const mentionPosts = await searchRedditMentions(brandName || clientName, { limit: 10 });
       for (const post of mentionPosts) {
         const relevanceScore = Math.min(scoreThread(post, clientName, true) + 20, 100);
         allOpportunities.push({
@@ -144,7 +153,7 @@ export async function GET(request: NextRequest) {
     try {
       explanations = await generateExplanations(
         allOpportunities.map(o => ({ id: o.id, title: o.title, selftext: o.selftext })),
-        clientName,
+        brandName || clientName,
         keywords
       );
     } catch { /* non-fatal — upsert without explanations */ }

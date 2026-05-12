@@ -72,10 +72,10 @@ export default async function RedditClientPage({
   ];
 
   return (
-    <div className="flex gap-6" style={{ height: "calc(100vh - 64px)" }}>
+    <div className="flex gap-6 -m-8 h-screen overflow-hidden">
       {/* ── Left sidebar ──────────────────────────────────────────────────────── */}
-      <div className="w-56 shrink-0">
-        <div className="sticky top-6 space-y-1">
+      <div className="w-56 shrink-0 overflow-y-auto border-r border-slate-100 bg-white">
+        <div className="p-6 space-y-1">
           <Link href="/reddit" className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4 transition-colors">
             ← All clients
           </Link>
@@ -123,7 +123,7 @@ export default async function RedditClientPage({
       </div>
 
       {/* ── Main content ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden p-6">
         <RedditDashboard
           initialItems={items}
           total={total}
