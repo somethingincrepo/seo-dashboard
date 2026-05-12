@@ -14,6 +14,7 @@ interface PortalSidebarProps {
  contentReviewCount: number;
  titleProposalCount: number;
  contentOptimizationCount?: number;
+ pageCreationCount?: number;
  internalLinksPendingCount?: number;
  auditIssueCount?: number;
  categoryBreakdown: Record<string, number>;
@@ -115,6 +116,13 @@ function IconBook({ className }: { className?: string }) {
  </svg>
  );
 }
+function IconPageCreation({ className }: { className?: string }) {
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+ </svg>
+ );
+}
 function IconDeliverables({ className }: { className?: string }) {
  return (
  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -156,6 +164,7 @@ const NAV_ITEMS = [
  { suffix: "/approvals", label: "Approvals", Icon: IconApprovals },
  { suffix: "/content", label: "Content", Icon: IconContent },
  { suffix: "/content-optimization", label: "Content Refreshes", Icon: IconOptimization },
+ { suffix: "/page-creation", label: "Page Creation", Icon: IconPageCreation },
  { suffix: "/internal-links", label: "Internal Links", Icon: IconLinks },
  { suffix: "/indexation", label: "Indexation", Icon: IconIndexation },
  { suffix: "/reports", label: "Reports", Icon: IconReports },
@@ -172,6 +181,7 @@ export function PortalSidebar({
  contentReviewCount,
  titleProposalCount,
  contentOptimizationCount,
+ pageCreationCount,
  internalLinksPendingCount,
  auditIssueCount,
  categoryBreakdown,
@@ -259,6 +269,11 @@ export function PortalSidebar({
  {item.suffix === "/content-optimization" && (contentOptimizationCount ?? 0) > 0 && (
  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200/60">
  {contentOptimizationCount}
+ </span>
+ )}
+ {item.suffix === "/page-creation" && (pageCreationCount ?? 0) > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/60">
+ {pageCreationCount}
  </span>
  )}
  {item.suffix === "/internal-links" && (internalLinksPendingCount ?? 0) > 0 && (

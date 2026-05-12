@@ -328,6 +328,103 @@ export async function approveContentRefresh(id: string): Promise<void> {
     .eq("id", id);
 }
 
+// ─── Page Creation Suggestions ────────────────────────────────────────────────
+// Surfaces net-new page gaps (industry, location, service, use-case, job-title).
+// Completely separate from content_refreshes (which update existing pages).
+
+export type PageCreationStatus =
+  | "suggested"
+  | "generating"
+  | "content_ready"
+  | "approved_for_publish"
+  | "published"
+  | "skipped"
+  | "failed";
+
+export type PageCreationSuggestion = {
+  id: string;
+  client_id: string;
+  company_name: string;
+  suggested_slug: string;
+  page_title: string;
+  page_type: string;
+  target_keyword: string;
+  reasoning: string;
+  status: PageCreationStatus;
+  portal_approval: string | null;
+  portal_approved_at: string | null;
+  portal_notes: string | null;
+  proposed_at: string;
+  generated_meta_title: string | null;
+  generated_meta_description: string | null;
+  generated_h1: string | null;
+  generated_body: string | null;
+  generated_word_count: number | null;
+  generated_at: string | null;
+  content_portal_approval: string | null;
+  content_portal_approved_at: string | null;
+  content_portal_notes: string | null;
+  published_at: string | null;
+  publish_url: string | null;
+  generator_job_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getPageCreationSuggestionsForClient(clientId: string): Promise<PageCreationSuggestion[]> {
+  const { data } = await getSupabase()
+    .from("page_creation_suggestions")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("proposed_at", { ascending: false })
+    .limit(200);
+  return (data ?? []) as PageCreationSuggestion[];
+}
+
+export async function getPageCreationSuggestionById(id: string): Promise<PageCreationSuggestion | null> {
+  const { data } = await getSupabase()
+    .from("page_creation_suggestions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return (data ?? null) as PageCreationSuggestion | null;
+}
+
+export async function approvePageCreationSuggestion(id: string): Promise<void> {
+  await getSupabase()
+    .from("page_creation_suggestions")
+    .update({
+      portal_approval: "approved",
+      portal_approved_at: new Date().toISOString(),
+      status: "generating",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+}
+
+export async function approvePageCreationContent(id: string): Promise<void> {
+  await getSupabase()
+    .from("page_creation_suggestions")
+    .update({
+      content_portal_approval: "approved",
+      content_portal_approved_at: new Date().toISOString(),
+      status: "approved_for_publish",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+}
+
+export async function skipPageCreationSuggestion(id: string): Promise<void> {
+  await getSupabase()
+    .from("page_creation_suggestions")
+    .update({
+      portal_approval: "skipped",
+      status: "skipped",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+}
+
 // Retrieve the last N weekly snapshots for a client, newest first
 export async function getGscSnapshots(clientId: string, weeks = 12): Promise<GscSnapshot[]> {
   const { data } = await getSupabase()

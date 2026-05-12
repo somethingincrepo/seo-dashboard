@@ -47,8 +47,8 @@ function parseKeywords(client: ClientRecord): string[] {
     keywords.push(...plain);
   }
 
-  // Deduplicate and cap at 10 per client to stay within rate limits
-  return [...new Set(keywords)].slice(0, 10);
+  // Deduplicate and cap at 5 per client to stay within PullPush rate limits
+  return [...new Set(keywords)].slice(0, 5);
 }
 
 function delay(ms: number): Promise<void> {
@@ -117,13 +117,13 @@ export async function GET(request: NextRequest) {
           });
         }
 
-        // 2s delay between PullPush calls to avoid rate limits
-        await delay(2000);
+        // 4s delay between PullPush calls to respect rate limits
+        await delay(4000);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         console.error(`[reddit-scan] ${clientName} / ${keyword}:`, message);
         errors.push({ client: clientName, keyword, error: message });
-        await delay(2000);
+        await delay(4000);
       }
     }
 

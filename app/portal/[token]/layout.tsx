@@ -4,7 +4,7 @@ import { getPortalSession, destroyPortalSession } from "@/lib/portal-auth";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { getPendingApprovals } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
-import { getContentRefreshesForClient } from "@/lib/supabase";
+import { getContentRefreshesForClient, getPageCreationSuggestionsForClient } from "@/lib/supabase";
 import { getEngainMentionStats } from "@/lib/engain";
 import { listOpportunitiesForClient } from "@/lib/reddit";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
@@ -68,11 +68,12 @@ export default async function PortalLayout({
  // Show Reddit tab for any client on a package (all tiers include reddit_comments)
  const hasReddit = !!(pkg && PACKAGES[pkg].reddit_comments > 0);
 
- const [pending, contentResults, contentJobs, contentRefreshes, engainStats, auditIssueCount, opportunityNewCount] = await Promise.all([
+ const [pending, contentResults, contentJobs, contentRefreshes, pageCreationSuggestions, engainStats, auditIssueCount, opportunityNewCount] = await Promise.all([
  getPendingApprovals(clientId, recordId),
  getContentResultsForClient(companyName).catch(() => []),
  getContentJobsForClient(companyName).catch(() => []),
  getContentRefreshesForClient(client.id).catch(() => []),
+ getPageCreationSuggestionsForClient(client.id).catch(() => []),
  engainProjectId
  ? getEngainMentionStats(engainProjectId).catch(() => null)
  : Promise.resolve(null),
@@ -113,6 +114,11 @@ export default async function PortalLayout({
  (r) => r.status === "completed" && !r.portal_approval
  ).length;
 
+ // Page creation suggestions needing client action (new suggestions or generated content ready to review).
+ const pageCreationCount = pageCreationSuggestions.filter(
+ (s) => (s.status === "suggested" || s.status === "content_ready") && s.portal_approval !== "skipped"
+ ).length;
+
  return (
  <PortalSidebar
  companyName={companyName || "Your Portal"}
@@ -122,6 +128,7 @@ export default async function PortalLayout({
  contentReviewCount={contentReviewCount}
  titleProposalCount={titleProposalCount}
  contentOptimizationCount={contentOptimizationCount}
+ pageCreationCount={pageCreationCount}
  internalLinksPendingCount={internalLinksPendingCount}
  auditIssueCount={auditIssueCount}
  categoryBreakdown={categoryBreakdown}
