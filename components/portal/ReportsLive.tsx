@@ -341,74 +341,85 @@ export function ReportsLive({ token, initialGsc }: ReportsLiveProps) {
  {gsc?.connected === false ? (
  <GlassCard className="p-6">
  {gsc.error_reason && gsc.error_reason !== "no_property" ? (
- /* Property is set but API returned an error — almost always a missing permission */
- <div className="space-y-4">
- <div className="flex items-start gap-3">
- <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg shrink-0 font-bold">!</div>
+ /* Property is set but API returned a permissions error */
+ <div className="space-y-5">
  <div>
- <div className="text-sm font-semibold text-slate-800">We can&apos;t access your Search Console</div>
- <div className="text-xs text-slate-500 mt-0.5">Your property is saved, but we&apos;re getting a permissions error. The most common fix takes under a minute.</div>
+ <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-1">ACTION NEEDED</div>
+ <div className="text-base font-semibold text-slate-900">Search Console permission missing</div>
+ <div className="text-xs text-slate-500 mt-1">Your property is saved, but our reporting account doesn&apos;t have access yet. Fix it in under a minute:</div>
+ </div>
+ <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+ <span className="text-sm text-slate-700">Open <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="text-indigo-600 font-medium hover:text-indigo-800 hover:underline underline-offset-2">Search Console → Settings → Users and permissions ↗</a></span>
+ </div>
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+ <span className="text-sm text-slate-700">Click <strong className="text-slate-900">Add user</strong> in the top-right corner</span>
+ </div>
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+ <span className="text-sm text-slate-700">Enter <code className="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-xs font-mono text-slate-800">reporting@somethingincorporated.io</code>, set permission to <strong className="text-slate-900">Full</strong>, and click <strong className="text-slate-900">Add</strong></span>
+ </div>
+ <div className="flex items-start gap-3 px-4 py-3 bg-slate-50">
+ <span className="w-5 h-5 rounded-full bg-slate-300 text-slate-600 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
+ <span className="text-sm text-slate-500">Come back here — your data will load within a few minutes</span>
  </div>
  </div>
- <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-4 space-y-3">
- <p className="text-xs font-semibold text-amber-900 uppercase tracking-wide">How to fix it</p>
- <ol className="space-y-2 text-sm text-amber-900">
- <li className="flex gap-2.5"><span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span><span>Open <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 font-medium hover:text-amber-800">Search Console → Settings → Users and permissions ↗</a></span></li>
- <li className="flex gap-2.5"><span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span><span>Click <strong>Add user</strong> in the top-right corner</span></li>
- <li className="flex gap-2.5"><span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span><span>Enter <strong className="font-mono bg-amber-100 px-1 rounded">reporting@somethingincorporated.io</strong> and set permission to <strong>Full</strong></span></li>
- <li className="flex gap-2.5"><span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span><span>Click <strong>Add</strong> — your data will appear here within a few minutes</span></li>
- </ol>
- </div>
- <div className="flex items-center gap-4">
- <a href={`/portal/${token}/settings#integrations`} className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 transition-colors font-medium">
- View your saved GSC property →
+ <a href={`/portal/${token}/settings#integrations`} className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
+ Check your saved GSC property in Settings →
  </a>
- </div>
  </div>
  ) : (
  /* No GSC property configured at all */
- <div className="space-y-4">
- <div className="flex items-start gap-3">
- <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 text-lg">◎</div>
+ <div className="space-y-5">
  <div>
- <div className="text-sm font-semibold text-slate-800">Google Search Console not connected</div>
- <div className="text-xs text-slate-500 mt-0.5">Connect it to unlock clicks, impressions, and keyword rankings.</div>
+ <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-1">SETUP REQUIRED</div>
+ <div className="text-base font-semibold text-slate-900">Connect Google Search Console</div>
+ <div className="text-xs text-slate-500 mt-1">Unlock clicks, impressions, and keyword rankings directly in this dashboard.</div>
+ </div>
+
+ {/* Q: Do you have GSC? */}
+ <div className="text-sm font-medium text-slate-700">Do you already have Google Search Console set up for this site?</div>
+
+ {/* Path A — don't have GSC */}
+ <div className="rounded-xl border-2 border-slate-200 overflow-hidden">
+ <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+ <div className="text-xs font-bold tracking-widest text-slate-500">NO — I NEED TO SET IT UP FIRST</div>
+ </div>
+ <div className="divide-y divide-slate-100">
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+ <span className="text-sm text-slate-700">Go to <a href="https://search.google.com/search-console/welcome" target="_blank" rel="noreferrer" className="text-indigo-600 font-medium hover:text-indigo-800 hover:underline underline-offset-2">Google Search Console ↗</a> and sign in with your Google account</span>
+ </div>
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+ <span className="text-sm text-slate-700">Click <strong className="text-slate-900">Add property</strong>, enter your website URL, and follow Google&apos;s verification steps — usually takes 5–10 minutes</span>
+ </div>
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+ <span className="text-sm text-slate-700">Once verified, come back here and follow the steps below</span>
+ </div>
  </div>
  </div>
 
- {/* Path A — already have GSC */}
- <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-4 space-y-3">
- <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Already using Google Search Console?</p>
- <div className="space-y-3 text-sm text-slate-700">
- <div className="flex gap-2.5">
- <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
- <span>Open <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 font-medium hover:text-slate-900">Search Console → Settings → Users and permissions ↗</a>, click <strong>Add user</strong>, enter <strong className="font-mono bg-slate-100 px-1 rounded text-xs">reporting@somethingincorporated.io</strong> with <strong>Full</strong> permission, and click <strong>Add</strong></span>
+ {/* Path B — already have GSC */}
+ <div className="rounded-xl border-2 border-indigo-200 overflow-hidden">
+ <div className="px-4 py-3 bg-indigo-600 border-b border-indigo-700">
+ <div className="text-xs font-bold tracking-widest text-indigo-100">YES — CONNECT IT NOW</div>
  </div>
- <div className="flex gap-2.5">
- <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
- <span>Go to <a href={`/portal/${token}/settings#integrations`} className="underline underline-offset-2 font-medium hover:text-slate-900">Settings → Integrations</a> and enter your GSC property (e.g. <code className="bg-slate-100 px-1 rounded text-xs">sc-domain:yoursite.com</code>)</span>
+ <div className="divide-y divide-slate-100">
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+ <span className="text-sm text-slate-700">Open <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="text-indigo-600 font-medium hover:text-indigo-800 hover:underline underline-offset-2">Search Console → Settings → Users and permissions ↗</a>, click <strong className="text-slate-900">Add user</strong>, enter <code className="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-xs font-mono text-slate-800">reporting@somethingincorporated.io</code> with <strong className="text-slate-900">Full</strong> permission, and click <strong className="text-slate-900">Add</strong></span>
+ </div>
+ <div className="flex items-start gap-3 px-4 py-3">
+ <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+ <span className="text-sm text-slate-700">Go to <a href={`/portal/${token}/settings#integrations`} className="text-indigo-600 font-medium hover:text-indigo-800 hover:underline underline-offset-2">Settings → Integrations</a> and enter your GSC property (e.g. <code className="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-xs font-mono text-slate-800">sc-domain:yoursite.com</code>)</span>
  </div>
  </div>
  </div>
 
- {/* Path B — don't have GSC yet */}
- <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-4 space-y-2">
- <p className="text-xs font-semibold text-indigo-800 uppercase tracking-wide">New to Google Search Console?</p>
- <div className="space-y-2 text-sm text-indigo-900">
- <div className="flex gap-2.5">
- <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
- <span>Go to <a href="https://search.google.com/search-console/welcome" target="_blank" rel="noreferrer" className="underline underline-offset-2 font-medium hover:text-indigo-700">search.google.com/search-console ↗</a> and sign in with your Google account</span>
- </div>
- <div className="flex gap-2.5">
- <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
- <span>Click <strong>Add property</strong>, enter your website URL, and follow the verification steps (usually takes 5–10 minutes)</span>
- </div>
- <div className="flex gap-2.5">
- <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
- <span>Once verified, come back here and follow the &ldquo;Already using GSC&rdquo; steps above</span>
- </div>
- </div>
- </div>
  </div>
  )}
  </GlassCard>
