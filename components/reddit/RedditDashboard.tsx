@@ -73,24 +73,29 @@ function ThreadDetail({
 }) {
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fetched, setFetched] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [status, setStatus] = useState(opportunity.status);
   const [pending, setPending] = useState<string | null>(null);
 
+  // Manual fetch only — Reddit blocks server-side requests from Vercel IPs
+  // so we fetch from the browser (client-side) on demand
   const fetchThread = useCallback(async () => {
-    if (fetched || loading) return;
+    if (detail || loading) return;
     setLoading(true);
+    setFetchError(false);
     try {
       const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(opportunity.permalink)}`);
-      if (res.ok) setDetail(await res.json());
+      if (res.ok) {
+        setDetail(await res.json());
+      } else {
+        setFetchError(true);
+      }
+    } catch {
+      setFetchError(true);
     } finally {
       setLoading(false);
-      setFetched(true);
     }
-  }, [opportunity.permalink, fetched, loading]);
-
-  // Auto-fetch on mount
-  useState(() => { fetchThread(); });
+  }, [opportunity.permalink, detail, loading]);
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
@@ -191,56 +196,60 @@ function ThreadDetail({
       </div>
 
       {/* Thread body */}
-      <div className="flex-1 overflow-y-auto">
-        {loading && (
-          <div className="p-8 text-center text-slate-400 text-sm">Loading thread…</div>
-        )}
+      <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+        {/* Comments section */}
+        <div className="p-5">
+          {!detail && !loading && !fetchError && (
+            <button
+              onClick={fetchThread}
+              className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg px-4 py-2 transition-all bg-white"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Fetch Comments
+            </button>
+          )}
 
-        {!loading && detail && (
-          <div className="divide-y divide-slate-100">
-            {/* OP post body */}
-            {detail.selftext && (
-              <div className="p-5">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Post</div>
-                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+          {loading && (
+            <div className="text-slate-400 text-sm">Loading comments…</div>
+          )}
+
+          {fetchError && (
+            <div className="space-y-2">
+              <p className="text-sm text-slate-400">Comments unavailable from this network.</p>
+              <a
+                href={o.permalink}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-orange-500 hover:text-orange-700 flex items-center gap-1"
+              >
+                Read full thread on Reddit ↗
+              </a>
+            </div>
+          )}
+
+          {detail && (
+            <div className="space-y-1">
+              {detail.selftext && (
+                <p className="text-sm text-slate-700 leading-relaxed mb-4 whitespace-pre-line">
                   {detail.selftext.slice(0, 1000)}{detail.selftext.length > 1000 ? "…" : ""}
                 </p>
+              )}
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                Top Comments ({detail.comments.length})
               </div>
-            )}
-
-            {/* Comments */}
-            {detail.comments.length > 0 && (
-              <div className="p-5">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                  Top Comments ({detail.comments.length})
-                </div>
-                <div className="space-y-1 divide-y divide-slate-50">
-                  {detail.comments.map(c => (
-                    <CommentNode key={c.id} comment={c} />
-                  ))}
-                </div>
+              <div className="divide-y divide-slate-50">
+                {detail.comments.map(c => (
+                  <CommentNode key={c.id} comment={c} />
+                ))}
               </div>
-            )}
-
-            {detail.comments.length === 0 && !detail.selftext && (
-              <div className="p-8 text-center text-slate-400 text-sm">No content available</div>
-            )}
-          </div>
-        )}
-
-        {!loading && fetched && !detail && (
-          <div className="p-8 text-center space-y-2">
-            <p className="text-slate-400 text-sm">Couldn&apos;t load thread content.</p>
-            <a
-              href={o.permalink}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm text-orange-500 hover:text-orange-700"
-            >
-              View on Reddit ↗
-            </a>
-          </div>
-        )}
+              {detail.comments.length === 0 && (
+                <p className="text-sm text-slate-400">No comments yet.</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
