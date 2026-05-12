@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { RedditOpportunity } from "@/lib/reddit";
 
 
@@ -56,6 +56,29 @@ function ThreadDetailPanel({
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
 
+  // Auto-load when thread is selected
+  useEffect(() => {
+    void fetchThread();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [o.id]);
+
+  async function fetchThread() {
+    if (commentsLoading) return;
+    setCommentsLoading(true);
+    setCommentsError(null);
+    try {
+      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
+      const data = await res.json() as { selftext?: string; comments?: ThreadComment[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setComments(data.comments ?? []);
+      if (data.selftext && data.selftext.trim()) setFullText(data.selftext);
+    } catch (e) {
+      setCommentsError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
+
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
     setPending(next);
@@ -74,22 +97,8 @@ function ThreadDetailPanel({
     }
   }
 
-  async function loadComments() {
-    if (commentsLoading) return;
-    setCommentsLoading(true);
-    setCommentsError(null);
-    try {
-      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
-      const data = await res.json() as { selftext?: string; comments?: ThreadComment[]; error?: string };
-      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-      setComments(data.comments ?? []);
-      if (data.selftext && data.selftext.trim()) setFullText(data.selftext);
-    } catch (e) {
-      setCommentsError(e instanceof Error ? e.message : "Failed to load comments");
-    } finally {
-      setCommentsLoading(false);
-    }
-  }
+  // Strip trailing ellipsis from DataForSEO snippets
+  const snippet = o.snippet?.replace(/\.{2,}$/, "").replace(/…$/, "").trim();
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -145,60 +154,24 @@ function ThreadDetailPanel({
           </div>
         )}
 
-        {/* Thread body — full text when loaded, else DataForSEO snippet */}
-        {(fullText || o.snippet) && (
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-              {fullText ? "Thread Content" : "Thread Preview"}
+        {/* Thread body */}
+        <div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            {fullText ? "Thread Content" : "Thread Preview"}
+          </div>
+          {commentsLoading && !fullText && (
+            <div className="flex items-center gap-2 text-[12px] text-slate-400">
+              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              Loading thread…
             </div>
+          )}
+          {!commentsLoading && (fullText || snippet) && (
             <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-              {fullText ?? o.snippet}
+              {fullText ?? snippet}
             </p>
-          </div>
-        )}
-
-        {/* Comments section */}
-        <div className="border-t border-slate-100 pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Top Comments</div>
-            {comments === null && (
-              <button
-                onClick={loadComments}
-                disabled={commentsLoading}
-                className="text-xs font-medium text-orange-600 hover:text-orange-800 disabled:opacity-50 transition-colors"
-              >
-                {commentsLoading ? "Loading…" : "Load comments"}
-              </button>
-            )}
-          </div>
-
-          {commentsError && (
-            <div className="text-[11px] text-red-500 bg-red-50 rounded-lg px-3 py-2">
-              {commentsError}
-              <button onClick={loadComments} className="ml-2 underline">Retry</button>
-            </div>
-          )}
-
-          {comments === null && !commentsLoading && !commentsError && (
-            <p className="text-[11px] text-slate-300 italic">Click &ldquo;Load comments&rdquo; to fetch the top 5 comments from Reddit.</p>
-          )}
-
-          {comments !== null && comments.length === 0 && (
-            <p className="text-[11px] text-slate-400">No comments found on this thread.</p>
-          )}
-
-          {comments && comments.length > 0 && (
-            <div className="space-y-3">
-              {comments.map((c, i) => (
-                <div key={i} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold text-slate-600">u/{c.author}</span>
-                    <span className="text-[10px] text-slate-400">▲ {c.score}</span>
-                  </div>
-                  <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
-                </div>
-              ))}
-            </div>
           )}
         </div>
 
@@ -207,9 +180,8 @@ function ThreadDetailPanel({
           Surfaced by keyword: <span className="text-slate-600 font-medium">{o.keyword}</span>
         </div>
 
-        {/* Engage */}
-        <div className="border-t border-slate-100 pt-4">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Engage</div>
+        {/* Engage + Fetch Comments row */}
+        <div className="border-t border-slate-100 pt-4 flex items-center gap-3 flex-wrap">
           <a
             href={o.permalink}
             target="_blank"
@@ -222,10 +194,59 @@ function ThreadDetailPanel({
             </svg>
             Open Thread &amp; Reply on Reddit
           </a>
-          <p className="text-[10px] text-slate-400 text-center mt-2">
-            Opens in a new tab — read the full thread and drop your reply there
-          </p>
+
+          <button
+            onClick={fetchThread}
+            disabled={commentsLoading}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:border-slate-400 hover:text-slate-800 disabled:opacity-50 px-4 py-2.5 rounded-xl transition-all"
+          >
+            {commentsLoading ? (
+              <>
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                Fetching…
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                {commentsError ? "Retry Comments" : comments !== null ? "Reload Comments" : "Fetch Comments"}
+              </>
+            )}
+          </button>
         </div>
+
+        {/* Error state */}
+        {commentsError && (
+          <div className="text-[11px] text-red-500 bg-red-50 rounded-lg px-3 py-2">
+            {commentsError}
+          </div>
+        )}
+
+        {/* Comments */}
+        {comments !== null && (
+          <div className="space-y-3">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Top Comments {comments.length > 0 ? `(${comments.length})` : ""}
+            </div>
+            {comments.length === 0 ? (
+              <p className="text-[11px] text-slate-400">No comments on this thread yet.</p>
+            ) : (
+              comments.map((c, i) => (
+                <div key={i} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-slate-600">u/{c.author}</span>
+                    <span className="text-[10px] text-slate-400">▲ {c.score}</span>
+                  </div>
+                  <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Status actions pinned to bottom */}
