@@ -3,11 +3,10 @@
 import Link from "next/link";
 import type { ContentJob, ContentResult } from "@/lib/content";
 import type { ContentRefresh, PageCreationSuggestion } from "@/lib/supabase";
-import type { RedditOpportunity } from "@/lib/reddit";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type DeliverableType = "content" | "refresh" | "page-creation" | "internal-link" | "reddit";
+type DeliverableType = "content" | "refresh" | "page-creation" | "internal-link";
 
 type KanbanCard = {
   id: string;
@@ -15,15 +14,15 @@ type KanbanCard = {
   title: string;
   keyword?: string;
   date: string;
-  href: string;           // destination page when clicked
-  subLabel?: string;      // e.g. page type, subreddit
+  href: string;
+  subLabel?: string;
 };
 
 type Column = {
   key: string;
   label: string;
-  accent: string;         // border-top color class
-  badgeClass: string;     // badge bg/text
+  accent: string;
+  badgeClass: string;
   cards: KanbanCard[];
 };
 
@@ -34,7 +33,6 @@ const TYPE_CONFIG: Record<DeliverableType, { label: string; pill: string }> = {
   "refresh":       { label: "Refresh",         pill: "bg-violet-50 text-violet-700" },
   "page-creation": { label: "Page Creation",   pill: "bg-emerald-50 text-emerald-700" },
   "internal-link": { label: "Internal Link",   pill: "bg-amber-50 text-amber-700" },
-  "reddit":        { label: "Reddit",          pill: "bg-orange-50 text-orange-700" },
 };
 
 function fmt(dateStr: string | null | undefined): string {
@@ -52,7 +50,6 @@ function buildColumns(
   contentRefreshes: ContentRefresh[],
   pageCreations: PageCreationSuggestion[],
   internalLinkChanges: InternalLinkChange[],
-  redditOpportunities: RedditOpportunity[],
   token: string,
 ): Column[] {
   const base = `/portal/${token}`;
@@ -76,14 +73,15 @@ function buildColumns(
     const title = job.fields["Blog Title"] || "Untitled";
     const keyword = job.fields.target_keyword ?? undefined;
     const result = resultsByJobId.get(job.id);
-    const href = `${base}/content`;
+    // All content links open the pipeline with the drawer for that job
+    const href = `${base}/content?id=${job.id}`;
 
     if (ts === "published") {
       live.push({ id: job.id, type: "content", title, keyword, date: fmt(job.fields.approved_at), href, subLabel: job.fields.page_type ?? undefined });
     } else if (result && result.fields.portal_approval === "approved") {
       approved.push({ id: job.id, type: "content", title, keyword, date: fmt(result.fields.portal_approved_at), href, subLabel: job.fields.page_type ?? undefined });
     } else if (result && !result.fields.portal_approval) {
-      needsReview.push({ id: result.id, type: "content", title: result.fields["Article title"] || title, keyword, date: fmt(result.createdTime), href: `${base}/content/${job.id}`, subLabel: "Review article" });
+      needsReview.push({ id: job.id, type: "content", title: result.fields["Article title"] || title, keyword, date: fmt(result.createdTime), href, subLabel: "Review article" });
     } else if (ts === "titled") {
       needsReview.push({ id: job.id, type: "content", title, keyword, date: fmt(job.fields.proposed_at), href: `${base}/content/titles`, subLabel: "Approve title" });
     } else if (ts === "approved" || ts === "generating") {
@@ -143,18 +141,6 @@ function buildColumns(
       inProgress.push({ id: c.id, type: "internal-link", title, date, href, subLabel: "Implementing…" });
     } else if (c.approval === "pending") {
       needsReview.push({ id: c.id, type: "internal-link", title, date: fmt(c.identified_at), href, subLabel: c.page_url ?? undefined });
-    }
-  }
-
-  // ── Reddit ────────────────────────────────────────────────────────────────
-
-  for (const opp of redditOpportunities) {
-    if (opp.status === "dismissed") continue;
-    const href = `${base}/reddit`;
-    if (opp.status === "replied") {
-      live.push({ id: opp.id, type: "reddit", title: opp.title, date: fmt(opp.created_at), href, subLabel: `r/${opp.subreddit}` });
-    } else if (opp.status === "new" || opp.status === "viewed") {
-      needsReview.push({ id: opp.id, type: "reddit", title: opp.title, keyword: opp.keyword, date: fmt(opp.created_at), href, subLabel: `r/${opp.subreddit}` });
     }
   }
 
@@ -264,7 +250,6 @@ export function DeliverableKanban({
   contentRefreshes,
   pageCreations,
   internalLinkChanges,
-  redditOpportunities,
   token,
 }: {
   contentJobs: ContentJob[];
@@ -272,7 +257,6 @@ export function DeliverableKanban({
   contentRefreshes: ContentRefresh[];
   pageCreations: PageCreationSuggestion[];
   internalLinkChanges: InternalLinkChange[];
-  redditOpportunities: RedditOpportunity[];
   token: string;
 }) {
   const columns = buildColumns(
@@ -281,7 +265,6 @@ export function DeliverableKanban({
     contentRefreshes,
     pageCreations,
     internalLinkChanges,
-    redditOpportunities,
     token
   );
 

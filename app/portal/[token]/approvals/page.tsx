@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
-import { getPendingApprovals, getClientChanges } from "@/lib/changes";
+import { getClientChanges } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { getContentRefreshesForClient, getPageCreationSuggestionsForClient } from "@/lib/supabase";
-import { listOpportunitiesForClient } from "@/lib/reddit";
 import { DeliverableKanban, type InternalLinkChange } from "@/components/portal/DeliverableKanban";
 
 export const revalidate = 0;
@@ -23,17 +22,14 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
     contentResults,
     contentRefreshes,
     pageCreations,
-    redditResult,
   ] = await Promise.all([
     getClientChanges(clientId, recordId).catch(() => []),
     getContentJobsForClient(companyName).catch(() => []),
     getContentResultsForClient(companyName).catch(() => []),
     getContentRefreshesForClient(recordId).catch(() => []),
     getPageCreationSuggestionsForClient(recordId).catch(() => []),
-    listOpportunitiesForClient(recordId, { limit: 100 }).catch(() => ({ items: [], total: 0 })),
   ]);
 
-  // Internal link changes only — site audit changes are removed from this view
   const internalLinkChanges: InternalLinkChange[] = allChanges
     .filter((c) => (c.fields.type ?? "").toLowerCase() === "internal link")
     .map((c) => ({
@@ -51,7 +47,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Deliverables</h1>
         <p className="text-base text-slate-500 mt-1">
-          Status of all active work across content, refreshes, page creation, internal links, and Reddit.
+          Status of all active work — content, refreshes, page creation, and internal links.
         </p>
       </div>
 
@@ -61,7 +57,6 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
         contentRefreshes={contentRefreshes}
         pageCreations={pageCreations}
         internalLinkChanges={internalLinkChanges}
-        redditOpportunities={redditResult.items}
         token={token}
       />
     </div>

@@ -104,14 +104,13 @@ export default async function PortalLayout({
  (s) => (s.status === "suggested" || s.status === "content_ready") && s.portal_approval !== "skipped"
  ).length;
 
- // Unified "Needs Review" count for the Approvals badge
+ // Unified "Needs Review" count for the Approvals badge (Reddit excluded — it has its own sidebar badge)
  const approvalsActionCount =
  titleProposalCount +
  contentReviewCount +
  contentOptimizationCount +
  pageCreationCount +
- internalLinksPendingCount +
- (opportunityNewCount ?? 0);
+ internalLinksPendingCount;
 
  return (
  <PortalSidebar

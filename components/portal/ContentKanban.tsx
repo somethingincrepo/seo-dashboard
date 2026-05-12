@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
@@ -322,10 +323,21 @@ export function ContentActivityFeed({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ContentKanban({ jobs, results, token, client }: ContentKanbanProps) {
+ const searchParams = useSearchParams();
+ const urlJobId = searchParams.get("id");
  const [selectedJob, setSelectedJob] = useState<ContentJob | null>(null);
  const [submitting, setSubmitting] = useState(false);
  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
  const [localUpdates, setLocalUpdates] = useState<Map<string, Partial<ContentJob["fields"]>>>(new Map());
+
+ // Auto-open drawer when navigated from Approvals with ?id=
+ useEffect(() => {
+   if (urlJobId && !selectedJob) {
+     const job = jobs.find((j) => j.id === urlJobId);
+     if (job) setSelectedJob(job);
+   }
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [urlJobId, jobs]);
 
  // Apply local optimistic updates
  const liveJobs = jobs.map((j) => {
