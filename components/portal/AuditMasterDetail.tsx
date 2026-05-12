@@ -1134,7 +1134,7 @@ function RuleDetail({
  {d === "dismissed" && (
  <span className="text-[10px] text-slate-400">dismissed</span>
  )}
- <span className="text-[11.5px] font-medium text-indigo-500 group-hover:text-indigo-700 whitespace-nowrap">
+ <span className="text-[11px] font-medium text-indigo-600 bg-indigo-50 group-hover:bg-indigo-100 group-hover:text-indigo-700 whitespace-nowrap px-2.5 py-1 rounded-full ring-1 ring-inset ring-indigo-200/70 transition-colors">
  View fix →
  </span>
  </div>
