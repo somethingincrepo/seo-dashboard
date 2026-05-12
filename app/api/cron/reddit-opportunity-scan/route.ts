@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         const googleUrls = await getGoogleRankingRedditUrls(keyword);
 
         // Search Reddit
-        const posts = await searchRedditByKeyword(keyword, { limit: 25, daysBack: 365 });
+        const posts = await searchRedditByKeyword(keyword, { limit: 25, daysBack: 90 });
         keywordsScanned++;
 
         for (const post of posts) {
@@ -129,8 +129,8 @@ export async function GET(request: NextRequest) {
 
     if (allOpportunities.length > 0) {
       try {
-        const { inserted } = await upsertOpportunities(client.id, allOpportunities);
-        threadsUpserted += inserted;
+        await upsertOpportunities(client.id, allOpportunities);
+        threadsUpserted += allOpportunities.length;
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         console.error(`[reddit-scan] upsert failed for ${clientName}:`, message);
