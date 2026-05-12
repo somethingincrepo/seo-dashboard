@@ -97,8 +97,12 @@ function ThreadDetailPanel({
     }
   }
 
-  // Strip trailing ellipsis from DataForSEO snippets
-  const snippet = o.snippet?.replace(/\.{2,}$/, "").replace(/…$/, "").trim();
+  // Strip trailing truncation markers that DataForSEO appends
+  const snippet = o.snippet
+    ?.replace(/\.?\s*Read more\s*$/i, "")
+    .replace(/\.{2,}$/, "")
+    .replace(/…$/, "")
+    .trim();
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
