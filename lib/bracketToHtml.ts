@@ -40,16 +40,42 @@
  */
 import { wordDiff } from "./wordDiff";
 
+// Regex that matches any structural bracket tag: [P], [/P], [H1], [/H2], etc.
+const STRUCTURAL_RX = /\[\/?(H[123]|P|UL|OL|LI)[^\]]*\]/gi;
+
+function stripStructural(s: string): string {
+  return s.replace(STRUCTURAL_RX, "").trim();
+}
+
+// Pull the leading/trailing structural wrapper from a newText so we can
+// re-apply it after the word diff (keeps bracketToHtml converting it to <p>/<h2>).
+function extractWrapper(s: string): { leading: string; trailing: string; inner: string } {
+  const leadMatch = s.match(/^\s*(\[(?:H[123]|P)[^\]]*\])/i);
+  const trailMatch = s.match(/(\[\/(?:H[123]|P)\])\s*$/i);
+  const leading = leadMatch?.[1] ?? "";
+  const trailing = trailMatch?.[1] ?? "";
+  const inner = s
+    .replace(/^\s*\[(?:H[123]|P)[^\]]*\]/i, "")
+    .replace(/\[\/(?:H[123]|P)\]\s*$/i, "")
+    .trim();
+  return { leading, trailing, inner };
+}
+
 export function bracketToHtmlProposed(text: string): string {
   if (!text) return "";
   let processed = text.replace(/\[REMOVED\][\s\S]*?\[\/REMOVED\]/g, "");
   processed = processed.replace(
     /\[CHANGED from="([^"]*)"\]([\s\S]*?)\[\/CHANGED\]/g,
     (_m, oldText: string, newText: string) => {
-      const tokens = wordDiff(oldText, newText);
-      return tokens
+      // Strip structural bracket tags ([P], [H2], etc.) before word-diffing so
+      // they don't get wrapped in bold/italic. Re-apply the wrapper after.
+      const { leading, trailing, inner } = extractWrapper(newText);
+      const oldStripped = stripStructural(oldText);
+      const tokens = wordDiff(oldStripped, inner);
+      const diffed = tokens
         .map((t) => (t.changed ? `__CT_BI_OPEN__${t.text}__CT_BI_CLOSE__` : t.text))
         .join("");
+      return leading + diffed + trailing;
     },
   );
   let html = bracketToHtml(processed);
@@ -82,10 +108,15 @@ export function bracketToHtml(text: string): string {
   );
 
   // ── Pre-pass 3: [CHANGED from="..."]new[/CHANGED] ─────────────────────────
+  // Strip structural bracket tags ([P], [H2], etc.) from the new text before
+  // inserting into <ins> — they'd appear as literal "[P]" otherwise since
+  // bracketToHtml won't convert them once they're inside an HTML element.
   processed = processed.replace(
     /\[CHANGED from="([^"]*)"\]([\s\S]*?)\[\/CHANGED\]/g,
-    (_match, oldText: string, newText: string) =>
-      `<span class="ct-changed"><del class="ct-del">${escapeHtml(oldText.trim())}</del><ins class="ct-ins">${escapeHtml(newText.trim())}</ins></span>`
+    (_match, oldText: string, newText: string) => {
+      const cleanNew = stripStructural(newText);
+      return `<span class="ct-changed"><del class="ct-del">${escapeHtml(oldText.trim())}</del><ins class="ct-ins">${escapeHtml(cleanNew)}</ins></span>`;
+    }
   );
 
   // ── Pre-pass 4: [REMOVED]...[/REMOVED] ────────────────────────────────────
