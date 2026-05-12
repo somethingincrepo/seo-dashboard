@@ -148,7 +148,6 @@ export interface WeeklyTargets {
   articles: number;     // articles_standard + articles_longform combined
   faq_sections: number;
   content_refreshes: number;
-  page_creation_suggestions: number;
   internal_links: number;
   reddit_comments: number;
 }
@@ -163,6 +162,7 @@ export function getWeeklyTargets(tier: PackageTier, date = new Date()): WeeklyTa
     articles: w.articles_standard[idx] + w.articles_longform[idx],
     faq_sections: w.faq_sections[idx],
     content_refreshes: w.content_refreshes[idx],
+    page_creation_suggestions: w.page_creation_suggestions[idx],
     internal_links: w.internal_links[idx],
     reddit_comments: w.reddit_comments[idx],
   };
