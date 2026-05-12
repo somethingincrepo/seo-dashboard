@@ -34,6 +34,62 @@ html, body {
   font-feature-settings: "tnum" 1;
 }
 
+/* ── Content-refresh change-tracking styles ──────────────────────────────── */
+
+/* Right panel: word-level changed words */
+.ct-word-changed {
+  font-weight: 700;
+  font-style: italic;
+}
+
+/* Left panel: inline changed span (wraps del + ins) */
+.ct-changed {
+  display: inline;
+}
+.ct-del {
+  text-decoration: line-through;
+  color: #94a3b8; /* slate-400 */
+  margin-right: 2px;
+}
+.ct-ins {
+  color: #1e40af; /* blue-800 */
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Added block */
+.ct-added {
+  background: #f0fdf4; /* green-50 */
+  border-left: 3px solid #4ade80; /* green-400 */
+  padding: 10px 14px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+/* Removed block */
+.ct-removed {
+  background: #fef2f2; /* red-50 */
+  border-left: 3px solid #f87171; /* red-400 */
+  padding: 10px 14px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+}
+.ct-removed del {
+  color: #6b7280; /* gray-500 */
+}
+
+/* Label badges inside added/removed blocks */
+.ct-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.ct-label-added  { color: #15803d; /* green-700 */ }
+.ct-label-removed { color: #b91c1c; /* red-700 */ }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

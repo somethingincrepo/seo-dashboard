@@ -83,18 +83,6 @@ export default async function PortalLayout({
  .catch(() => 0),
  ]);
 
- const KNOWN_CATS = ["Technical", "On-Page", "Content", "AI-GEO"];
- const categoryBreakdown: Record<string, number> = {};
- for (const c of pending) {
- const raw = c.fields.cat || c.fields.category || "";
- const cat = KNOWN_CATS.includes(raw) ? raw : null;
- if (cat) categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
- }
- const navigablePendingCount = Object.values(categoryBreakdown).reduce(
- (a, b) => a + b,
- 0
- );
-
  // Pending Internal Link changes — already in the `pending` array, no extra fetch needed
  const internalLinksPendingCount = pending.filter(
  (c) => (c.fields.type ?? "").toLowerCase() === "internal link"
@@ -108,30 +96,35 @@ export default async function PortalLayout({
  (j) => j.fields.title_status === "titled"
  ).length;
 
- // Content refreshes awaiting portal approval (Supabase — completely separate
- // from the Airtable Content Jobs/Results which are for n8n new-article flow).
  const contentOptimizationCount = contentRefreshes.filter(
  (r) => r.status === "completed" && !r.portal_approval
  ).length;
 
- // Page creation suggestions needing client action (new suggestions or generated content ready to review).
  const pageCreationCount = pageCreationSuggestions.filter(
  (s) => (s.status === "suggested" || s.status === "content_ready") && s.portal_approval !== "skipped"
  ).length;
+
+ // Unified "Needs Review" count for the Approvals badge
+ const approvalsActionCount =
+ titleProposalCount +
+ contentReviewCount +
+ contentOptimizationCount +
+ pageCreationCount +
+ internalLinksPendingCount +
+ (opportunityNewCount ?? 0);
 
  return (
  <PortalSidebar
  companyName={companyName || "Your Portal"}
  token={token}
  logoUrl={logoUrl}
- pendingCount={navigablePendingCount}
+ approvalsActionCount={approvalsActionCount}
  contentReviewCount={contentReviewCount}
  titleProposalCount={titleProposalCount}
  contentOptimizationCount={contentOptimizationCount}
  pageCreationCount={pageCreationCount}
  internalLinksPendingCount={internalLinksPendingCount}
  auditIssueCount={auditIssueCount}
- categoryBreakdown={categoryBreakdown}
  isLoggedIn={true}
  monthlyProgress={<MonthlyProgressSidebar client={client} />}
  hasReddit={hasReddit}

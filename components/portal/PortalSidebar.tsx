@@ -10,26 +10,18 @@ interface PortalSidebarProps {
  companyName: string;
  token: string;
  logoUrl?: string;
- pendingCount: number;
+ approvalsActionCount: number;
  contentReviewCount: number;
  titleProposalCount: number;
  contentOptimizationCount?: number;
  pageCreationCount?: number;
  internalLinksPendingCount?: number;
  auditIssueCount?: number;
- categoryBreakdown: Record<string, number>;
  isLoggedIn: boolean;
  monthlyProgress?: React.ReactNode;
  hasReddit?: boolean;
  redditMentionCount?: number;
 }
-
-const CATEGORY_ROUTES: Record<string, string> = {
- Technical: "technical",
- "On-Page": "on-page",
- Content: "content",
- "AI-GEO": "ai-geo",
-};
 
 function IconDashboard({ className }: { className?: string }) {
  return (
@@ -177,14 +169,13 @@ export function PortalSidebar({
  companyName,
  token,
  logoUrl,
- pendingCount,
+ approvalsActionCount,
  contentReviewCount,
  titleProposalCount,
  contentOptimizationCount,
  pageCreationCount,
  internalLinksPendingCount,
  auditIssueCount,
- categoryBreakdown,
  isLoggedIn,
  monthlyProgress,
  hasReddit,
@@ -195,12 +186,8 @@ export function PortalSidebar({
  const [logoError, setLogoError] = useState(false);
  const showLogo = !!logoUrl && !logoError;
 
- const inApprovals = pathname.startsWith(`${base}/approvals`);
  const inContent = pathname.startsWith(`${base}/content`);
  const inAudit = pathname.startsWith(`${base}/audit`);
-
- // Only expand sub-nav when actively in that section
- const approvalsExpanded = inApprovals;
  const contentExpanded = inContent;
 
  return (
@@ -256,9 +243,9 @@ export function PortalSidebar({
  <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-slate-700" : "text-slate-500")} />
  <span>{item.label}</span>
  </div>
- {item.suffix === "/approvals" && pendingCount > 0 && (
+ {item.suffix === "/approvals" && approvalsActionCount > 0 && (
  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
- {pendingCount}
+ {approvalsActionCount}
  </span>
  )}
  {item.suffix === "/content" && (contentReviewCount > 0 || titleProposalCount > 0) && (
@@ -313,33 +300,6 @@ export function PortalSidebar({
  )}
  >
  <span>{label}</span>
- </Link>
- );
- })}
- </div>
- )}
-
- {/* Approvals sub-nav */}
- {item.suffix === "/approvals" && approvalsExpanded && (
- <div className="ml-[18px] pl-3 border-l border-slate-200 mt-0.5 space-y-0.5">
- {Object.entries(CATEGORY_ROUTES).map(([cat, slug]) => {
- const count = categoryBreakdown[cat] || 0;
- const catHref = `${base}/approvals/${slug}`;
- const catActive = pathname === catHref;
- if (count === 0 && !catActive) return null;
- return (
- <Link
- key={slug}
- href={catHref}
- className={cn(
- "flex items-center justify-between px-2 py-1 rounded text-[12px] transition-colors",
- catActive
- ? "text-slate-900 font-medium bg-slate-50"
- : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
- )}
- >
- <span>{cat}</span>
- <span className="tabular text-slate-400 text-[11px]">{count}</span>
  </Link>
  );
  })}

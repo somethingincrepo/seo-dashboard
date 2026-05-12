@@ -80,8 +80,8 @@ export function bracketToHtmlProposed(text: string): string {
   );
   let html = bracketToHtml(processed);
   html = html
-    .replace(/__CT_BI_OPEN__/g, "<strong><em>")
-    .replace(/__CT_BI_CLOSE__/g, "</em></strong>");
+    .replace(/__CT_BI_OPEN__/g, '<span class="ct-word-changed">')
+    .replace(/__CT_BI_CLOSE__/g, "</span>");
   return html;
 }
 
