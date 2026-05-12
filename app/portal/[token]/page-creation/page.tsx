@@ -44,23 +44,22 @@ export default async function PageCreationPage({
   );
 
   return (
-    <div className="-mx-10 flex flex-col min-h-[calc(100vh-5rem)]">
-      <div className="px-10 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-          Page Creation
-        </h1>
-        <p className="text-base text-slate-500 mt-1">
-          Each month we identify gaps in your site&apos;s coverage and suggest new pages to build — industry verticals, service areas, use cases, and more. Approve a suggestion to kick off full content generation.
+    <div className="-mx-10 -my-10 flex flex-col" style={{ height: "calc(100vh - 3rem)" }}>
+      <div className="px-10 pt-8 pb-5 shrink-0 border-b border-slate-100">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Page Creation</h1>
+        <p className="text-[14px] text-slate-500 mt-0.5">
+          New pages identified for your site — approve a suggestion to generate the full page content.
         </p>
       </div>
-
-      <PageCreationSuggestions
-        items={items}
-        historicalItems={historicalItems}
-        token={token}
-        clientPackage={clientPackage}
-        companyName={client.fields.company_name || ""}
-      />
+      <div className="flex-1 min-h-0 px-10 py-6 overflow-hidden">
+        <PageCreationSuggestions
+          items={items}
+          historicalItems={historicalItems}
+          token={token}
+          clientPackage={clientPackage}
+          companyName={client.fields.company_name || ""}
+        />
+      </div>
     </div>
   );
 }

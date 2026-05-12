@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { airtableFetch } from "@/lib/airtable";
 import {
   searchRedditByKeyword,
+  searchRedditMentions,
   scoreThread,
   upsertOpportunities,
+  generateExplanations,
   type ScoredOpportunity,
 } from "@/lib/reddit";
 
@@ -24,7 +26,6 @@ type ClientRecord = {
 function parseKeywords(client: ClientRecord): string[] {
   const keywords: string[] = [];
 
-  // Primary: structured keyword_groups JSON
   for (const raw of [client.fields.keyword_groups, client.fields.custom_keyword_groups]) {
     if (!raw) continue;
     try {
@@ -37,7 +38,6 @@ function parseKeywords(client: ClientRecord): string[] {
     } catch { /* ignore malformed JSON */ }
   }
 
-  // Fallback: plain keywords string field
   if (keywords.length === 0 && client.fields.keywords) {
     const plain = client.fields.keywords
       .split(/[\n,]+/)
@@ -46,7 +46,6 @@ function parseKeywords(client: ClientRecord): string[] {
     keywords.push(...plain);
   }
 
-  // Deduplicate and cap at 5 per client to stay within PullPush rate limits
   return [...new Set(keywords)].slice(0, 5);
 }
 
@@ -80,58 +79,83 @@ export async function GET(request: NextRequest) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error("[reddit-scan] clients fetch failed:", message);
     return NextResponse.json({ error: "clients fetch failed", message }, { status: 500 });
   }
 
   for (const client of clients) {
     const clientName = client.fields.company_name ?? client.id;
     const keywords = parseKeywords(client);
-
     if (keywords.length === 0) continue;
     clientsProcessed++;
 
     const allOpportunities: ScoredOpportunity[] = [];
 
+    // ── Keyword search (SEO opportunities) ──────────────────────────────────
     for (const keyword of keywords) {
       try {
-        // Search Google for site:reddit.com {keyword} via DataForSEO
-        // All results already rank on Google — highest-value targets
         const posts = await searchRedditByKeyword(keyword, { limit: 10 });
         keywordsScanned++;
 
         for (const post of posts) {
-          const relevanceScore = scoreThread(post, keyword, true); // all rank on Google
+          const relevanceScore = scoreThread(post, keyword, true);
           if (relevanceScore < 10) continue;
-
           allOpportunities.push({
             ...post,
             keyword,
             relevance_score: relevanceScore,
             ranks_on_google: true,
-            source: "reddit_api",
+            opportunity_type: "keyword",
+            source: "dataforseo",
           });
         }
 
-        // 4s delay between PullPush calls to respect rate limits
-        await delay(4000);
+        await delay(2000);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        console.error(`[reddit-scan] ${clientName} / ${keyword}:`, message);
         errors.push({ client: clientName, keyword, error: message });
-        await delay(4000);
+        await delay(2000);
       }
     }
 
-    if (allOpportunities.length > 0) {
-      try {
-        await upsertOpportunities(client.id, allOpportunities);
-        threadsUpserted += allOpportunities.length;
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        console.error(`[reddit-scan] upsert failed for ${clientName}:`, message);
-        errors.push({ client: clientName, error: message });
+    // ── Brand mention search ─────────────────────────────────────────────────
+    try {
+      const mentionPosts = await searchRedditMentions(clientName, { limit: 10 });
+      for (const post of mentionPosts) {
+        const relevanceScore = Math.min(scoreThread(post, clientName, true) + 20, 100);
+        allOpportunities.push({
+          ...post,
+          keyword: clientName,
+          relevance_score: relevanceScore,
+          ranks_on_google: true,
+          opportunity_type: "mention",
+          source: "dataforseo",
+        });
       }
+      await delay(2000);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      errors.push({ client: clientName, keyword: "brand mention", error: message });
+    }
+
+    if (allOpportunities.length === 0) continue;
+
+    // ── Generate AI explanations (one batch Claude call per client) ──────────
+    let explanations: Record<string, string> = {};
+    try {
+      explanations = await generateExplanations(
+        allOpportunities.map(o => ({ id: o.id, title: o.title, selftext: o.selftext })),
+        clientName,
+        keywords
+      );
+    } catch { /* non-fatal — upsert without explanations */ }
+
+    // ── Upsert ──────────────────────────────────────────────────────────────
+    try {
+      await upsertOpportunities(client.id, allOpportunities, explanations);
+      threadsUpserted += allOpportunities.length;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      errors.push({ client: clientName, error: message });
     }
   }
 

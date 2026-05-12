@@ -160,7 +160,7 @@ const NAV_ITEMS = [
  { suffix: "/internal-links", label: "Internal Links", Icon: IconLinks },
  { suffix: "/indexation", label: "Indexation", Icon: IconIndexation },
  { suffix: "/reports", label: "Reports", Icon: IconReports },
- { suffix: "/reddit", label: "Reddit Mentions", Icon: IconReddit },
+ { suffix: "/reddit", label: "Reddit", Icon: IconReddit },
  { suffix: "/activity", label: "Activity", Icon: IconActivity },
 ] as const;
 
