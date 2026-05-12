@@ -24,7 +24,7 @@ export interface AuditRunSummary {
   hsts_header_present: boolean | null;
 }
 
-export type IssueDecision = "approved" | "dismissed" | null;
+export type IssueDecision = "approved" | "dismissed" | "resolved" | null;
 
 export interface AuditIssue {
   id: string;

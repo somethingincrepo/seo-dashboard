@@ -20,15 +20,16 @@ export async function POST(request: NextRequest) {
   const client = await getClientByToken(token);
   if (!client) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-  let body: { issue_ids?: string[]; decision?: "approved" | "dismissed" | null };
+  let body: { issue_ids?: string[]; decision?: "approved" | "dismissed" | "resolved" | null };
   try {
-    body = (await request.json()) as { issue_ids?: string[]; decision?: "approved" | "dismissed" | null };
+    body = (await request.json()) as { issue_ids?: string[]; decision?: "approved" | "dismissed" | "resolved" | null };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const ids = (body.issue_ids ?? []).filter((s) => typeof s === "string" && s.length > 0);
-  const decision = body.decision === "approved" || body.decision === "dismissed" ? body.decision : null;
+  const d = body.decision;
+  const decision = d === "approved" || d === "dismissed" || d === "resolved" ? d : null;
 
   if (ids.length === 0) {
     return NextResponse.json({ error: "issue_ids required" }, { status: 400 });

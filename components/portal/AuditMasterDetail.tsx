@@ -16,7 +16,7 @@ type Severity = (typeof SEVERITIES)[number];
 type SeverityFilter = "all" | Severity;
 
 type Category = "technical" | "on-page" | "content" | "ai-geo";
-type CategoryFilter = "all" | Category | "approved";
+type CategoryFilter = "all" | Category | "approved" | "resolved";
 
 const SEVERITY_LABEL: Record<Severity, string> = {
  critical: "Critical",
@@ -209,11 +209,18 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  const visibleIssues = useMemo(() => issues.filter((i) => {
  const d = localDecisions.get(i.id) ?? i.decision;
  if (d === "dismissed" && !showDismissed) return false;
+ if (d === "resolved") return false;
  return true;
  }), [issues, localDecisions, showDismissed]);
 
  // Page issues only — used where rendering per-URL detail (rule cards) needs a page_url.
  const pageIssues = useMemo(() => visibleIssues.filter((i) => i.scope === "page"), [visibleIssues]);
+
+ // Resolved page issues — separate pool for the Resolved tab.
+ const resolvedPageIssues = useMemo(
+ () => issues.filter((i) => i.scope === "page" && (localDecisions.get(i.id) ?? i.decision) === "resolved"),
+ [issues, localDecisions],
+ );
 
  const dismissedCount = useMemo(
  () => issues.filter((i) => (localDecisions.get(i.id) ?? i.decision) === "dismissed").length,
@@ -221,6 +228,10 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  );
  const approvedCount = useMemo(
  () => issues.filter((i) => (localDecisions.get(i.id) ?? i.decision) === "approved").length,
+ [issues, localDecisions],
+ );
+ const resolvedCount = useMemo(
+ () => issues.filter((i) => (localDecisions.get(i.id) ?? i.decision) === "resolved").length,
  [issues, localDecisions],
  );
 
@@ -250,23 +261,27 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  // issues are excluded from the score so a customer dismissing a false
  // positive sees the number move.
  const healthPct = useMemo(() => {
- const scoreable = issues.filter((i) => (localDecisions.get(i.id) ?? i.decision) !== "dismissed");
+ const scoreable = issues.filter((i) => {
+ const d = localDecisions.get(i.id) ?? i.decision;
+ return d !== "dismissed" && d !== "resolved";
+ });
  return computeHealthScore(scoreable, totalPagesCrawled);
  }, [issues, localDecisions, totalPagesCrawled]);
 
  const filtered = useMemo(() => {
  const needle = urlQuery.trim().toLowerCase();
- return pageIssues.filter((i) => {
+ const pool = category === "resolved" ? resolvedPageIssues : pageIssues;
+ return pool.filter((i) => {
  if (severity !== "all" && i.severity !== severity) return false;
  if (category === "approved") {
  if (decisionFor(i.id) !== "approved") return false;
- } else if (category !== "all") {
+ } else if (category !== "all" && category !== "resolved") {
  if (i.category !== category) return false;
  }
  if (needle && !(i.page_url ?? "").toLowerCase().includes(needle)) return false;
  return true;
  });
- }, [pageIssues, severity, category, urlQuery, decisionFor]);
+ }, [pageIssues, resolvedPageIssues, severity, category, urlQuery, decisionFor]);
 
  const grouped = useMemo(() => {
  const out = new Map<Severity, Map<string, RuleGroup>>();
@@ -465,9 +480,10 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  onClick={() => setCategory(cat)}
  />
  ))}
- {approvedCount > 0 && (
- <>
+ {(approvedCount > 0 || resolvedCount > 0) && (
  <span className="w-px h-4 self-center bg-slate-200 mx-0.5 shrink-0" />
+ )}
+ {approvedCount > 0 && (
  <button
  onClick={() => setCategory(category === "approved" ? "all" : "approved")}
  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium whitespace-nowrap transition-all ${
@@ -482,7 +498,23 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  <span>Approved</span>
  <span className={`tabular-nums text-[11px] ${category === "approved" ? "text-emerald-100" : "text-emerald-500"}`}>{approvedCount}</span>
  </button>
- </>
+ )}
+ {resolvedCount > 0 && (
+ <button
+ onClick={() => setCategory(category === "resolved" ? "all" : "resolved")}
+ className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium whitespace-nowrap transition-all ${
+ category === "resolved"
+ ? "bg-slate-700 text-white"
+ : "text-slate-600 hover:bg-slate-50"
+ }`}
+ >
+ <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+ <circle cx="12" cy="12" r="10"/>
+ <polyline points="20 6 9 17 4 12"/>
+ </svg>
+ <span>Resolved</span>
+ <span className={`tabular-nums text-[11px] ${category === "resolved" ? "text-slate-300" : "text-slate-400"}`}>{resolvedCount}</span>
+ </button>
  )}
  </div>
  <div className="relative w-64 shrink-0">
@@ -546,7 +578,22 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  <div>
  <p className="text-[13px] font-medium text-emerald-900">Implementation queue</p>
  <p className="text-[12px] text-emerald-700 mt-0.5 leading-snug">
- Select any issue to see step-by-step instructions for your CMS. On WordPress with credentials configured, fixes apply automatically.
+ Select any issue to see step-by-step instructions for your CMS. Once the fix is live, click <strong>Mark resolved</strong> to move it to the Resolved tab.
+ </p>
+ </div>
+ </div>
+ )}
+ {/* Resolved-view banner */}
+ {category === "resolved" && (
+ <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3 flex items-start gap-3">
+ <svg className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+ <circle cx="12" cy="12" r="10"/>
+ <polyline points="20 6 9 17 4 12"/>
+ </svg>
+ <div>
+ <p className="text-[13px] font-medium text-slate-700">Resolved fixes</p>
+ <p className="text-[12px] text-slate-500 mt-0.5 leading-snug">
+ These issues have been implemented. They are excluded from your health score and won't appear in the main issues list.
  </p>
  </div>
  </div>
@@ -641,6 +688,8 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-8 text-center text-sm text-slate-500">
  {category === "approved"
  ? "No approved issues yet. Approve issues from the other tabs to see implementation instructions here."
+ : category === "resolved"
+ ? "No resolved issues yet. After implementing a fix, mark it resolved from the Approved tab."
  : "No issues match the current filters."}
  </div>
  )}
@@ -825,6 +874,7 @@ function RuleCard({
  const someSelected = selectMode && groupIds.some((id) => selectedIds.has(id));
  const groupApproved = group.issues.every((i) => decisionFor(i.id) === "approved");
  const groupDismissed = group.issues.every((i) => decisionFor(i.id) === "dismissed");
+ const groupResolved = group.issues.every((i) => decisionFor(i.id) === "resolved");
  const isSelected = selection?.kind === "rule" && selection.rule_id === group.rule_id;
  return (
  <div
@@ -832,7 +882,7 @@ function RuleCard({
  SEVERITY_BORDER[group.severity]
  } border-y border-r border-slate-200/80 ${isSelected ? "ring-2 ring-indigo-300" : ""} ${
  groupApproved ? "opacity-80" : ""
- } ${groupDismissed ? "opacity-50" : ""}`}
+ } ${groupDismissed || groupResolved ? "opacity-50" : ""}`}
  >
  <div className="flex items-stretch">
  {selectMode && (
@@ -874,6 +924,11 @@ function RuleCard({
  {groupApproved && (
  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/70 font-medium">
  ✓ All approved
+ </span>
+ )}
+ {groupResolved && (
+ <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200/70 font-medium">
+ ✓ All resolved
  </span>
  )}
  {groupDismissed && (
@@ -933,6 +988,9 @@ function RuleCard({
  {decision === "approved" && (
  <span className="text-[10px] text-emerald-600 font-medium shrink-0">✓ approved</span>
  )}
+ {decision === "resolved" && (
+ <span className="text-[10px] text-slate-500 font-medium shrink-0">✓ resolved</span>
+ )}
  {decision === "dismissed" && (
  <span className="text-[10px] text-slate-400 shrink-0">dismissed</span>
  )}
@@ -967,6 +1025,7 @@ function RuleDetail({
 
  const pendingIds = group.issues.filter((i) => decisionFor(i.id) === null).map((i) => i.id);
  const approvedIds = group.issues.filter((i) => decisionFor(i.id) === "approved").map((i) => i.id);
+ const resolvedIds = group.issues.filter((i) => decisionFor(i.id) === "resolved").map((i) => i.id);
 
  return (
  <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
@@ -1015,6 +1074,9 @@ function RuleDetail({
  {approvedIds.length === group.issues.length && (
  <span className="text-emerald-700 font-medium">All pages approved.</span>
  )}
+ {resolvedIds.length === group.issues.length && (
+ <span className="text-slate-600 font-medium">All pages resolved.</span>
+ )}
  </div>
  <div className="flex items-center gap-2">
  {pendingIds.length > 0 && (
@@ -1035,7 +1097,7 @@ function RuleDetail({
  Dismiss all
  </button>
  )}
- {approvedIds.length > 0 && pendingIds.length === 0 && (
+ {approvedIds.length > 0 && pendingIds.length === 0 && resolvedIds.length === 0 && (
  <button
  onClick={() => decide(approvedIds, null)}
  disabled={submitting}
@@ -1124,6 +1186,11 @@ function IssueDetail({
  ✓ Approved
  </span>
  )}
+ {decision === "resolved" && (
+ <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200/70 font-medium">
+ ✓ Resolved
+ </span>
+ )}
  {decision === "dismissed" && (
  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200">
  Dismissed
@@ -1181,13 +1248,34 @@ function IssueDetail({
  )}
  {decision === "approved" && (
  <>
- <span className="text-[12px] text-emerald-700">Approved — this is in the fix queue.</span>
+ <span className="text-[12px] text-emerald-700">Approved — follow the guide below, then mark it resolved.</span>
+ <div className="flex items-center gap-2">
+ <button
+ onClick={() => decide([issue.id], "resolved")}
+ disabled={submitting}
+ className="px-3 py-1.5 rounded-md bg-slate-700 hover:bg-slate-600 text-white text-[12.5px] font-medium disabled:opacity-50"
+ >
+ Mark resolved
+ </button>
  <button
  onClick={() => decide([issue.id], null)}
  disabled={submitting}
  className="text-[12.5px] text-slate-500 hover:text-slate-900 underline underline-offset-2 disabled:opacity-50"
  >
  Undo
+ </button>
+ </div>
+ </>
+ )}
+ {decision === "resolved" && (
+ <>
+ <span className="text-[12px] text-slate-600 font-medium">✓ Resolved — fix is live.</span>
+ <button
+ onClick={() => decide([issue.id], "approved")}
+ disabled={submitting}
+ className="text-[12.5px] text-slate-500 hover:text-slate-900 underline underline-offset-2 disabled:opacity-50"
+ >
+ Move back to approved
  </button>
  </>
  )}
