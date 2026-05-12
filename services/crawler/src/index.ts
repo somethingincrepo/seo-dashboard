@@ -172,7 +172,8 @@ async function runFullPipeline(args: {
   }
 }
 
-// Reddit JSON proxy — uses Playwright so real browser fingerprint bypasses Reddit's bot detection
+// Reddit thread scraper — navigates HTML page (not .json) to avoid API-level bot blocking.
+// Extracts post body and top comments from Reddit's embedded window.___r data store.
 app.get("/reddit-thread", async (req, res) => {
   const auth = req.header("authorization") ?? "";
   if (!SHARED_TOKEN || auth !== `Bearer ${SHARED_TOKEN}`) {
@@ -182,28 +183,75 @@ app.get("/reddit-thread", async (req, res) => {
   const { url } = req.query as { url?: string };
   if (!url) { res.status(400).json({ error: "url required" }); return; }
 
-  const jsonUrl = `${(url as string).replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
+  // Strip trailing slash — navigate to the HTML thread page
+  const htmlUrl = (url as string).replace(/\/$/, "") + "/";
+
   let browser;
   try {
     browser = await chromium.launch({
       headless: true,
-      args: ["--disable-dev-shm-usage", "--no-sandbox"],
+      args: [
+        "--disable-dev-shm-usage",
+        "--no-sandbox",
+        "--disable-blink-features=AutomationControlled",
+      ],
     });
     const context = await browser.newContext({
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 800 },
+      locale: "en-US",
     });
-    const page = await context.newPage();
-    const response = await page.goto(jsonUrl, { waitUntil: "load", timeout: 20_000 });
 
-    if (!response?.ok()) {
-      res.status(response?.status() ?? 503).json({ error: `Reddit returned ${response?.status()}` });
+    // Hide navigator.webdriver so Reddit's bot detection doesn't flag us
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    });
+
+    const page = await context.newPage();
+    await page.goto(htmlUrl, { waitUntil: "domcontentloaded", timeout: 25_000 });
+
+    // Extract from Reddit's embedded data store (window.___r)
+    const result = await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const store = (window as any).___r as Record<string, any> | undefined;
+      if (!store) return null;
+
+      // Post data
+      const postModels: Record<string, Record<string, unknown>> = store.posts?.models ?? {};
+      const postKey = Object.keys(postModels)[0];
+      const post = postKey ? postModels[postKey] : null;
+
+      // Comment data — sorted by score descending
+      const commentModels: Record<string, Record<string, unknown>> = store.comments?.models ?? {};
+      const comments: Array<{ author: string; body: string; score: number }> = [];
+      for (const c of Object.values(commentModels)) {
+        const body = (c.body as string | undefined) ?? "";
+        if (!body || body === "[deleted]" || body === "[removed]") continue;
+        comments.push({
+          author: (c.author as string) ?? "unknown",
+          body: body.slice(0, 600),
+          score: (c.score as number) ?? 0,
+        });
+      }
+      comments.sort((a, b) => b.score - a.score);
+
+      return {
+        title: (post?.title as string) ?? "",
+        selftext: ((post?.selftext as string) ?? "").slice(0, 2000),
+        author: (post?.author as string) ?? "",
+        subreddit: (post?.subreddit as Record<string, unknown>)?.name as string ?? "",
+        score: (post?.score as number) ?? 0,
+        num_comments: (post?.numComments as number) ?? (post?.num_comments as number) ?? 0,
+        comments: comments.slice(0, 5),
+      };
+    });
+
+    if (!result) {
+      res.status(500).json({ error: "Could not extract Reddit data from page" });
       return;
     }
 
-    // Reddit JSON pages render as plain text in a browser — grab the raw body
-    const text = await page.evaluate(() => document.body.innerText);
-    const data = JSON.parse(text) as unknown;
-    res.json(data);
+    res.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
