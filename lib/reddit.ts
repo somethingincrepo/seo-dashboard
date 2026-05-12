@@ -1,6 +1,13 @@
 import { getSupabase } from "@/lib/supabase";
 
-const REDDIT_SEARCH_BASE = "https://www.reddit.com/search.json";
+const DATAFORSEO_SERP = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced";
+
+function getDataForSEOAuth(): string {
+  const login = process.env.DATAFORSEO_LOGIN;
+  const password = process.env.DATAFORSEO_PASSWORD;
+  if (!login || !password) throw new Error("DataForSEO credentials not configured");
+  return Buffer.from(`${login}:${password}`).toString("base64");
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,49 +52,63 @@ export type RedditOpportunity = {
   updated_at: string;
 };
 
-// ─── Search (Reddit public JSON API — no auth required) ───────────────────────
+// ─── Search (DataForSEO Google SERP: site:reddit.com {keyword}) ───────────────
+// Finds Reddit threads already ranking on Google — highest-value targets.
+// Uses existing DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD credentials.
 
 export async function searchRedditByKeyword(
   keyword: string,
-  opts: { limit?: number; timeframe?: "week" | "month" | "year" } = {}
+  opts: { limit?: number } = {}
 ): Promise<RedditPost[]> {
-  const { limit = 25, timeframe = "month" } = opts;
+  const { limit = 10 } = opts;
+  const auth = getDataForSEOAuth();
 
-  const url = new URL(REDDIT_SEARCH_BASE);
-  url.searchParams.set("q", keyword);
-  url.searchParams.set("sort", "new");
-  url.searchParams.set("t", timeframe);
-  url.searchParams.set("limit", String(limit));
-  url.searchParams.set("type", "link");
-
-  const res = await fetch(url.toString(), {
-    headers: { "User-Agent": "SEODashboard/1.0" },
+  const res = await fetch(DATAFORSEO_SERP, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([{
+      keyword: `site:reddit.com ${keyword}`,
+      location_code: 2840,
+      language_code: "en",
+      depth: limit,
+      se_domain: "google.com",
+    }]),
     cache: "no-store",
   });
 
-  if (res.status === 429) throw new Error("Reddit rate limit hit");
-  if (!res.ok) throw new Error(`Reddit search failed: ${res.status}`);
+  if (!res.ok) throw new Error(`DataForSEO search failed: ${res.status}`);
 
-  const data = await res.json() as {
-    data: { children: Array<{ data: Record<string, unknown> }> };
-  };
+  const data = await res.json() as { tasks: Array<{ result: Array<{ items: Array<Record<string, unknown>> }> }> };
+  const items = data?.tasks?.[0]?.result?.[0]?.items ?? [];
 
-  return (data.data?.children ?? []).map((child) => {
-    const p = child.data;
-    const id = p.id as string;
-    return {
+  const posts: RedditPost[] = [];
+  for (const item of items) {
+    if (item.type !== "organic") continue;
+    const url = (item.url as string) ?? "";
+    if (!url.includes("reddit.com/r/")) continue;
+
+    // Extract Reddit post ID from URL: /r/sub/comments/ID/slug
+    const match = url.match(/\/comments\/([a-z0-9]+)\//i);
+    const id = match?.[1] ?? url;
+
+    posts.push({
       id,
       fullname: `t3_${id}`,
-      title: (p.title as string) ?? "",
-      url: (p.url as string) ?? "",
-      permalink: `https://reddit.com${p.permalink as string}`,
-      selftext: ((p.selftext as string) ?? "").slice(0, 500),
-      subreddit: (p.subreddit as string) ?? "",
-      score: (p.score as number) ?? 0,
-      num_comments: (p.num_comments as number) ?? 0,
-      created_utc: (p.created_utc as number) ?? 0,
-    };
-  });
+      title: (item.title as string) ?? "",
+      url,
+      permalink: url,
+      selftext: (item.description as string) ?? "",
+      subreddit: url.match(/\/r\/([^/]+)/)?.[1] ?? "",
+      score: 0,
+      num_comments: 0,
+      created_utc: Math.floor(Date.now() / 1000), // unknown, treat as fresh
+    });
+  }
+
+  return posts;
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────

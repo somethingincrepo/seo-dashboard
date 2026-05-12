@@ -3,7 +3,6 @@ import { airtableFetch } from "@/lib/airtable";
 import {
   searchRedditByKeyword,
   scoreThread,
-  getGoogleRankingRedditUrls,
   upsertOpportunities,
   type ScoredOpportunity,
 } from "@/lib/reddit";
@@ -96,23 +95,20 @@ export async function GET(request: NextRequest) {
 
     for (const keyword of keywords) {
       try {
-        // Fetch Google-ranking Reddit threads for this keyword (optional)
-        const googleUrls = await getGoogleRankingRedditUrls(keyword);
-
-        // Search Reddit
-        const posts = await searchRedditByKeyword(keyword, { limit: 25, timeframe: "month" });
+        // Search Google for site:reddit.com {keyword} via DataForSEO
+        // All results already rank on Google — highest-value targets
+        const posts = await searchRedditByKeyword(keyword, { limit: 10 });
         keywordsScanned++;
 
         for (const post of posts) {
-          const ranksOnGoogle = googleUrls.has(post.permalink.replace(/\/$/, ""));
-          const relevanceScore = scoreThread(post, keyword, ranksOnGoogle);
-          if (relevanceScore < 10) continue; // noise floor
+          const relevanceScore = scoreThread(post, keyword, true); // all rank on Google
+          if (relevanceScore < 10) continue;
 
           allOpportunities.push({
             ...post,
             keyword,
             relevance_score: relevanceScore,
-            ranks_on_google: ranksOnGoogle,
+            ranks_on_google: true,
             source: "reddit_api",
           });
         }

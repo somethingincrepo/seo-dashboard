@@ -8,215 +8,260 @@ function suggestionLimit(pkg: string): number {
   return PACKAGES[(pkg as PackageTier) in PACKAGES ? (pkg as PackageTier) : "starter"].page_creation_suggestions;
 }
 
-type UiStatus = "suggested" | "generating" | "content_ready" | "approved" | "published" | "skipped" | "failed";
-
-function getUiStatus(s: PageCreationSuggestion): UiStatus {
-  if (s.status === "skipped" || s.portal_approval === "skipped") return "skipped";
-  if (s.status === "failed") return "failed";
-  if (s.status === "published") return "published";
-  if (s.status === "approved_for_publish") return "approved";
-  if (s.status === "content_ready") return "content_ready";
-  if (s.status === "generating") return "generating";
-  return "suggested";
-}
-
-const STATUS_CONFIG: Record<UiStatus, { label: string; dot: string; badge: string }> = {
-  suggested: { label: "New Suggestion", dot: "bg-slate-400", badge: "bg-slate-100 text-slate-600 ring-slate-200/60" },
-  generating: { label: "Generating Content", dot: "bg-amber-400 animate-pulse", badge: "bg-amber-50 text-amber-700 ring-amber-200/60" },
-  content_ready: { label: "Content Ready for Review", dot: "bg-indigo-400", badge: "bg-indigo-50 text-indigo-700 ring-indigo-200/60" },
-  approved: { label: "Approved for Publishing", dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200/60" },
-  published: { label: "Published", dot: "bg-green-500", badge: "bg-green-50 text-green-700 ring-green-200/60" },
-  skipped: { label: "Skipped", dot: "bg-slate-300", badge: "bg-slate-50 text-slate-400 ring-slate-200/60" },
-  failed: { label: "Failed", dot: "bg-red-400", badge: "bg-red-50 text-red-700 ring-red-200/60" },
-};
-
 const PAGE_TYPE_COLORS: Record<string, string> = {
-  "Industry Page":    "bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200/60",
-  "Location Page":    "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/60",
-  "Service Page":     "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200/60",
-  "Use-Case Page":    "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60",
-  "Job Title Page":   "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200/60",
-  "Comparison Page":  "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200/60",
+  "Industry Page":   "bg-violet-50 text-violet-700 ring-violet-200/60",
+  "Location Page":   "bg-emerald-50 text-emerald-700 ring-emerald-200/60",
+  "Service Page":    "bg-blue-50 text-blue-700 ring-blue-200/60",
+  "Use-Case Page":   "bg-amber-50 text-amber-700 ring-amber-200/60",
+  "Job Title Page":  "bg-indigo-50 text-indigo-700 ring-indigo-200/60",
+  "Comparison Page": "bg-rose-50 text-rose-700 ring-rose-200/60",
 };
 
-function pageTypeColor(type: string): string {
-  return PAGE_TYPE_COLORS[type] ?? "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200/60";
+function pageTypePill(type: string) {
+  const cls = PAGE_TYPE_COLORS[type] ?? "bg-slate-100 text-slate-600 ring-slate-200/60";
+  return (
+    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 ring-inset ${cls}`}>
+      {type}
+    </span>
+  );
 }
 
-// ── Section header ────────────────────────────────────────────────────────────
+function fmt(dateStr: string | null | undefined) {
+  if (!dateStr) return null;
+  try { return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+  catch { return null; }
+}
 
-function SectionHeader({ label, count }: { label: string; count: number }) {
+// ── Shared card header ────────────────────────────────────────────────────────
+
+function CardHeader({ s }: { s: PageCreationSuggestion }) {
   return (
-    <div className="flex items-center gap-3 px-10 py-3 bg-slate-50 border-b border-slate-100">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
-      <span className="text-[11px] tabular-nums text-slate-400">{count}</span>
+    <div className="flex items-start justify-between gap-4 mb-3">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          {pageTypePill(s.page_type)}
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium ring-1 ring-inset ring-slate-200/60">
+            {s.target_keyword}
+          </span>
+        </div>
+        <h3 className="text-[16px] font-semibold text-slate-900 leading-snug">{s.page_title}</h3>
+        <p className="text-[11px] font-mono text-slate-400 mt-0.5">{s.suggested_slug}</p>
+      </div>
+      {fmt(s.proposed_at) && (
+        <span className="text-[11px] text-slate-400 shrink-0 mt-0.5">{fmt(s.proposed_at)}</span>
+      )}
     </div>
   );
 }
 
-// ── Card ──────────────────────────────────────────────────────────────────────
+// ── Suggestion card (pending approval) ───────────────────────────────────────
 
 function SuggestionCard({
-  suggestion,
+  s,
   token,
   onAction,
 }: {
-  suggestion: PageCreationSuggestion;
+  s: PageCreationSuggestion;
   token: string;
-  onAction: (id: string, newStatus: PageCreationStatus) => void;
+  onAction: (id: string, status: PageCreationStatus) => void;
 }) {
-  const uiStatus = getUiStatus(suggestion);
-  const { label, dot, badge } = STATUS_CONFIG[uiStatus];
-  const [loading, setLoading] = useState<"approve" | "skip" | "approveContent" | null>(null);
-  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [loading, setLoading] = useState<"approve" | "skip" | null>(null);
 
-  const postAction = useCallback(
-    async (action: "approve" | "skip" | "approveContent") => {
-      setLoading(action);
-      try {
-        const endpoint =
-          action === "skip"
-            ? `/api/portal/page-creation/${suggestion.id}/skip`
-            : action === "approveContent"
-            ? `/api/portal/page-creation/${suggestion.id}/approve-content`
-            : `/api/portal/page-creation/${suggestion.id}/approve`;
-        await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-        const nextStatus: PageCreationStatus =
-          action === "skip"
-            ? "skipped"
-            : action === "approveContent"
-            ? "approved_for_publish"
-            : "generating";
-        onAction(suggestion.id, nextStatus);
-      } finally {
-        setLoading(null);
-      }
-    },
-    [suggestion.id, token, onAction]
-  );
+  const act = useCallback(async (action: "approve" | "skip") => {
+    setLoading(action);
+    try {
+      await fetch(`/api/portal/page-creation/${s.id}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      onAction(s.id, action === "skip" ? "skipped" : "generating");
+    } finally {
+      setLoading(null);
+    }
+  }, [s.id, token, onAction]);
 
-  const isSkipped = uiStatus === "skipped";
-  const isTerminal = uiStatus === "approved" || uiStatus === "published" || uiStatus === "skipped";
+  const isGenerating = s.status === "generating";
 
   return (
-    <div className={`border border-slate-200 rounded-xl bg-white overflow-hidden shadow-[0_1px_3px_0_rgba(16,24,40,0.05)] ${isSkipped ? "opacity-60" : ""}`}>
-      {/* Header row */}
-      <div className="px-6 pt-5 pb-4 flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-2">
-            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${pageTypeColor(suggestion.page_type)}`}>
-              {suggestion.page_type}
-            </span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
-              {suggestion.target_keyword}
-            </span>
-          </div>
-          <h3 className="text-[17px] font-semibold text-slate-900 leading-snug">{suggestion.page_title}</h3>
-          <p className="text-[12px] font-mono text-slate-400 mt-1">{suggestion.suggested_slug}</p>
-        </div>
-        <div className="shrink-0">
-          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full ring-1 ring-inset ${badge}`}>
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
-            {label}
-          </span>
-        </div>
+    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-[0_1px_3px_0_rgba(16,24,40,0.04)]">
+      <CardHeader s={s} />
+      <p className="text-[13px] text-slate-600 leading-[1.65] mb-4">{s.reasoning}</p>
+      <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+        {isGenerating ? (
+          <p className="text-[13px] text-amber-600 font-medium flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+            Generating content — check back in a few minutes
+          </p>
+        ) : (
+          <>
+            <button
+              onClick={() => act("approve")}
+              disabled={!!loading}
+              className="px-4 py-1.5 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+            >
+              {loading === "approve" ? "Approving…" : "Approve & Generate Content"}
+            </button>
+            <button
+              onClick={() => act("skip")}
+              disabled={!!loading}
+              className="px-4 py-1.5 rounded-lg text-[13px] font-medium text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+            >
+              {loading === "skip" ? "Skipping…" : "Skip"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Content-ready card (full content review) ──────────────────────────────────
+
+function ContentReadyCard({
+  s,
+  token,
+  onAction,
+}: {
+  s: PageCreationSuggestion;
+  token: string;
+  onAction: (id: string, status: PageCreationStatus) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [bodyExpanded, setBodyExpanded] = useState(false);
+
+  const approve = useCallback(async () => {
+    setLoading(true);
+    try {
+      await fetch(`/api/portal/page-creation/${s.id}/approve-content`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      onAction(s.id, "approved_for_publish");
+    } finally {
+      setLoading(false);
+    }
+  }, [s.id, token, onAction]);
+
+  return (
+    <div className="bg-white border-2 border-indigo-200 rounded-xl overflow-hidden shadow-[0_2px_8px_0_rgba(99,102,241,0.08)]">
+      {/* Top bar */}
+      <div className="px-5 py-2.5 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+        <span className="text-[12px] font-semibold text-indigo-700">Content ready for review</span>
+        {s.generated_word_count && (
+          <span className="ml-auto text-[11px] text-indigo-400">{s.generated_word_count.toLocaleString()} words</span>
+        )}
       </div>
 
-      {/* Reasoning */}
-      {uiStatus === "suggested" && (
-        <div className="px-6 pb-4">
-          <p className="text-[14px] text-slate-600 leading-[1.65]">{suggestion.reasoning}</p>
-        </div>
-      )}
+      <div className="p-5">
+        <CardHeader s={s} />
 
-      {/* Generated content preview (content_ready state) */}
-      {uiStatus === "content_ready" && suggestion.generated_h1 && (
-        <div className="px-6 pb-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Meta Title</p>
-              <p className="text-[13px] text-slate-800">{suggestion.generated_meta_title ?? "—"}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Meta Description</p>
-              <p className="text-[13px] text-slate-800">{suggestion.generated_meta_description ?? "—"}</p>
-            </div>
+        {/* Meta fields */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Meta Title</p>
+            <p className="text-[13px] text-slate-800 leading-snug">{s.generated_meta_title ?? "—"}</p>
           </div>
-          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Meta Description</p>
+            <p className="text-[13px] text-slate-800 leading-snug">{s.generated_meta_description ?? "—"}</p>
+          </div>
+        </div>
+
+        {/* H1 */}
+        {s.generated_h1 && (
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5 mb-4">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">H1</p>
-            <p className="text-[15px] font-semibold text-slate-900">{suggestion.generated_h1}</p>
+            <p className="text-[15px] font-semibold text-slate-900">{s.generated_h1}</p>
           </div>
-          {suggestion.generated_body && (
-            <div className="rounded-lg border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Page Body
-                  {suggestion.generated_word_count ? ` · ${suggestion.generated_word_count.toLocaleString()} words` : ""}
-                </span>
-                <button
-                  onClick={() => setBodyExpanded((v) => !v)}
-                  className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700"
-                >
-                  {bodyExpanded ? "Collapse" : "Expand"}
-                </button>
-              </div>
+        )}
+
+        {/* Page body */}
+        {s.generated_body && (
+          <div className="rounded-lg border border-slate-200 overflow-hidden mb-4">
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Page Body</span>
+              <button
+                onClick={() => setBodyExpanded(v => !v)}
+                className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                {bodyExpanded ? "Collapse" : "Read full page"}
+              </button>
+            </div>
+            <div
+              className={`px-6 py-4 overflow-y-auto transition-all duration-200 ${bodyExpanded ? "max-h-[700px]" : "max-h-40"}`}
+              style={{ maskImage: bodyExpanded ? "none" : "linear-gradient(to bottom, black 60%, transparent 100%)" }}
+            >
               <div
-                className={`px-6 py-4 overflow-y-auto transition-all ${bodyExpanded ? "max-h-[600px]" : "max-h-48"} text-[14px] text-slate-700 leading-[1.7] [&_h2]:text-[17px] [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mt-4 [&_h3]:mb-1.5 [&_p]:mb-3 [&_ul]:pl-5 [&_ul]:mb-3 [&_ul]:list-disc [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_li]:mb-1`}
-                dangerouslySetInnerHTML={{ __html: suggestion.generated_body }}
+                className="text-[14px] text-slate-700 leading-[1.75] [&_h2]:text-[17px] [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-6 [&_h2]:mb-2.5 [&_h2]:pb-1.5 [&_h2]:border-b [&_h2]:border-slate-200 [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mt-4 [&_h3]:mb-1.5 [&_p]:mb-3.5 [&_ul]:pl-5 [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ol]:pl-5 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:space-y-1.5 [&_li]:text-[14px] [&_li]:leading-[1.65] [&_strong]:font-semibold [&_strong]:text-slate-900"
+                dangerouslySetInnerHTML={{ __html: s.generated_body }}
               />
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Reasoning strip on approved/published */}
-      {(uiStatus === "approved" || uiStatus === "published") && (
-        <div className="px-6 pb-4">
-          <p className="text-[13px] text-slate-500 leading-[1.65]">{suggestion.reasoning}</p>
+        {/* Actions */}
+        <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+          <button
+            onClick={approve}
+            disabled={loading}
+            className="px-4 py-1.5 rounded-lg text-[13px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+          >
+            {loading ? "Approving…" : "Approve for Publishing"}
+          </button>
         </div>
-      )}
+      </div>
+    </div>
+  );
+}
 
-      {/* Action footer */}
-      {!isTerminal && (
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-2">
-          {uiStatus === "suggested" && (
-            <>
-              <button
-                onClick={() => postAction("approve")}
-                disabled={!!loading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-              >
-                {loading === "approve" ? "Approving…" : "Approve & Generate Content"}
-              </button>
-              <button
-                onClick={() => postAction("skip")}
-                disabled={!!loading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-              >
-                {loading === "skip" ? "Skipping…" : "Skip"}
-              </button>
-            </>
-          )}
-          {uiStatus === "generating" && (
-            <p className="text-[13px] text-slate-500 italic">Content is being generated — check back shortly.</p>
-          )}
-          {uiStatus === "content_ready" && (
-            <>
-              <button
-                onClick={() => postAction("approveContent")}
-                disabled={!!loading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-              >
-                {loading === "approveContent" ? "Approving…" : "Approve for Publishing"}
-              </button>
-            </>
-          )}
+// ── Done card (approved / published) ─────────────────────────────────────────
+
+function DoneCard({ s }: { s: PageCreationSuggestion }) {
+  const statusLabel = s.status === "published" ? "Published" : "Approved for publishing";
+  const statusColor = s.status === "published" ? "text-emerald-600" : "text-violet-600";
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 opacity-70">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+            {pageTypePill(s.page_type)}
+          </div>
+          <p className="text-[14px] font-medium text-slate-700 leading-snug">{s.page_title}</p>
+          <p className="text-[11px] font-mono text-slate-400 mt-0.5">{s.suggested_slug}</p>
         </div>
-      )}
+        <span className={`text-[12px] font-semibold shrink-0 ${statusColor}`}>{statusLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Section wrapper ───────────────────────────────────────────────────────────
+
+function Section({
+  title,
+  subtitle,
+  count,
+  children,
+  accent = "border-slate-200",
+}: {
+  title: string;
+  subtitle?: string;
+  count: number;
+  children: React.ReactNode;
+  accent?: string;
+}) {
+  return (
+    <div className="mb-10">
+      <div className={`flex items-baseline gap-3 mb-4 pb-3 border-b-2 ${accent}`}>
+        <h2 className="text-[15px] font-semibold text-slate-900">{title}</h2>
+        <span className="text-[12px] font-semibold tabular-nums text-slate-400">{count}</span>
+        {subtitle && <span className="text-[12px] text-slate-400 ml-1">{subtitle}</span>}
+      </div>
+      <div className="space-y-4">{children}</div>
     </div>
   );
 }
@@ -225,7 +270,7 @@ function SuggestionCard({
 
 function EmptyState() {
   return (
-    <div className="px-10 py-16 flex flex-col items-center text-center">
+    <div className="py-20 flex flex-col items-center text-center">
       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
         <svg className="w-6 h-6 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -236,7 +281,7 @@ function EmptyState() {
       </div>
       <h3 className="text-[15px] font-semibold text-slate-800 mb-1">No suggestions yet</h3>
       <p className="text-[13px] text-slate-500 max-w-xs">
-        Page creation suggestions are generated after your site audit completes. They&apos;ll appear here once ready.
+        Page creation suggestions appear after your site audit completes.
       </p>
     </div>
   );
@@ -256,46 +301,70 @@ export function PageCreationSuggestions({
   clientPackage: string;
 }) {
   const limit = suggestionLimit(clientPackage);
+  const all = [...items, ...historicalItems];
 
-  const [localItems, setLocalItems] = useState(items);
-  const [localHistorical, setLocalHistorical] = useState(historicalItems);
+  const [localAll, setLocalAll] = useState(all);
 
   const handleAction = useCallback((id: string, newStatus: PageCreationStatus) => {
-    const update = (list: PageCreationSuggestion[]) =>
-      list.map((s) => (s.id === id ? { ...s, status: newStatus } : s));
-    setLocalItems((prev) => update(prev));
-    setLocalHistorical((prev) => update(prev));
+    setLocalAll(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
   }, []);
 
-  const allEmpty = localItems.length === 0 && localHistorical.length === 0;
+  const contentReady = localAll.filter(s => s.status === "content_ready");
+  const suggestions  = localAll.filter(s => s.status === "suggested" || s.status === "generating");
+  const done         = localAll.filter(s => s.status === "approved_for_publish" || s.status === "published");
+  const skipped      = localAll.filter(s => s.status === "skipped" || s.portal_approval === "skipped");
+
+  const hasAnything = localAll.length > 0;
+
+  if (!hasAnything) return <EmptyState />;
 
   return (
-    <div className="flex-1">
-      {allEmpty ? (
-        <EmptyState />
-      ) : (
-        <>
-          {localItems.length > 0 && (
-            <>
-              <SectionHeader label={`This month · ${localItems.length} of ${limit}`} count={localItems.length} />
-              <div className="px-10 py-6 space-y-4">
-                {localItems.map((s) => (
-                  <SuggestionCard key={s.id} suggestion={s} token={token} onAction={handleAction} />
-                ))}
-              </div>
-            </>
-          )}
-          {localHistorical.length > 0 && (
-            <>
-              <SectionHeader label="Previous months" count={localHistorical.length} />
-              <div className="px-10 py-6 space-y-4">
-                {localHistorical.map((s) => (
-                  <SuggestionCard key={s.id} suggestion={s} token={token} onAction={handleAction} />
-                ))}
-              </div>
-            </>
-          )}
-        </>
+    <div className="px-10 py-6 max-w-3xl">
+      {/* Content ready — most prominent, shown first */}
+      {contentReady.length > 0 && (
+        <Section
+          title="Ready for Your Review"
+          subtitle="Review the generated page and approve to publish"
+          count={contentReady.length}
+          accent="border-indigo-400"
+        >
+          {contentReady.map(s => (
+            <ContentReadyCard key={s.id} s={s} token={token} onAction={handleAction} />
+          ))}
+        </Section>
+      )}
+
+      {/* Open suggestions */}
+      {suggestions.length > 0 && (
+        <Section
+          title="Suggestions"
+          subtitle={`${suggestions.length} of ${limit} this month — approve to generate a full page`}
+          count={suggestions.length}
+          accent="border-slate-300"
+        >
+          {suggestions.map(s => (
+            <SuggestionCard key={s.id} s={s} token={token} onAction={handleAction} />
+          ))}
+        </Section>
+      )}
+
+      {/* Done */}
+      {done.length > 0 && (
+        <Section title="Approved & Publishing" count={done.length} accent="border-emerald-300">
+          {done.map(s => <DoneCard key={s.id} s={s} />)}
+        </Section>
+      )}
+
+      {/* Skipped — shown last, very quiet */}
+      {skipped.length > 0 && (
+        <Section title="Skipped" count={skipped.length} accent="border-slate-100">
+          {skipped.map(s => (
+            <div key={s.id} className="text-[13px] text-slate-400 py-1.5 border-b border-slate-100 last:border-0 flex items-center justify-between">
+              <span>{s.page_title}</span>
+              <span className="font-mono text-[11px]">{s.suggested_slug}</span>
+            </div>
+          ))}
+        </Section>
       )}
     </div>
   );
