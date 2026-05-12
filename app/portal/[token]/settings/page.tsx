@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ConnectionForm } from "@/components/connections/ConnectionForm";
+import { GscGuide } from "@/components/portal/GscGuide";
 import { platformFromCmsField } from "@/lib/connections/registry";
 
 type Section = "credentials" | "integrations" | "security";
@@ -435,9 +436,13 @@ export default function SettingsPage() {
  </svg>
  <span className="text-[13px] font-semibold text-slate-800">Google Search Console</span>
  </div>
- {gscSaved ? (
+ {gscResult?.verified === true ? (
  <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
  Connected
+ </span>
+ ) : gscSaved ? (
+ <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
+ Saved — not verified
  </span>
  ) : (
  <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 font-medium">
@@ -449,33 +454,7 @@ export default function SettingsPage() {
  <div className="p-5 space-y-4">
  {/* Instructions */}
  {(!gscSaved || gscEditing) && (
- <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-[13px] space-y-2.5">
- <p className="font-semibold text-indigo-900">How to connect</p>
- <ol className="space-y-1.5 list-none">
- <li className="flex gap-2">
- <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">1</span>
- <span className="text-indigo-800">
- Open{" "}
- <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer"
- className="underline underline-offset-2 font-medium">
- Search Console → Settings → Users and permissions ↗
- </a>
- </span>
- </li>
- <li className="flex gap-2">
- <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">2</span>
- <span className="text-indigo-800">
- Click <strong>Add user</strong>, enter <strong>reporting@somethingincorporated.io</strong>, set permission to <strong>Full</strong>
- </span>
- </li>
- <li className="flex gap-2">
- <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center mt-0.5">3</span>
- <span className="text-indigo-800">
- Enter your GSC property below and click <strong>Save &amp; verify</strong>
- </span>
- </li>
- </ol>
- </div>
+ <GscGuide token={token} mode="setup" />
  )}
 
  {/* Current property or edit field */}
@@ -493,17 +472,15 @@ export default function SettingsPage() {
  </div>
  )}
  {gscResult?.verified === false && (
- <div className="text-[13px] bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 space-y-2">
- <p className="font-semibold text-amber-900">Property saved, but access was denied.</p>
- <p className="text-amber-800 text-xs">Our reporting account hasn&apos;t been invited to your Search Console property yet. Fix it in 30 seconds:</p>
- <ol className="space-y-1 text-xs text-amber-800 list-decimal list-inside">
- <li>Open <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 font-medium hover:text-amber-900">Search Console → Settings → Users and permissions ↗</a></li>
- <li>Click <strong>Add user</strong></li>
- <li>Enter <strong>reporting@somethingincorporated.io</strong> and set permission to <strong>Full</strong></li>
- <li>Click Add, then come back here and hit <strong>Save &amp; verify</strong> again</li>
- </ol>
+ <div className="space-y-4 pt-1">
+ <div>
+ <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-1">ACCESS DENIED</div>
+ <div className="text-sm font-semibold text-slate-900">Property saved, but we can&apos;t read it</div>
+ <div className="text-xs text-slate-500 mt-1">This usually means our reporting account hasn&apos;t been invited — or you may not have GSC set up yet at all.</div>
+ </div>
+ <GscGuide token={token} mode="error" />
  {gscResult.test_error && (
- <span className="block text-[11px] text-amber-600 mt-1 font-mono">{gscResult.test_error}</span>
+ <p className="text-[11px] text-slate-400 font-mono">{gscResult.test_error}</p>
  )}
  </div>
  )}

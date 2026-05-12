@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { coverageStateToDisplay, isStale, type GscDisplayStatus } from "@/lib/tools/gsc-inspection";
+import { GscGuide } from "@/components/portal/GscGuide";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -503,9 +504,13 @@ export default function IndexationPage() {
 
  {/* No GSC warning */}
  {!hasGsc && (
- <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-[13px] text-amber-800 space-y-2">
- <p><strong>Google Search Console not connected</strong> — index status checks are disabled until GSC is set up.</p>
- <p>To connect it, go to <a href="../settings#integrations" className="underline underline-offset-2 font-medium hover:text-amber-900">Settings → Integrations</a> and enter your GSC property. You'll also need to invite <strong>reporting@somethingincorporated.io</strong> as a <strong>Full User</strong> in your <a href="https://search.google.com/search-console/users" target="_blank" rel="noreferrer" className="underline underline-offset-2 font-medium hover:text-amber-900">Search Console user settings ↗</a>.</p>
+ <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 space-y-4 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]">
+ <div>
+ <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-1">SETUP REQUIRED</div>
+ <div className="text-sm font-semibold text-slate-900">Connect Google Search Console</div>
+ <div className="text-xs text-slate-500 mt-1">Index status checks are disabled until GSC is connected.</div>
+ </div>
+ <GscGuide token={token} mode="setup" />
  </div>
  )}
 
