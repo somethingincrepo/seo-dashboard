@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Edge runtime uses Vercel's edge network (different IPs than serverless — not blocked by Reddit)
 export const dynamic = "force-dynamic";
-export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   const permalink = request.nextUrl.searchParams.get("permalink");
   if (!permalink) return NextResponse.json({ error: "permalink required" }, { status: 400 });
 
-  try {
-    const cleanUrl = permalink.replace(/\/$/, "");
-    const jsonUrl = `${cleanUrl}.json?limit=5&depth=1&raw_json=1`;
+  const crawlerUrl = process.env.CRAWLER_SERVICE_URL ?? "https://something-audit-crawler.fly.dev";
+  const crawlerToken = process.env.CRAWLER_SERVICE_TOKEN;
 
-    const res = await fetch(jsonUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "no-cache",
-      },
-    });
+  if (!crawlerToken) {
+    return NextResponse.json({ error: "Crawler not configured" }, { status: 500 });
+  }
+
+  try {
+    const res = await fetch(
+      `${crawlerUrl}/reddit-thread?url=${encodeURIComponent(permalink)}`,
+      { headers: { Authorization: `Bearer ${crawlerToken}` } }
+    );
 
     if (!res.ok) {
-      return NextResponse.json({ error: `Reddit returned ${res.status}` }, { status: res.status });
+      return NextResponse.json({ error: `Crawler returned ${res.status}` }, { status: res.status });
     }
 
     const json = await res.json() as unknown[];
@@ -30,11 +28,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unexpected Reddit format" }, { status: 500 });
     }
 
-    // Parse post
     const postChildren = ((json[0] as Record<string, unknown>).data as Record<string, unknown>).children as unknown[];
-    const post = ((postChildren[0] as Record<string, unknown>).data as Record<string, unknown>);
+    const post = (postChildren[0] as Record<string, unknown>).data as Record<string, unknown>;
 
-    // Parse comments
     const commentChildren = ((json[1] as Record<string, unknown>).data as Record<string, unknown>).children as unknown[];
     const comments: Array<{ author: string; body: string; score: number }> = [];
 

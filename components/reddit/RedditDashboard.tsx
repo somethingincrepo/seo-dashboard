@@ -36,6 +36,8 @@ function RelevanceBadge({ score }: { score: number }) {
 
 // ─── Thread detail right panel ────────────────────────────────────────────────
 
+type ThreadComment = { author: string; body: string; score: number };
+
 function ThreadDetailPanel({
   opportunity: o,
   clientId,
@@ -49,6 +51,9 @@ function ThreadDetailPanel({
 }) {
   const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
+  const [comments, setComments] = useState<ThreadComment[] | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
@@ -68,10 +73,26 @@ function ThreadDetailPanel({
     }
   }
 
+  async function loadComments() {
+    if (commentsLoading) return;
+    setCommentsLoading(true);
+    setCommentsError(null);
+    try {
+      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
+      const data = await res.json() as { comments?: ThreadComment[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setComments(data.comments ?? []);
+    } catch (e) {
+      setCommentsError(e instanceof Error ? e.message : "Failed to load comments");
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-600">
             <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -130,6 +151,51 @@ function ThreadDetailPanel({
           </div>
         )}
 
+        {/* Comments section */}
+        <div className="border-t border-slate-100 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Top Comments</div>
+            {comments === null && (
+              <button
+                onClick={loadComments}
+                disabled={commentsLoading}
+                className="text-xs font-medium text-orange-600 hover:text-orange-800 disabled:opacity-50 transition-colors"
+              >
+                {commentsLoading ? "Loading…" : "Load comments"}
+              </button>
+            )}
+          </div>
+
+          {commentsError && (
+            <div className="text-[11px] text-red-500 bg-red-50 rounded-lg px-3 py-2">
+              {commentsError}
+              <button onClick={loadComments} className="ml-2 underline">Retry</button>
+            </div>
+          )}
+
+          {comments === null && !commentsLoading && !commentsError && (
+            <p className="text-[11px] text-slate-300 italic">Click &ldquo;Load comments&rdquo; to fetch the top 5 comments from Reddit.</p>
+          )}
+
+          {comments !== null && comments.length === 0 && (
+            <p className="text-[11px] text-slate-400">No comments found on this thread.</p>
+          )}
+
+          {comments && comments.length > 0 && (
+            <div className="space-y-3">
+              {comments.map((c, i) => (
+                <div key={i} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-slate-600">u/{c.author}</span>
+                    <span className="text-[10px] text-slate-400">▲ {c.score}</span>
+                  </div>
+                  <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Keyword */}
         <div className="text-[11px] text-slate-400">
           Surfaced by keyword: <span className="text-slate-600 font-medium">{o.keyword}</span>
@@ -148,17 +214,17 @@ function ThreadDetailPanel({
               <circle cx="10" cy="10" r="10" />
               <path fill="white" d="M16.67 10a1.46 1.46 0 0 0-2.47-1 7.12 7.12 0 0 0-3.85-1.23l.65-3.07 2.13.45a1 1 0 1 0 1-.97 1 1 0 0 0-.96.68l-2.38-.5a.27.27 0 0 0-.32.2l-.73 3.44a7.14 7.14 0 0 0-3.89 1.23 1.46 1.46 0 1 0-1.61 2.39 2.8 2.8 0 0 0 0 .44c0 2.24 2.61 4.06 5.83 4.06s5.83-1.82 5.83-4.06a2.8 2.8 0 0 0 0-.44 1.46 1.46 0 0 0 .68-1.62zm-9.4 1.1a1 1 0 1 1 1 1 1 1 0 0 1-1-1zm5.58 2.63a3.57 3.57 0 0 1-2.85.79 3.57 3.57 0 0 1-2.85-.79.28.28 0 0 1 .4-.4 3 3 0 0 0 2.45.65 3 3 0 0 0 2.45-.65.28.28 0 0 1 .4.4zm-.17-1.63a1 1 0 1 1 1-1 1 1 0 0 1-1 1z" />
             </svg>
-            Open Thread &amp; Read Comments on Reddit
+            Open Thread &amp; Reply on Reddit
           </a>
           <p className="text-[10px] text-slate-400 text-center mt-2">
-            Opens in a new tab — read comments and drop your reply there
+            Opens in a new tab — read the full thread and drop your reply there
           </p>
         </div>
       </div>
 
       {/* Status actions pinned to bottom */}
       {status !== "dismissed" && (
-        <div className="border-t border-slate-100 px-5 py-3 flex items-center gap-2 bg-white">
+        <div className="border-t border-slate-100 px-5 py-3 flex items-center gap-2 bg-white shrink-0">
           <span className="text-xs text-slate-400 mr-1">Mark as:</span>
           {(["viewed", "replied", "dismissed"] as const).map((s) => (
             <button
@@ -272,42 +338,42 @@ export function RedditDashboard({
   }
 
   return (
-    <div className="flex flex-col h-full">
-    <div className="flex flex-1 min-h-0 border border-slate-200 rounded-xl overflow-hidden bg-white">
-      {/* Left: thread list */}
-      <div className="w-[360px] shrink-0 border-r border-slate-100 flex flex-col">
-        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-          <span className="text-xs text-slate-400">{total} posts found</span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {items.map(o => (
-            <ThreadRow
-              key={o.id}
-              opportunity={o}
-              isActive={selected?.id === o.id}
-              onClick={() => setSelected(o)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Right: thread detail — full height */}
-      <div className="flex-1 min-w-0 overflow-hidden">
-        {selected ? (
-          <ThreadDetailPanel
-            key={selected.id}
-            opportunity={selected}
-            clientId={clientId}
-            apiPath={apiPath}
-            onStatusChange={handleStatusChange}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-            Select a thread to view details
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 border border-slate-200 rounded-xl overflow-hidden bg-white">
+        {/* Left: thread list */}
+        <div className="w-[360px] shrink-0 border-r border-slate-100 flex flex-col overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
+            <span className="text-xs text-slate-400">{total} posts found</span>
           </div>
-        )}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {items.map(o => (
+              <ThreadRow
+                key={o.id}
+                opportunity={o}
+                isActive={selected?.id === o.id}
+                onClick={() => setSelected(o)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Right: thread detail — full height */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          {selected ? (
+            <ThreadDetailPanel
+              key={selected.id}
+              opportunity={selected}
+              clientId={clientId}
+              apiPath={apiPath}
+              onStatusChange={handleStatusChange}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+              Select a thread to view details
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </div>
   );
 }

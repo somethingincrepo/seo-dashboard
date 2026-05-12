@@ -172,6 +172,37 @@ async function runFullPipeline(args: {
   }
 }
 
+// Reddit JSON proxy — Fly.io IPs are not blocked by Reddit unlike Vercel
+app.get("/reddit-thread", async (req, res) => {
+  const auth = req.header("authorization") ?? "";
+  if (!SHARED_TOKEN || auth !== `Bearer ${SHARED_TOKEN}`) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const { url } = req.query as { url?: string };
+  if (!url) { res.status(400).json({ error: "url required" }); return; }
+  try {
+    const jsonUrl = `${url.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
+    const response = await fetch(jsonUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+      },
+    });
+    if (!response.ok) {
+      res.status(response.status).json({ error: `Reddit returned ${response.status}` });
+      return;
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[crawler] listening on :${PORT}`);
 });

@@ -123,7 +123,7 @@ export default async function RedditClientPage({
       </div>
 
       {/* ── Main content ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden p-6">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden p-6">
         <RedditDashboard
           initialItems={items}
           total={total}
