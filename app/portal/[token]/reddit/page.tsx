@@ -64,47 +64,12 @@ export default async function PortalRedditPage({
   const projectId = client.fields.engain_project_id;
   const pkg = client.fields.package as PackageTier | undefined;
   const budget = pkg ? PACKAGES[pkg].reddit_comments : null;
-  const tab = sp.tab === "opportunities" ? "opportunities" : "mentions";
+  // Default to opportunities if Engain not configured, otherwise respect the tab param
+  const tab = (!projectId || sp.tab === "opportunities") ? "opportunities" : "mentions";
 
   const base = `/portal/${token}/reddit`;
   function tabUrl(t: string) { return `${base}?tab=${t}`; }
 
-  // Not configured — show plan info state
-  if (!projectId && tab === "mentions") {
-    return (
-      <div className="space-y-8 max-w-3xl">
-        <div>
-          <h1 className="text-[22px] font-semibold text-slate-900">Reddit</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Mentions and engagement opportunities for {client.fields.company_name}
-          </p>
-        </div>
-
-        {budget !== null && pkg && (
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]">
-            <div className="flex items-start justify-between gap-6">
-              <div>
-                <div className="text-sm font-semibold text-slate-800 mb-1">Reddit monitoring is included in your plan</div>
-                <div className="text-sm text-slate-500 leading-relaxed">
-                  Your {PACKAGE_LABELS[pkg]} plan includes <span className="font-semibold text-slate-700">{budget} Reddit comments per month</span>. We&apos;re setting up brand monitoring — check back soon.
-                </div>
-              </div>
-              <div className="shrink-0 text-center bg-orange-50 rounded-xl px-5 py-3">
-                <div className="text-3xl font-bold text-orange-500">{budget}</div>
-                <div className="text-[10px] text-orange-400 mt-0.5 tracking-wide">comments/mo</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-xl border border-dashed border-slate-200 p-12 text-center">
-          <div className="text-3xl mb-3">▲</div>
-          <div className="text-slate-600 font-medium mb-1">Monitoring being set up</div>
-          <div className="text-slate-400 text-sm">Your Reddit tracking is being configured. Check back soon.</div>
-        </div>
-      </div>
-    );
-  }
 
   // ── Mentions tab ──────────────────────────────────────────────────────────────
 
@@ -143,12 +108,14 @@ export default async function PortalRedditPage({
 
         {/* Tabs */}
         <div className="flex items-center gap-1">
-          <a
-            href={tabUrl("mentions")}
-            className="text-sm px-4 py-1.5 rounded-full border bg-slate-900 text-white border-slate-900"
-          >
-            Mentions
-          </a>
+          {projectId && (
+            <a
+              href={tabUrl("mentions")}
+              className="text-sm px-4 py-1.5 rounded-full border bg-slate-900 text-white border-slate-900"
+            >
+              Mentions
+            </a>
+          )}
           <a
             href={tabUrl("opportunities")}
             className="text-sm px-4 py-1.5 rounded-full border text-slate-600 border-slate-200 hover:border-slate-400 transition-all"
@@ -382,12 +349,14 @@ export default async function PortalRedditPage({
 
       {/* Tabs */}
       <div className="flex items-center gap-1">
-        <a
-          href={tabUrl("mentions")}
-          className="text-sm px-4 py-1.5 rounded-full border text-slate-600 border-slate-200 hover:border-slate-400 transition-all"
-        >
-          Mentions
-        </a>
+        {projectId && (
+          <a
+            href={tabUrl("mentions")}
+            className="text-sm px-4 py-1.5 rounded-full border text-slate-600 border-slate-200 hover:border-slate-400 transition-all"
+          >
+            Mentions
+          </a>
+        )}
         <a
           href={tabUrl("opportunities")}
           className="text-sm px-4 py-1.5 rounded-full border bg-slate-900 text-white border-slate-900"

@@ -59,6 +59,7 @@ export default async function PageCreationPage({
         historicalItems={historicalItems}
         token={token}
         clientPackage={clientPackage}
+        companyName={client.fields.company_name || ""}
       />
     </div>
   );
