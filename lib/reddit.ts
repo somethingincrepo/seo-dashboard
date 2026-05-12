@@ -54,6 +54,7 @@ export type RedditOpportunity = {
   ranks_on_google: boolean;
   opportunity_type: OpportunityType;
   ai_explanation: string | null;
+  snippet: string;
   status: "new" | "viewed" | "replied" | "dismissed";
   created_at: string;
   updated_at: string;
@@ -248,6 +249,7 @@ export async function upsertOpportunities(
     relevance_score: o.relevance_score,
     ranks_on_google: o.ranks_on_google,
     opportunity_type: o.opportunity_type,
+    snippet: o.selftext ?? "",
     ai_explanation: explanations[o.id] ?? null,
     updated_at: new Date().toISOString(),
   }));

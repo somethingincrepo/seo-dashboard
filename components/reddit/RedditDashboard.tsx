@@ -2,9 +2,8 @@
 
 import { useState, useCallback } from "react";
 import type { RedditOpportunity } from "@/lib/reddit";
-import type { ThreadDetail, RedditComment } from "@/app/api/reddit/thread/route";
 
-// ─── Time helper ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(input: string | number): string {
   try {
@@ -20,12 +19,10 @@ function timeAgo(input: string | number): string {
   } catch { return ""; }
 }
 
-// ─── Relevance badge ──────────────────────────────────────────────────────────
-
 function RelevanceBadge({ score }: { score: number }) {
-  const color = score >= 80
+  const color = score >= 70
     ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-    : score >= 50
+    : score >= 45
     ? "bg-amber-50 text-amber-700 ring-amber-200"
     : "bg-slate-50 text-slate-500 ring-slate-200";
   return (
@@ -36,32 +33,10 @@ function RelevanceBadge({ score }: { score: number }) {
   );
 }
 
-// ─── Comment tree ─────────────────────────────────────────────────────────────
+// ─── Thread detail right panel ────────────────────────────────────────────────
 
-function CommentNode({ comment, depth = 0 }: { comment: RedditComment; depth?: number }) {
-  return (
-    <div className={`${depth > 0 ? "ml-4 border-l border-slate-100 pl-3" : ""}`}>
-      <div className="py-2">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[11px] font-semibold text-slate-700">u/{comment.author}</span>
-          <span className="text-[10px] text-slate-400">▲ {comment.score}</span>
-          <span className="text-[10px] text-slate-400">{timeAgo(comment.created_utc)}</span>
-        </div>
-        <p className="text-[12px] text-slate-600 leading-relaxed whitespace-pre-line">
-          {comment.body.slice(0, 500)}{comment.body.length > 500 ? "…" : ""}
-        </p>
-      </div>
-      {comment.replies.slice(0, 3).map(r => (
-        <CommentNode key={r.id} comment={r} depth={depth + 1} />
-      ))}
-    </div>
-  );
-}
-
-// ─── Thread detail panel ──────────────────────────────────────────────────────
-
-function ThreadDetail({
-  opportunity,
+function ThreadDetailPanel({
+  opportunity: o,
   clientId,
   apiPath,
   onStatusChange,
@@ -71,37 +46,14 @@ function ThreadDetail({
   apiPath: string;
   onStatusChange: (id: string, status: string) => void;
 }) {
-  const [detail, setDetail] = useState<ThreadDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState(false);
-  const [status, setStatus] = useState(opportunity.status);
+  const [status, setStatus] = useState(o.status);
   const [pending, setPending] = useState<string | null>(null);
-
-  // Manual fetch only — Reddit blocks server-side requests from Vercel IPs
-  // so we fetch from the browser (client-side) on demand
-  const fetchThread = useCallback(async () => {
-    if (detail || loading) return;
-    setLoading(true);
-    setFetchError(false);
-    try {
-      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(opportunity.permalink)}`);
-      if (res.ok) {
-        setDetail(await res.json());
-      } else {
-        setFetchError(true);
-      }
-    } catch {
-      setFetchError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [opportunity.permalink, detail, loading]);
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
     if (pending) return;
     setPending(next);
     try {
-      const body: Record<string, string> = { id: opportunity.id, status: next };
+      const body: Record<string, string> = { id: o.id, status: next };
       if (!apiPath.includes("portal")) body.clientId = clientId;
       await fetch(apiPath, {
         method: "PATCH",
@@ -109,55 +61,50 @@ function ThreadDetail({
         body: JSON.stringify(body),
       });
       setStatus(next);
-      onStatusChange(opportunity.id, next);
+      onStatusChange(o.id, next);
     } finally {
       setPending(null);
     }
   }
 
-  const o = opportunity;
-
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-5 border-b border-slate-100 space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-semibold text-orange-600">r/{o.subreddit}</span>
-            <span className="text-[10px] text-slate-400">{timeAgo(o.created_utc)}</span>
-            {o.opportunity_type === "mention" && (
-              <span className="text-[10px] font-medium text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded ring-1 ring-inset ring-violet-100">
-                mention
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={o.permalink}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[11px] text-orange-500 hover:text-orange-700 flex items-center gap-1 transition-colors"
-            >
-              View on Reddit
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </a>
-          </div>
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-600">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <circle cx="10" cy="10" r="10" />
+              <path fill="white" d="M16.67 10a1.46 1.46 0 0 0-2.47-1 7.12 7.12 0 0 0-3.85-1.23l.65-3.07 2.13.45a1 1 0 1 0 1-.97 1 1 0 0 0-.96.68l-2.38-.5a.27.27 0 0 0-.32.2l-.73 3.44a7.14 7.14 0 0 0-3.89 1.23 1.46 1.46 0 1 0-1.61 2.39 2.8 2.8 0 0 0 0 .44c0 2.24 2.61 4.06 5.83 4.06s5.83-1.82 5.83-4.06a2.8 2.8 0 0 0 0-.44 1.46 1.46 0 0 0 .68-1.62zm-9.4 1.1a1 1 0 1 1 1 1 1 1 0 0 1-1-1zm5.58 2.63a3.57 3.57 0 0 1-2.85.79 3.57 3.57 0 0 1-2.85-.79.28.28 0 0 1 .4-.4 3 3 0 0 0 2.45.65 3 3 0 0 0 2.45-.65.28.28 0 0 1 .4.4zm-.17-1.63a1 1 0 1 1 1-1 1 1 0 0 1-1 1z" />
+            </svg>
+            r/{o.subreddit}
+          </span>
+          <span className="text-[10px] text-slate-400">{timeAgo(o.created_utc)}</span>
+          {o.opportunity_type === "mention" && (
+            <span className="text-[10px] font-medium text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded ring-1 ring-inset ring-violet-100">mention</span>
+          )}
         </div>
+        <a
+          href={o.permalink}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[11px] text-orange-500 hover:text-orange-700 flex items-center gap-1 transition-colors font-medium"
+        >
+          View on Reddit
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+        </a>
+      </div>
 
-        <h2 className="text-base font-semibold text-slate-900 leading-snug">
-          {detail?.title ?? o.title}
-        </h2>
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {/* Title */}
+        <h2 className="text-[15px] font-semibold text-slate-900 leading-snug">{o.title}</h2>
 
-        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-          {detail && <span>▲ {detail.score} · {Math.round(detail.upvote_ratio * 100)}% upvoted</span>}
-          {detail && <span>💬 {detail.num_comments} comments</span>}
-          {detail?.author && <span>by u/{detail.author}</span>}
-        </div>
-
-        <div className="flex items-center gap-2">
+        {/* Scores row */}
+        <div className="flex items-center gap-2 flex-wrap">
           <RelevanceBadge score={o.relevance_score} />
           {o.ranks_on_google && (
             <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg ring-1 ring-inset ring-emerald-200">
@@ -166,91 +113,70 @@ function ThreadDetail({
           )}
         </div>
 
+        {/* AI Explanation */}
         {o.ai_explanation && (
-          <p className="text-xs text-slate-500 leading-relaxed bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
-            {o.ai_explanation}
-          </p>
-        )}
-
-        {/* Status actions */}
-        {status !== "dismissed" && (
-          <div className="flex items-center gap-2 pt-1">
-            {(["viewed", "replied", "dismissed"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setOpStatus(s)}
-                disabled={!!pending}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-all disabled:opacity-60 capitalize font-medium ${
-                  status === s
-                    ? (s as string) === "replied" ? "bg-emerald-600 text-white border-emerald-600"
-                    : (s as string) === "dismissed" ? "bg-red-100 text-red-600 border-red-200"
-                    : "bg-slate-900 text-white border-slate-900"
-                    : "text-slate-600 border-slate-200 hover:border-slate-400 bg-white cursor-pointer"
-                }`}
-              >
-                {pending === s ? "…" : s === "viewed" ? "Mark Viewed" : s === "replied" ? "Replied" : "Dismiss"}
-              </button>
-            ))}
+          <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Why this matters</div>
+            <p className="text-sm text-slate-600 leading-relaxed">{o.ai_explanation}</p>
           </div>
         )}
-      </div>
 
-      {/* Thread body */}
-      <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-        {/* Comments section */}
-        <div className="p-5">
-          {!detail && !loading && !fetchError && (
-            <button
-              onClick={fetchThread}
-              className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg px-4 py-2 transition-all bg-white"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              Fetch Comments
-            </button>
-          )}
+        {/* Snippet from DataForSEO */}
+        {o.snippet && (
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Thread Preview</div>
+            <p className="text-sm text-slate-700 leading-relaxed">{o.snippet}</p>
+          </div>
+        )}
 
-          {loading && (
-            <div className="text-slate-400 text-sm">Loading comments…</div>
-          )}
+        {/* Keyword */}
+        <div className="text-[11px] text-slate-400">
+          Surfaced by keyword: <span className="text-slate-600 font-medium">{o.keyword}</span>
+        </div>
 
-          {fetchError && (
-            <div className="space-y-2">
-              <p className="text-sm text-slate-400">Comments unavailable from this network.</p>
-              <a
-                href={o.permalink}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-orange-500 hover:text-orange-700 flex items-center gap-1"
-              >
-                Read full thread on Reddit ↗
-              </a>
-            </div>
-          )}
-
-          {detail && (
-            <div className="space-y-1">
-              {detail.selftext && (
-                <p className="text-sm text-slate-700 leading-relaxed mb-4 whitespace-pre-line">
-                  {detail.selftext.slice(0, 1000)}{detail.selftext.length > 1000 ? "…" : ""}
-                </p>
-              )}
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                Top Comments ({detail.comments.length})
-              </div>
-              <div className="divide-y divide-slate-50">
-                {detail.comments.map(c => (
-                  <CommentNode key={c.id} comment={c} />
-                ))}
-              </div>
-              {detail.comments.length === 0 && (
-                <p className="text-sm text-slate-400">No comments yet.</p>
-              )}
-            </div>
-          )}
+        {/* Divider */}
+        <div className="border-t border-slate-100 pt-4">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Comments</div>
+          <p className="text-sm text-slate-400 mb-3">
+            Read and reply to comments directly on Reddit.
+          </p>
+          <a
+            href={o.permalink}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 px-4 py-2 rounded-lg transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <circle cx="10" cy="10" r="10" />
+              <path fill="white" d="M16.67 10a1.46 1.46 0 0 0-2.47-1 7.12 7.12 0 0 0-3.85-1.23l.65-3.07 2.13.45a1 1 0 1 0 1-.97 1 1 0 0 0-.96.68l-2.38-.5a.27.27 0 0 0-.32.2l-.73 3.44a7.14 7.14 0 0 0-3.89 1.23 1.46 1.46 0 1 0-1.61 2.39 2.8 2.8 0 0 0 0 .44c0 2.24 2.61 4.06 5.83 4.06s5.83-1.82 5.83-4.06a2.8 2.8 0 0 0 0-.44 1.46 1.46 0 0 0 .68-1.62zm-9.4 1.1a1 1 0 1 1 1 1 1 1 0 0 1-1-1zm5.58 2.63a3.57 3.57 0 0 1-2.85.79 3.57 3.57 0 0 1-2.85-.79.28.28 0 0 1 .4-.4 3 3 0 0 0 2.45.65 3 3 0 0 0 2.45-.65.28.28 0 0 1 .4.4zm-.17-1.63a1 1 0 1 1 1-1 1 1 0 0 1-1 1z" />
+            </svg>
+            Open Thread on Reddit
+          </a>
         </div>
       </div>
+
+      {/* Status actions pinned to bottom */}
+      {status !== "dismissed" && (
+        <div className="border-t border-slate-100 px-5 py-3 flex items-center gap-2 bg-white">
+          <span className="text-xs text-slate-400 mr-1">Mark as:</span>
+          {(["viewed", "replied", "dismissed"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setOpStatus(s)}
+              disabled={!!pending}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-all disabled:opacity-60 font-medium capitalize ${
+                status === s
+                  ? (s as string) === "replied" ? "bg-emerald-600 text-white border-emerald-600"
+                  : (s as string) === "dismissed" ? "bg-red-100 text-red-600 border-red-200"
+                  : "bg-slate-900 text-white border-slate-900"
+                  : "text-slate-600 border-slate-200 hover:border-slate-400 bg-white cursor-pointer"
+              }`}
+            >
+              {pending === s ? "…" : s === "viewed" ? "Mark Viewed" : s === "replied" ? "Replied" : "Dismiss"}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -299,12 +225,9 @@ function ThreadRow({
       )}
 
       <div className="flex items-center gap-3 text-[10px] text-slate-400">
-        <span>▲ {o.upvotes}</span>
-        {o.num_comments > 0 && <span>💬 {o.num_comments}</span>}
         {o.ranks_on_google && <span className="text-emerald-600 font-medium">★ Google</span>}
-        {o.status !== "new" && (
-          <span className="capitalize text-slate-300">{o.status}</span>
-        )}
+        {o.status !== "new" && <span className="capitalize text-slate-300">{o.status}</span>}
+        <span className="text-slate-300">{o.keyword}</span>
       </div>
     </div>
   );
@@ -331,7 +254,9 @@ export function RedditDashboard({
   );
 
   const handleStatusChange = useCallback((id: string, status: string) => {
-    setItems(prev => prev.map(o => o.id === id ? { ...o, status: status as RedditOpportunity["status"] } : o));
+    setItems(prev => prev.map(o =>
+      o.id === id ? { ...o, status: status as RedditOpportunity["status"] } : o
+    ));
     if (selected?.id === id) {
       setSelected(prev => prev ? { ...prev, status: status as RedditOpportunity["status"] } : null);
     }
@@ -346,24 +271,28 @@ export function RedditDashboard({
   }
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-180px)] min-h-[500px]">
+    <div className="flex gap-0 border border-slate-200 rounded-xl overflow-hidden bg-white" style={{ height: "calc(100vh - 200px)", minHeight: 500 }}>
       {/* Left: thread list */}
-      <div className="w-[380px] shrink-0 overflow-y-auto space-y-2 pr-1">
-        <div className="text-xs text-slate-400 mb-3">{total} posts found</div>
-        {items.map(o => (
-          <ThreadRow
-            key={o.id}
-            opportunity={o}
-            isActive={selected?.id === o.id}
-            onClick={() => setSelected(o)}
-          />
-        ))}
+      <div className="w-[360px] shrink-0 border-r border-slate-100 flex flex-col">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+          <span className="text-xs text-slate-400">{total} posts found</span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {items.map(o => (
+            <ThreadRow
+              key={o.id}
+              opportunity={o}
+              isActive={selected?.id === o.id}
+              onClick={() => setSelected(o)}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Right: thread detail */}
-      <div className="flex-1 border border-slate-200 rounded-xl overflow-hidden bg-white">
+      {/* Right: thread detail — full height */}
+      <div className="flex-1 min-w-0 overflow-hidden">
         {selected ? (
-          <ThreadDetail
+          <ThreadDetailPanel
             key={selected.id}
             opportunity={selected}
             clientId={clientId}
