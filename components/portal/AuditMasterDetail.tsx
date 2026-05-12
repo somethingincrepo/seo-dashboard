@@ -16,7 +16,7 @@ type Severity = (typeof SEVERITIES)[number];
 type SeverityFilter = "all" | Severity;
 
 type Category = "technical" | "on-page" | "content" | "ai-geo";
-type CategoryFilter = "all" | Category;
+type CategoryFilter = "all" | Category | "approved";
 
 const SEVERITY_LABEL: Record<Severity, string> = {
  critical: "Critical",
@@ -258,11 +258,15 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  const needle = urlQuery.trim().toLowerCase();
  return pageIssues.filter((i) => {
  if (severity !== "all" && i.severity !== severity) return false;
- if (category !== "all" && i.category !== category) return false;
+ if (category === "approved") {
+ if (decisionFor(i.id) !== "approved") return false;
+ } else if (category !== "all") {
+ if (i.category !== category) return false;
+ }
  if (needle && !(i.page_url ?? "").toLowerCase().includes(needle)) return false;
  return true;
  });
- }, [pageIssues, severity, category, urlQuery]);
+ }, [pageIssues, severity, category, urlQuery, decisionFor]);
 
  const grouped = useMemo(() => {
  const out = new Map<Severity, Map<string, RuleGroup>>();
@@ -461,6 +465,25 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  onClick={() => setCategory(cat)}
  />
  ))}
+ {approvedCount > 0 && (
+ <>
+ <span className="w-px h-4 self-center bg-slate-200 mx-0.5 shrink-0" />
+ <button
+ onClick={() => setCategory(category === "approved" ? "all" : "approved")}
+ className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium whitespace-nowrap transition-all ${
+ category === "approved"
+ ? "bg-emerald-600 text-white"
+ : "text-emerald-700 hover:bg-emerald-50"
+ }`}
+ >
+ <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+ <polyline points="20 6 9 17 4 12"/>
+ </svg>
+ <span>Approved</span>
+ <span className={`tabular-nums text-[11px] ${category === "approved" ? "text-emerald-100" : "text-emerald-500"}`}>{approvedCount}</span>
+ </button>
+ </>
+ )}
  </div>
  <div className="relative w-64 shrink-0">
  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -514,6 +537,20 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  </aside>
 
  <div className="col-span-5 space-y-3">
+ {/* Approved-view banner */}
+ {category === "approved" && (
+ <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-3 flex items-start gap-3">
+ <svg className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+ <polyline points="20 6 9 17 4 12"/>
+ </svg>
+ <div>
+ <p className="text-[13px] font-medium text-emerald-900">Implementation queue</p>
+ <p className="text-[12px] text-emerald-700 mt-0.5 leading-snug">
+ Select any issue to see step-by-step instructions for your CMS. On WordPress with credentials configured, fixes apply automatically.
+ </p>
+ </div>
+ </div>
+ )}
  {/* Toolbar above rule cards — bulk select + dismissed toggle + decision summary */}
  <div className="flex items-center justify-between gap-3 px-1">
  <div className="flex items-center gap-2 text-[11.5px] text-slate-500">
@@ -602,7 +639,9 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  })}
  {filtered.length === 0 && (
  <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-8 text-center text-sm text-slate-500">
- No issues match the current filters.
+ {category === "approved"
+ ? "No approved issues yet. Approve issues from the other tabs to see implementation instructions here."
+ : "No issues match the current filters."}
  </div>
  )}
  </div>
