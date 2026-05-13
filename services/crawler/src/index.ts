@@ -1,6 +1,7 @@
 import express from "express";
 import { chromium } from "playwright";
 import { crawlSite, CHROME_UA } from "./crawler.js";
+import type { ExtractedPage } from "./extractor.js";
 import { runSiteChecks } from "./site-checks.js";
 import { defaultStatusOf, postCrawl } from "./post-crawl.js";
 import { setRunStatus, writePages, writeSiteData } from "./supabase.js";
@@ -120,6 +121,83 @@ app.post("/fetch", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Active pipeline registry — lets the SIGINT flush handler reach in-progress
+// crawls and save partial results before the machine is recycled.
+// ---------------------------------------------------------------------------
+interface ActivePipeline {
+  auditRunId: string;
+  clientId: string;
+  rootUrl: string;
+  navUrls: Set<string>;
+  sitemapUrls: string[];
+  livePages: ExtractedPage[];
+}
+const activePipelines = new Map<string, ActivePipeline>();
+
+let sigtermHandlerRegistered = false;
+
+function ensureSigtermHandler(): void {
+  if (sigtermHandlerRegistered) return;
+  sigtermHandlerRegistered = true;
+
+  // Fly sends SIGINT first (graceful stop), then SIGTERM on forced kill.
+  // We handle both identically: flush every in-progress crawl's partial
+  // pages to Supabase + fire diagnose, then exit.
+  const flush = async (signal: string) => {
+    const pipelines = [...activePipelines.values()];
+    if (pipelines.length === 0) { process.exit(0); return; }
+
+    console.log(`[crawler] ${signal} — flushing ${pipelines.length} in-progress crawl(s)`);
+    await Promise.allSettled(pipelines.map((p) => flushPipeline(p, `${signal} flush`)));
+    process.exit(0);
+  };
+
+  process.once("SIGINT",  () => { void flush("SIGINT");  });
+  process.once("SIGTERM", () => { void flush("SIGTERM"); });
+}
+
+/** Write partial pages to Supabase and fire diagnose. Safe to call on any
+ *  page count — skips if 0 pages. Uses a no-op statusOf so no extra HTTP
+ *  calls are made during crash flush. */
+async function flushPipeline(p: ActivePipeline, reason: string): Promise<void> {
+  const { auditRunId, clientId, rootUrl, navUrls, sitemapUrls, livePages } = p;
+  if (livePages.length === 0) return;
+
+  console.log(`[crawler] ${reason}: writing ${livePages.length} pages for ${auditRunId}`);
+  try {
+    // Use no-op statusOf — canonical/og-image HTTP probes are skipped for
+    // partial saves. The final full run will overwrite with accurate data.
+    const enriched = await postCrawl({
+      pages: [...livePages],
+      rootUrl,
+      sitemapUrls,
+      navUrls,
+      statusOf: async () => null,
+    });
+    await writePages(auditRunId, clientId, enriched);
+    await setRunStatus(auditRunId, {
+      status: "crawled",
+      crawl_completed_at: new Date().toISOString(),
+      pages_crawled: enriched.length,
+    });
+    if (VERCEL_URL && SHARED_TOKEN) {
+      await fetch(`${VERCEL_URL}/api/audit/diagnose`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${SHARED_TOKEN}` },
+        body: JSON.stringify({ audit_run_id: auditRunId }),
+        signal: AbortSignal.timeout(20_000),
+      }).catch((e) => console.warn(`[crawler] diagnose ping after flush failed: ${e}`));
+    }
+    console.log(`[crawler] ${reason}: ${enriched.length} pages saved + diagnose fired for ${auditRunId}`);
+  } catch (e) {
+    console.error(`[crawler] ${reason}: flush failed for ${auditRunId}:`, e);
+  }
+}
+
+// How many new pages must accumulate before a checkpoint write fires.
+const CHECKPOINT_BATCH = 30;
+
 async function runFullPipeline(args: {
   auditRunId: string;
   clientId: string;
@@ -128,6 +206,7 @@ async function runFullPipeline(args: {
   concurrency?: number;
 }) {
   const { auditRunId, clientId, rootUrl, navUrls, concurrency } = args;
+  const livePages: ExtractedPage[] = [];
 
   try {
     await setRunStatus(auditRunId, { status: "crawling", crawl_started_at: new Date().toISOString() });
@@ -138,51 +217,107 @@ async function runFullPipeline(args: {
     const site = await runSiteChecks(rootUrl);
     await writeSiteData(auditRunId, site);
 
-    const { pages } = await crawlSite({ rootUrl, seedUrls: site.sitemap_urls, concurrency });
+    // Register this pipeline so the SIGINT flush handler can reach it.
+    const pipeline: ActivePipeline = {
+      auditRunId, clientId, rootUrl, navUrls,
+      sitemapUrls: site.sitemap_urls, livePages,
+    };
+    activePipelines.set(auditRunId, pipeline);
+    ensureSigtermHandler();
 
-    const enriched = await postCrawl({
-      pages,
-      rootUrl,
-      sitemapUrls: site.sitemap_urls,
-      navUrls,
-      statusOf: defaultStatusOf,
-    });
-
-    await writePages(auditRunId, clientId, enriched);
-
-    await setRunStatus(auditRunId, {
-      status: "crawled",
-      crawl_completed_at: new Date().toISOString(),
-      pages_crawled: enriched.length,
-    });
-
-    // Notify diagnose endpoint
-    if (VERCEL_URL && SHARED_TOKEN) {
+    // Checkpoint timer — every CHECKPOINT_BATCH new pages, write to Supabase.
+    // Uses no-op statusOf so no extra HTTP calls during the crawl. Final write
+    // below overwrites these rows with full postCrawl output (correct inbound
+    // link counts, dup detection, canonical probes). This ensures pages survive
+    // a mid-crawl machine recycle even if the full crawl never completes.
+    let checkpointed = 0;
+    const checkpointTimer = setInterval(async () => {
+      const current = livePages.length;
+      if (current - checkpointed < CHECKPOINT_BATCH) return;
+      const snapshot = [...livePages];
+      checkpointed = current;
       try {
-        const resp = await fetch(`${VERCEL_URL}/api/audit/diagnose`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${SHARED_TOKEN}`,
-          },
-          body: JSON.stringify({ audit_run_id: auditRunId }),
-          signal: AbortSignal.timeout(20_000),
+        const enriched = await postCrawl({
+          pages: snapshot,
+          rootUrl,
+          sitemapUrls: site.sitemap_urls,
+          navUrls,
+          statusOf: async () => null,
         });
-        if (!resp.ok) {
-          console.error(`[crawler] diagnose webhook ${resp.status}: ${await resp.text()}`);
-        }
+        await writePages(auditRunId, clientId, enriched);
+        await setRunStatus(auditRunId, { pages_crawled: enriched.length });
+        console.log(`[crawler] checkpoint: ${enriched.length} pages written for ${auditRunId}`);
       } catch (e) {
-        console.error("[crawler] diagnose webhook error:", e);
+        console.warn(`[crawler] checkpoint write failed for ${auditRunId}:`, e);
       }
-    } else {
-      console.warn("[crawler] VERCEL_BASE_URL or CRAWLER_SERVICE_TOKEN missing — skipping diagnose ping");
+    }, 15_000); // check every 15s
+
+    try {
+      const { pages } = await crawlSite({
+        rootUrl, seedUrls: site.sitemap_urls, concurrency, livePages,
+      });
+
+      clearInterval(checkpointTimer);
+      activePipelines.delete(auditRunId);
+
+      // Final full postCrawl — overwrites checkpoint rows with accurate
+      // inbound-link counts, dup detection, and canonical/og-image probes.
+      const enriched = await postCrawl({
+        pages,
+        rootUrl,
+        sitemapUrls: site.sitemap_urls,
+        navUrls,
+        statusOf: defaultStatusOf,
+      });
+
+      await writePages(auditRunId, clientId, enriched);
+
+      await setRunStatus(auditRunId, {
+        status: "crawled",
+        crawl_completed_at: new Date().toISOString(),
+        pages_crawled: enriched.length,
+      });
+
+      // Notify diagnose endpoint
+      if (VERCEL_URL && SHARED_TOKEN) {
+        try {
+          const resp = await fetch(`${VERCEL_URL}/api/audit/diagnose`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${SHARED_TOKEN}`,
+            },
+            body: JSON.stringify({ audit_run_id: auditRunId }),
+            signal: AbortSignal.timeout(20_000),
+          });
+          if (!resp.ok) {
+            console.error(`[crawler] diagnose webhook ${resp.status}: ${await resp.text()}`);
+          }
+        } catch (e) {
+          console.error("[crawler] diagnose webhook error:", e);
+        }
+      } else {
+        console.warn("[crawler] VERCEL_BASE_URL or CRAWLER_SERVICE_TOKEN missing — skipping diagnose ping");
+      }
+    } finally {
+      clearInterval(checkpointTimer);
+      activePipelines.delete(auditRunId);
     }
   } catch (err) {
     console.error(`[crawler] pipeline error for ${auditRunId}:`, err);
-    await setRunStatus(auditRunId, {
-      status: "failed",
-      error_message: err instanceof Error ? err.message : String(err),
-    }).catch(() => {});
+    // If we have partial pages, save them before marking failed so the
+    // audit watchdog can fire diagnose against whatever was collected.
+    if (livePages.length > 0) {
+      await flushPipeline(
+        { auditRunId, clientId, rootUrl, navUrls, sitemapUrls: [], livePages },
+        "error flush",
+      ).catch(() => {});
+    } else {
+      await setRunStatus(auditRunId, {
+        status: "failed",
+        error_message: err instanceof Error ? err.message : String(err),
+      }).catch(() => {});
+    }
   }
 }
 

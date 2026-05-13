@@ -17,32 +17,35 @@ export type PackageDeliverables = {
 };
 
 export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
+  // Solo — $299/mo
   starter: {
     articles_standard: 8,
     articles_longform: 0,
     faq_sections: 1,
-    content_refreshes: 2,
-    page_creation_suggestions: 2,
-    internal_links: 4,
-    reddit_comments: 10,
+    content_refreshes: 4,
+    page_creation_suggestions: 0,
+    internal_links: 8,
+    reddit_comments: 0,
   },
+  // Studio — $699/mo
   growth: {
-    articles_standard: 14,
-    articles_longform: 2,
-    faq_sections: 3,
-    content_refreshes: 6,
-    page_creation_suggestions: 6,
-    internal_links: 10,
+    articles_standard: 12,
+    articles_longform: 4,
+    faq_sections: 4,
+    content_refreshes: 8,
+    page_creation_suggestions: 4,
+    internal_links: 16,
     reddit_comments: 20,
   },
+  // Scale — $1,099/mo
   authority: {
-    articles_standard: 26,
-    articles_longform: 4,
-    faq_sections: 6,
+    articles_standard: 18,
+    articles_longform: 6,
+    faq_sections: 8,
     content_refreshes: 12,
-    page_creation_suggestions: 12,
-    internal_links: 20,
-    reddit_comments: 40,
+    page_creation_suggestions: 6,
+    internal_links: 24,
+    reddit_comments: 60,
   },
 };
 
@@ -57,9 +60,9 @@ export const PACKAGE_LABELS: Record<PackageTier, string> = {
 
 // Title generation settings per package (drives title_generation + content_scheduler)
 export const TITLE_BOTTLENECK: Record<PackageTier, number> = {
-  starter: 6,    // ~8 articles/mo → buffer of 6 pending before pausing
-  growth: 10,    // ~16 articles/mo → buffer of 10
-  authority: 16, // ~30 articles/mo → buffer of 16
+  starter: 5,    // Solo: 8 articles/mo → buffer of 5 pending before pausing
+  growth: 8,     // Studio: 16 articles/mo → buffer of 8
+  authority: 12, // Scale: 24 articles/mo → buffer of 12
 };
 
 export const TITLES_PER_RUN: Record<PackageTier, number> = {

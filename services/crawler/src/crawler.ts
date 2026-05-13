@@ -15,6 +15,12 @@ export interface CrawlOptions {
   pageTimeoutMs?: number;
   /** Extra seed URLs (e.g. from sitemap) to prime the crawl queue beyond rootUrl. */
   seedUrls?: string[];
+  /**
+   * If provided, crawled pages are appended to this array as they arrive.
+   * Lets the caller read partial results mid-crawl — used for checkpoint
+   * writes and SIGINT crash-flush so pages aren't lost on machine recycle.
+   */
+  livePages?: ExtractedPage[];
 }
 
 export interface CrawlOutput {
@@ -31,7 +37,9 @@ export async function crawlSite(opts: CrawlOptions): Promise<CrawlOutput> {
   const pageTimeoutMs = opts.pageTimeoutMs ?? 30_000;
   const origin = rootOrigin(rootUrl);
 
-  const pages: ExtractedPage[] = [];
+  // Use the caller's live array if provided so they can read partial results
+  // mid-crawl (checkpoints, crash-flush). Fall back to a local array.
+  const pages: ExtractedPage[] = opts.livePages ?? [];
   // Pre-seed `seen` with both the www and non-www form of rootUrl so that a
   // www↔non-www redirect on the homepage doesn't cause it to be enqueued and
   // crawled a second time. Without this, if rootUrl=https://example.com and
