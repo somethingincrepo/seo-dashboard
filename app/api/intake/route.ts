@@ -18,10 +18,14 @@ function slugify(name: string): string {
 function normalizeUrl(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return trimmed;
-  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-    return `https://${trimmed}`;
-  }
-  return trimmed;
+  const withScheme =
+    !trimmed.startsWith("http://") && !trimmed.startsWith("https://")
+      ? `https://${trimmed}`
+      : trimmed;
+  // Strip trailing slashes so the stored value matches what the crawler's
+  // URL normalizer produces — prevents false "duplicate client" misses on
+  // the idempotency check and keeps audit_runs.root_url consistent.
+  return withScheme.replace(/\/+$/, "");
 }
 
 function deriveDomain(url: string): string {
@@ -226,6 +230,7 @@ export async function POST(request: NextRequest) {
       root_url: normalizedUrl,
       triggered_by: "intake",
       nav_urls: [normalizedUrl],
+      concurrency: 3,
     });
   } catch (e) {
     console.error(`[intake] audit trigger failed for ${record.id}:`, e);
