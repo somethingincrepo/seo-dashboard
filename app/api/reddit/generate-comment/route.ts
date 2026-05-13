@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, selftext, comments, keyword, subreddit, permalink, tone, length, existingDraft } =
+    const { title, selftext, comments, keyword, subreddit, permalink, clientName, tone, length, existingDraft } =
       await request.json() as {
         title?: string;
         selftext?: string | null;
@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
         keyword?: string;
         subreddit?: string;
         permalink?: string;
+        clientName?: string;
         tone?: string;
         length?: string;
         existingDraft?: string;
@@ -28,29 +29,33 @@ export async function POST(request: NextRequest) {
     const toneGuide = tone ?? "Helpful";
     const isRefine = !!existingDraft;
 
+    const businessLine = clientName
+      ? `Business name: ${clientName}\nRelevant service/keyword: ${keyword ?? ""}`
+      : `Relevant service/keyword: ${keyword ?? ""}`;
+
     const prompt = isRefine
-      ? `Refine this Reddit comment to be more ${toneGuide.toLowerCase()} and ${lengthGuide} long. Keep the core message but improve the tone and clarity. Reply with ONLY the revised comment text.
+      ? `Refine this Reddit comment to be more ${toneGuide.toLowerCase()} and ${lengthGuide} long. Keep the core message, naturally mention "${clientName ?? keyword ?? "the business"}" if relevant, and improve clarity. Reply with ONLY the revised comment text.
 
 Original comment:
 ${existingDraft}
 
 Thread context: r/${subreddit ?? "unknown"} — "${title}"`
-      : `You are helping a marketing professional respond helpfully to a Reddit discussion on behalf of a business.
+      : `You are writing a Reddit comment on behalf of a business, responding to a relevant thread where the business could add value.
 
 Thread: r/${subreddit ?? "unknown"}
-Title: ${title}${selftext ? `\nPost: ${selftext.slice(0, 600)}` : ""}${topComments ? `\nTop comments:\n${topComments}` : ""}
-Business keyword/service: ${keyword ?? ""}
+Title: ${title}${selftext ? `\nPost: ${selftext.slice(0, 800)}` : ""}${topComments ? `\nTop comments:\n${topComments}` : ""}
+${businessLine}
 Tone: ${toneGuide}
 Length: ${lengthGuide}
 
-Reddit commenting guidelines:
-- Be genuinely helpful and add real value — don't just promote
-- Sound like a real person, not a marketer or PR rep
-- Keep it ${toneGuide.toLowerCase()} and ${lengthGuide}
-- Only mention the business/service if it directly and naturally answers what's being asked
-- No spammy phrases, no "Great question!", no excessive punctuation
-- Match the tone of the subreddit
-- Never include links unless directly relevant and asked for
+Instructions:
+- Write as if you are a knowledgeable person associated with ${clientName ?? "the business"} — helpful, not salesy
+- Naturally mention ${clientName ? `"${clientName}"` : "the business by name"} once if it genuinely answers what's being asked (e.g. "We've helped clients with this at ${clientName ?? "our company"}..." or "I work with ${clientName ?? "a company"} that specialises in this...")
+- Add real value — specific insight, a tip, or direct answer to the question
+- Sound like a real person on Reddit, not marketing copy
+- No links, no promotional language, no "Great question!"
+- Match the casual tone of Reddit — contractions, natural phrasing
+- ${lengthGuide} total
 
 Write a single Reddit comment. Reply with ONLY the comment text — no preamble, no quotes, no explanation.`;
 
@@ -64,7 +69,7 @@ Write a single Reddit comment. Reply with ONLY the comment text — no preamble,
       },
       body: JSON.stringify({
         model: "openai/gpt-4o-mini",
-        max_tokens: 300,
+        max_tokens: 600,
         messages: [{ role: "user", content: prompt }],
       }),
     });

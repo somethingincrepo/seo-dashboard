@@ -59,10 +59,12 @@ function CommentComposer({
   opportunity: o,
   selftext,
   comments,
+  clientName,
 }: {
   opportunity: RedditOpportunity;
   selftext: string | null;
   comments: StoredComment[];
+  clientName?: string;
 }) {
   const [draft, setDraft] = useState("");
   const [tone, setTone] = useState<Tone>("Helpful");
@@ -102,6 +104,7 @@ function CommentComposer({
           keyword: o.keyword,
           subreddit: o.subreddit,
           permalink: o.permalink,
+          clientName,
           tone,
           length,
           existingDraft: refineMode ? draft : undefined,
@@ -180,7 +183,7 @@ function CommentComposer({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Reply..."
-          rows={4}
+          rows={6}
           className="w-full text-[13px] text-slate-800 bg-white px-3 py-2.5 resize-none focus:outline-none leading-relaxed placeholder:text-slate-400"
         />
 
@@ -201,7 +204,7 @@ function CommentComposer({
               ) : (
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               )}
-              {generating ? "Writing…" : "Generate Comment"}
+              {generating ? "Writing…" : draft ? "Regenerate" : "Generate Comment"}
             </button>
 
             {/* Tone selector */}
@@ -262,21 +265,15 @@ function CommentComposer({
         <p className="text-[11px] text-red-500 bg-red-50 mx-4 mt-2 rounded-lg px-3 py-2">{genError}</p>
       )}
 
-      {/* How to post — shown once draft exists */}
+      {/* Compact how-to strip */}
       {draft && (
-        <div className="mx-4 mt-2 mb-3 border border-dashed border-orange-200 rounded-lg px-3.5 py-3 bg-orange-50/40">
-          <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-2">How to post this</p>
-          <div className="space-y-1">
-            {['Copy the comment (icon above)', 'Open the Reddit thread →', 'Click "Add a Comment" and paste', 'Review and hit Reply'].map((step, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <span className="w-3.5 h-3.5 rounded-full bg-orange-400 text-white text-[8px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                <span className="text-[11px] text-slate-600 leading-relaxed">{step}</span>
-                {i === 1 && (
-                  <a href={o.permalink} target="_blank" rel="noreferrer" className="text-[11px] text-orange-500 hover:text-orange-700 font-medium ml-1">here</a>
-                )}
-              </div>
-            ))}
-          </div>
+        <div className="mx-4 mb-3 flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap">
+          <span className="font-semibold text-slate-500">To post:</span>
+          <span>Copy above</span><span className="text-slate-300">→</span>
+          <a href={o.permalink} target="_blank" rel="noreferrer" className="text-orange-500 hover:text-orange-700 font-medium">Open thread</a>
+          <span className="text-slate-300">→</span>
+          <span>Paste in comment box</span><span className="text-slate-300">→</span>
+          <span>Reply</span>
         </div>
       )}
     </div>
@@ -288,11 +285,13 @@ function CommentComposer({
 function ThreadDetailPanel({
   opportunity: o,
   clientId,
+  clientName,
   apiPath,
   onStatusChange,
 }: {
   opportunity: RedditOpportunity;
   clientId: string;
+  clientName?: string;
   apiPath: string;
   onStatusChange: (id: string, status: string) => void;
 }) {
@@ -523,6 +522,7 @@ function ThreadDetailPanel({
         opportunity={o}
         selftext={liveSelftext}
         comments={liveComments ?? storedComments ?? []}
+        clientName={clientName}
       />
 
       {/* Status bar */}
@@ -602,12 +602,14 @@ export function RedditDashboard({
   initialItems,
   total,
   clientId,
+  clientName,
   apiPath,
   emptyMessage,
 }: {
   initialItems: RedditOpportunity[];
   total: number;
   clientId: string;
+  clientName?: string;
   apiPath: string;
   emptyMessage?: string;
 }) {
@@ -656,6 +658,7 @@ export function RedditDashboard({
               key={selected.id}
               opportunity={selected}
               clientId={clientId}
+              clientName={clientName}
               apiPath={apiPath}
               onStatusChange={handleStatusChange}
             />

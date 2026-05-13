@@ -128,6 +128,7 @@ export default async function RedditClientPage({
           initialItems={items}
           total={total}
           clientId={clientId}
+          clientName={client.fields.company_name}
           apiPath="/api/reddit/opportunities"
           emptyMessage={
             section === "archive"

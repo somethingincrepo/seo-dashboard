@@ -87,6 +87,7 @@ export default async function PortalRedditPage({
           initialItems={items}
           total={total}
           clientId={client.id}
+          clientName={client.fields?.company_name}
           apiPath={portalApiPath}
           emptyMessage={
             section === "archive"
