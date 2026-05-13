@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getClientChanges } from "@/lib/changes";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
-import { getContentRefreshesForClient, getPageCreationSuggestionsForClient } from "@/lib/supabase";
+import { getContentRefreshesForClient, getPageCreationSuggestionsForClient, getFaqSectionsForClient } from "@/lib/supabase";
 import { DeliverableKanban, type InternalLinkChange } from "@/components/portal/DeliverableKanban";
 
 export const revalidate = 0;
@@ -22,12 +22,14 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
     contentResults,
     contentRefreshes,
     pageCreations,
+    faqSections,
   ] = await Promise.all([
     getClientChanges(clientId, recordId).catch(() => []),
     getContentJobsForClient(companyName).catch(() => []),
     getContentResultsForClient(companyName).catch(() => []),
     getContentRefreshesForClient(recordId).catch(() => []),
     getPageCreationSuggestionsForClient(recordId).catch(() => []),
+    getFaqSectionsForClient(recordId).catch(() => []),
   ]);
 
   const internalLinkChanges: InternalLinkChange[] = allChanges
@@ -47,7 +49,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Deliverables</h1>
         <p className="text-base text-slate-500 mt-1">
-          Status of all active work — content, refreshes, page creation, and internal links.
+          Status of all active work — content, refreshes, page creation, internal links, and FAQ sections.
         </p>
       </div>
 
@@ -57,6 +59,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
         contentRefreshes={contentRefreshes}
         pageCreations={pageCreations}
         internalLinkChanges={internalLinkChanges}
+        faqSections={faqSections}
         token={token}
       />
     </div>

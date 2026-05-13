@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import type { ContentJob, ContentResult } from "@/lib/content";
-import type { ContentRefresh, PageCreationSuggestion } from "@/lib/supabase";
+import type { ContentRefresh, PageCreationSuggestion, FaqSection } from "@/lib/supabase";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type DeliverableType = "content" | "refresh" | "page-creation" | "internal-link";
+type DeliverableType = "content" | "refresh" | "page-creation" | "internal-link" | "faq-section";
 
 type KanbanCard = {
   id: string;
@@ -33,6 +33,7 @@ const TYPE_CONFIG: Record<DeliverableType, { label: string; pill: string }> = {
   "refresh":       { label: "Refresh",         pill: "bg-violet-50 text-violet-700" },
   "page-creation": { label: "Page Creation",   pill: "bg-emerald-50 text-emerald-700" },
   "internal-link": { label: "Internal Link",   pill: "bg-amber-50 text-amber-700" },
+  "faq-section":   { label: "FAQ Section",     pill: "bg-teal-50 text-teal-700" },
 };
 
 function fmt(dateStr: string | null | undefined): string {
@@ -50,6 +51,7 @@ function buildColumns(
   contentRefreshes: ContentRefresh[],
   pageCreations: PageCreationSuggestion[],
   internalLinkChanges: InternalLinkChange[],
+  faqSections: FaqSection[],
   token: string,
 ): Column[] {
   const base = `/portal/${token}`;
@@ -141,6 +143,24 @@ function buildColumns(
       inProgress.push({ id: c.id, type: "internal-link", title, date, href, subLabel: "Implementing…" });
     } else if (c.approval === "pending") {
       needsReview.push({ id: c.id, type: "internal-link", title, date: fmt(c.identified_at), href, subLabel: c.page_url ?? undefined });
+    }
+  }
+
+  // ── FAQ Sections ──────────────────────────────────────────────────────────
+
+  for (const s of faqSections) {
+    if (s.status === "skipped" || s.portal_approval === "skipped") continue;
+    let pagePath = s.page_url;
+    try { pagePath = new URL(s.page_url).pathname.replace(/\/$/, "") || "/"; } catch { /* keep full url */ }
+    const title = s.page_title || pagePath;
+    const qCount = (s.generated_questions ?? []).length;
+    const href = `${base}/faqs`;
+    const date = fmt(s.proposed_at);
+
+    if (s.portal_approval === "approved" || s.status === "approved") {
+      approved.push({ id: s.id, type: "faq-section", title, date, href, subLabel: `${qCount} questions → ${pagePath}` });
+    } else if (s.status === "suggested") {
+      needsReview.push({ id: s.id, type: "faq-section", title, date, href, subLabel: `${qCount} questions for ${pagePath}` });
     }
   }
 
@@ -250,6 +270,7 @@ export function DeliverableKanban({
   contentRefreshes,
   pageCreations,
   internalLinkChanges,
+  faqSections,
   token,
 }: {
   contentJobs: ContentJob[];
@@ -257,6 +278,7 @@ export function DeliverableKanban({
   contentRefreshes: ContentRefresh[];
   pageCreations: PageCreationSuggestion[];
   internalLinkChanges: InternalLinkChange[];
+  faqSections: FaqSection[];
   token: string;
 }) {
   const columns = buildColumns(
@@ -265,6 +287,7 @@ export function DeliverableKanban({
     contentRefreshes,
     pageCreations,
     internalLinkChanges,
+    faqSections,
     token
   );
 

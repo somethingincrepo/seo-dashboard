@@ -160,16 +160,16 @@ function IconAudit({ className }: { className?: string }) {
 
 const NAV_ITEMS = [
  { suffix: "", label: "Dashboard", Icon: IconDashboard },
- { suffix: "/audit", label: "Site Audit", Icon: IconAudit },
  { suffix: "/approvals", label: "Approvals", Icon: IconApprovals },
  { suffix: "/content", label: "Content", Icon: IconContent },
  { suffix: "/content-optimization", label: "Content Refreshes", Icon: IconOptimization },
  { suffix: "/page-creation", label: "Page Creation", Icon: IconPageCreation },
  { suffix: "/internal-links", label: "Internal Links", Icon: IconLinks },
  { suffix: "/faqs", label: "FAQ Sections", Icon: IconFaq },
+ { suffix: "/reddit", label: "Reddit", Icon: IconReddit },
+ { suffix: "/audit", label: "Site Audit", Icon: IconAudit },
  { suffix: "/indexation", label: "Indexation", Icon: IconIndexation },
  { suffix: "/reports", label: "Reports", Icon: IconReports },
- { suffix: "/reddit", label: "Reddit", Icon: IconReddit },
  { suffix: "/activity", label: "Activity", Icon: IconActivity },
 ] as const;
 
