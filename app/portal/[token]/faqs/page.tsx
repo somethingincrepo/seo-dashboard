@@ -53,22 +53,12 @@ export default async function FaqsPage({
   const historicalItems = prevMonths.filter((s) => s.status !== "skipped" && s.status !== "failed");
 
   return (
-    <div className="-mx-10 -my-10 flex flex-col" style={{ height: "calc(100vh - 3rem)" }}>
-      <div className="px-10 pt-8 pb-5 shrink-0 border-b border-slate-100">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">FAQ Sections</h1>
-        <p className="text-[14px] text-slate-500 mt-0.5">
-          AI-generated question &amp; answer sections for your priority pages — approve to implement.
-        </p>
-      </div>
-      <div className="flex-1 min-h-0 px-10 py-6 overflow-hidden">
-        <FaqSectionsPanel
-          items={items}
-          historicalItems={historicalItems}
-          token={token}
-          limit={limit}
-          clientPackage={clientPackage}
-        />
-      </div>
-    </div>
+    <FaqSectionsPanel
+      items={items}
+      historicalItems={historicalItems}
+      token={token}
+      limit={limit}
+      clientPackage={clientPackage}
+    />
   );
 }
