@@ -39,8 +39,10 @@ type StoredComment = { author: string; body: string; score: number };
 
 const TONES = ["Helpful", "Professional", "Casual", "Friendly", "Expert"] as const;
 const LENGTHS = ["Short", "Medium", "Long"] as const;
+const PERSPECTIVES = ["As Employee", "As Customer", "No Brand"] as const;
 type Tone = (typeof TONES)[number];
 type Length = (typeof LENGTHS)[number];
+type Perspective = (typeof PERSPECTIVES)[number];
 
 function ToolbarBtn({ title, children, onClick }: { title: string; children: React.ReactNode; onClick?: () => void }) {
   return (
@@ -69,6 +71,7 @@ function CommentComposer({
   const [draft, setDraft] = useState("");
   const [tone, setTone] = useState<Tone>("Helpful");
   const [length, setLength] = useState<Length>("Medium");
+  const [perspective, setPerspective] = useState<Perspective>("As Employee");
   const [generating, setGenerating] = useState(false);
   const [refining, setRefining] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
@@ -107,6 +110,7 @@ function CommentComposer({
           clientName,
           tone,
           length,
+          perspective,
           existingDraft: refineMode ? draft : undefined,
         }),
       });
@@ -222,6 +226,15 @@ function CommentComposer({
               className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-300 cursor-pointer"
             >
               {LENGTHS.map((l) => <option key={l}>{l}</option>)}
+            </select>
+
+            {/* Perspective selector */}
+            <select
+              value={perspective}
+              onChange={(e) => setPerspective(e.target.value as Perspective)}
+              className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-300 cursor-pointer"
+            >
+              {PERSPECTIVES.map((p) => <option key={p}>{p}</option>)}
             </select>
           </div>
 

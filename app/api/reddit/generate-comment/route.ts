@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, selftext, comments, keyword, subreddit, permalink, clientName, tone, length, existingDraft } =
+    const { title, selftext, comments, keyword, subreddit, permalink, clientName, tone, length, perspective, existingDraft } =
       await request.json() as {
         title?: string;
         selftext?: string | null;
@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
         clientName?: string;
         tone?: string;
         length?: string;
+        perspective?: string;
         existingDraft?: string;
       };
 
@@ -39,9 +40,24 @@ export async function POST(request: NextRequest) {
 
     const toneInstruction = toneInstructions[toneGuide] ?? toneInstructions.Helpful;
 
-    const brandNote = clientName
-      ? `You work at ${clientName}. Mention this once, briefly, in passing — like "I'm at ${clientName} so I'm biased, but..." or just "I'm with ${clientName}" with no further emphasis. After that one mention, drop it completely and just be helpful. The comment should read like 95% genuine advice and 5% incidental affiliation. Never say "I work with". Never pitch. Never bring the name up again after the disclosure.`
-      : `Do not mention any company or product.`;
+    // Perspective controls HOW the brand is mentioned (or not)
+    const brand = clientName ?? keyword ?? "the business";
+    let perspectiveNote: string;
+
+    if (!clientName || perspective === "No Brand") {
+      perspectiveNote = `Do not mention any company, product, or brand. Be purely helpful — an informed person sharing experience, nothing more.`;
+    } else if (perspective === "As Customer") {
+      perspectiveNote = `Write as a regular person who uses ${clientName}, not as an employee. Say things like "I use ${clientName} for this" or "we've used ${clientName} and it works well" or "I switched to ${clientName} last year." Sound like a satisfied customer making a casual recommendation — not a fan, not a salesperson. You are NOT staff. Do not say "I'm at" or "I work at."`;
+    } else {
+      // As Employee (default)
+      perspectiveNote = `Write as someone who works at ${clientName}. Disclose this in the very first sentence, briefly — something like "I'm at ${clientName} so take this with a grain of salt, but..." or "Full disclosure, I work at ${clientName} —" then move straight into being helpful. Never say "I work with." Say "I'm at" or "I work at" or "I'm with."`;
+    }
+
+    const brandNote = `${perspectiveNote}
+
+${clientName ? `Mention ${brand} at most once. After that single mention, never bring it up again. If you mention it, also acknowledge something it doesn't do well, or name a competitor that's better for a specific use case — that's the credibility signal that makes Reddit trust the comment.` : ""}
+
+No CTA. No "check us out", no links, no pitch, no invitation to DM.`;
 
     const prompt = isRefine
       ? `Revise this comment. Keep the core point, improve the writing.
