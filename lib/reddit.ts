@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabase } from "@/lib/supabase";
+import { fetchRedditThread } from "@/lib/reddit-client";
 
 const DATAFORSEO_SERP = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced";
 
@@ -143,32 +144,8 @@ export async function fetchTopComments(
   permalink: string
 ): Promise<Array<{ author: string; body: string; score: number }>> {
   try {
-    const url = `${permalink.replace(/\/$/, "")}.json?limit=5&depth=1&raw_json=1`;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    const json = await res.json() as unknown[];
-    if (!Array.isArray(json) || json.length < 2) return [];
-
-    const listing = json[1] as { data: { children: Array<{ kind: string; data: Record<string, unknown> }> } };
-    const comments: Array<{ author: string; body: string; score: number }> = [];
-    for (const child of (listing.data?.children ?? []).slice(0, 5)) {
-      if (child.kind !== "t1") continue;
-      const d = child.data;
-      if (!d.body || d.body === "[deleted]" || d.body === "[removed]") continue;
-      comments.push({
-        author: (d.author as string) ?? "unknown",
-        body: ((d.body as string) ?? "").slice(0, 500),
-        score: (d.score as number) ?? 0,
-      });
-    }
-    return comments;
+    const result = await fetchRedditThread(permalink);
+    return result.comments.slice(0, 5);
   } catch {
     return [];
   }
