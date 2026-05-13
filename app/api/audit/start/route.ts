@@ -126,6 +126,33 @@ export async function POST(request: NextRequest) {
     // block all submissions on a Supabase hiccup.
   }
 
+  // Pre-flight: verify the crawler is reachable before burning an audit_runs row.
+  // If the URL isn't set or the service is down, fail immediately with a clear message.
+  const crawlerUrl = process.env.CRAWLER_SERVICE_URL;
+  if (!crawlerUrl) {
+    return NextResponse.json(
+      { error: "Crawler service is not configured (CRAWLER_SERVICE_URL is missing). Contact your administrator." },
+      { status: 503 },
+    );
+  }
+  try {
+    const healthResp = await fetch(`${crawlerUrl.replace(/\/$/, "")}/health`, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!healthResp.ok) {
+      return NextResponse.json(
+        { error: `Crawler service is unhealthy (HTTP ${healthResp.status}). Audits are temporarily unavailable.` },
+        { status: 503 },
+      );
+    }
+  } catch {
+    return NextResponse.json(
+      { error: "Crawler service is unreachable. Audits are temporarily unavailable." },
+      { status: 503 },
+    );
+  }
+
   try {
     const validTriggers = ["admin_rerun", "scheduled", "intake"] as const;
     type Trigger = typeof validTriggers[number];

@@ -68,6 +68,10 @@ export async function triggerAudit(args: TriggerAuditArgs): Promise<TriggerAudit
   const crawlerUrl = process.env.CRAWLER_SERVICE_URL;
   const crawlerToken = process.env.CRAWLER_SERVICE_TOKEN;
   if (!crawlerUrl || !crawlerToken) {
+    await supabase.from("audit_runs").update({
+      status: "failed",
+      error_message: "CRAWLER_SERVICE_URL or CRAWLER_SERVICE_TOKEN is not configured on the server.",
+    }).eq("id", auditRunId);
     throw new Error("CRAWLER_SERVICE_URL and CRAWLER_SERVICE_TOKEN must be set");
   }
 
