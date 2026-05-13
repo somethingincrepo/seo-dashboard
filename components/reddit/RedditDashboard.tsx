@@ -131,7 +131,7 @@ function CommentComposer({
   const busy = generating || refining;
 
   return (
-    <div className="border-t-2 border-slate-200 bg-white shrink-0 flex flex-col overflow-y-auto max-h-[340px]">
+    <div className="border-t-2 border-slate-200 bg-white shrink-0 flex flex-col">
       {/* Header bar */}
       <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 shrink-0">
         <svg className="w-3.5 h-3.5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -183,8 +183,8 @@ function CommentComposer({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Reply..."
-          rows={6}
-          className="w-full text-[13px] text-slate-800 bg-white px-3 py-2.5 resize-none focus:outline-none leading-relaxed placeholder:text-slate-400"
+          rows={5}
+          className="w-full text-[13px] text-slate-800 bg-white px-3 py-2.5 resize-none overflow-y-auto focus:outline-none leading-relaxed placeholder:text-slate-400"
         />
 
         {/* Bottom toolbar */}
