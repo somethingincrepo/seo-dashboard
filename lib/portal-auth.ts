@@ -111,7 +111,12 @@ export async function getPortalSession(): Promise<PortalSession | null> {
   const sessionId = cookieStore.get(COOKIE_NAME)?.value;
   if (!sessionId) return null;
 
-  const row = await getSessionById(sessionId);
+  let row: Awaited<ReturnType<typeof getSessionById>>;
+  try {
+    row = await getSessionById(sessionId);
+  } catch {
+    return null;
+  }
   if (!row) return null;
 
   const expiresAt = new Date(row.expires_at).getTime();
