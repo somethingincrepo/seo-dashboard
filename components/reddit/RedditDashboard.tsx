@@ -259,11 +259,11 @@ function ThreadDetailPanel({
               onClick={() => setOpStatus(s)}
               disabled={!!pending}
               className={`text-xs px-3 py-1.5 rounded-lg border transition-all disabled:opacity-60 font-medium capitalize ${
-                status === s
-                  ? s === "replied" ? "bg-emerald-600 text-white border-emerald-600"
+                (status as string) !== s
+                  ? "text-slate-600 border-slate-200 hover:border-slate-400 bg-white cursor-pointer"
+                  : s === "replied" ? "bg-emerald-600 text-white border-emerald-600"
                   : s === "dismissed" ? "bg-red-100 text-red-600 border-red-200"
                   : "bg-slate-900 text-white border-slate-900"
-                  : "text-slate-600 border-slate-200 hover:border-slate-400 bg-white cursor-pointer"
               }`}
             >
               {pending === s ? "…" : s === "viewed" ? "Mark Viewed" : s === "replied" ? "Replied" : "Dismiss"}
