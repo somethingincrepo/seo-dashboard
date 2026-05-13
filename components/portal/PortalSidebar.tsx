@@ -294,7 +294,7 @@ export function PortalSidebar({
  )}
  {item.suffix === "/audit" && (auditIssueCount ?? 0) > 0 && (
  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200/60">
- {auditIssueCount}
+ {(auditIssueCount ?? 0) >= 1000 ? "1k+" : auditIssueCount}
  </span>
  )}
  {item.suffix === "/reddit" && (redditMentionCount ?? 0) > 0 && (

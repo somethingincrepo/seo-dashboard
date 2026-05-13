@@ -138,6 +138,8 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  const [selectMode, setSelectMode] = useState(false);
  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
  const [submitting, setSubmitting] = useState(false);
+ const [sortMode, setSortMode] = useState<"priority" | "affected">("priority");
+ const [mainPagesOnly, setMainPagesOnly] = useState(false);
 
  const decisionFor = useCallback(
  (issueId: string): IssueDecision => {
@@ -279,9 +281,15 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  if (i.category !== category) return false;
  }
  if (needle && !(i.page_url ?? "").toLowerCase().includes(needle)) return false;
+ if (mainPagesOnly && i.page_url) {
+ try {
+ const segs = new URL(i.page_url).pathname.replace(/\/$/, "").split("/").filter(Boolean);
+ if (segs.length > 1) return false;
+ } catch { /* keep */ }
+ }
  return true;
  });
- }, [pageIssues, resolvedPageIssues, severity, category, urlQuery, decisionFor]);
+ }, [pageIssues, resolvedPageIssues, severity, category, urlQuery, decisionFor, mainPagesOnly]);
 
  const grouped = useMemo(() => {
  const out = new Map<Severity, Map<string, RuleGroup>>();
@@ -309,6 +317,12 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  }
  return out;
  }, [filtered]);
+
+ const flatSortedGroups = useMemo(() => {
+ const all: RuleGroup[] = [];
+ for (const sevMap of grouped.values()) all.push(...sevMap.values());
+ return all.sort((a, b) => b.issues.length - a.issues.length);
+ }, [grouped]);
 
  const toggleRule = useCallback((rule_id: string) => {
  setExpandedRules((prev) => {
@@ -598,8 +612,8 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  </div>
  </div>
  )}
- {/* Toolbar above rule cards — bulk select + dismissed toggle + decision summary */}
- <div className="flex items-center justify-between gap-3 px-1">
+ {/* Toolbar above rule cards — sort · filter · bulk select · dismissed toggle */}
+ <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
  <div className="flex items-center gap-2 text-[11.5px] text-slate-500">
  {approvedCount > 0 && (
  <span className="inline-flex items-center gap-1 text-emerald-700">
@@ -620,6 +634,32 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  </button>
  )}
  </div>
+ <div className="flex items-center gap-1.5">
+ {/* Main pages filter */}
+ <button
+ onClick={() => setMainPagesOnly((v) => !v)}
+ title="Show only top-level pages (homepage + 1-segment paths)"
+ className={`text-[11.5px] px-2.5 py-1 rounded-md transition-colors border ${
+ mainPagesOnly
+ ? "bg-indigo-600 text-white border-indigo-600"
+ : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+ }`}
+ >
+ Main pages
+ </button>
+ {/* Sort mode toggle */}
+ <button
+ onClick={() => setSortMode((m) => (m === "priority" ? "affected" : "priority"))}
+ title={sortMode === "priority" ? "Sort by most URLs affected" : "Sort by severity priority"}
+ className={`text-[11.5px] px-2.5 py-1 rounded-md transition-colors border ${
+ sortMode === "affected"
+ ? "bg-indigo-600 text-white border-indigo-600"
+ : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+ }`}
+ >
+ {sortMode === "priority" ? "Sort: Priority" : "Sort: Most affected"}
+ </button>
+ {/* Bulk select */}
  <button
  onClick={() => {
  if (selectMode) exitSelectMode();
@@ -634,7 +674,52 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  {selectMode ? `Cancel selection${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}` : "Select multiple"}
  </button>
  </div>
+ </div>
 
+ {sortMode === "affected" ? (
+ <div className="space-y-2">
+ {flatSortedGroups.map((group) => (
+ <RuleCard
+ key={group.rule_id}
+ group={group}
+ expanded={expandedRules.has(group.rule_id)}
+ onToggleExpand={() => toggleRule(group.rule_id)}
+ onSelectGroup={() => setSelection({ kind: "rule", rule_id: group.rule_id })}
+ onSelectIssue={(id) => setSelection({ kind: "issue", issue_id: id })}
+ selection={selection}
+ selectMode={selectMode}
+ selectedIds={selectedIds}
+ onToggleIssueSelection={(id) =>
+ setSelectedIds((prev) => {
+ const next = new Set(prev);
+ if (next.has(id)) next.delete(id);
+ else next.add(id);
+ return next;
+ })
+ }
+ onToggleAllSelection={() =>
+ setSelectedIds((prev) => {
+ const allIds = group.issues.map((i) => i.id);
+ const allSelected = allIds.every((id) => prev.has(id));
+ const next = new Set(prev);
+ for (const id of allIds) {
+ if (allSelected) next.delete(id);
+ else next.add(id);
+ }
+ return next;
+ })
+ }
+ decisionFor={decisionFor}
+ />
+ ))}
+ {flatSortedGroups.length === 0 && (
+ <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-8 text-center text-sm text-slate-500">
+ No issues match the current filters.
+ </div>
+ )}
+ </div>
+ ) : (
+ <>
  {SEVERITIES.map((sev) => {
  const sevGroups = grouped.get(sev);
  if (!sevGroups || sevGroups.size === 0) return null;
@@ -692,6 +777,8 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  ? "No resolved issues yet. After implementing a fix, mark it resolved from the Approved tab."
  : "No issues match the current filters."}
  </div>
+ )}
+ </>
  )}
  </div>
 
