@@ -247,6 +247,8 @@ function ThreadDetailPanel({
                     </div>
                   ))}
                 </div>
+              ) : liveComments !== null ? (
+                <p className="text-[11px] text-slate-400">No comments found for this thread.</p>
               ) : !fetching ? (
                 <p className="text-[11px] text-slate-400">Click &ldquo;Fetch Comments&rdquo; to load the full thread.</p>
               ) : null}
