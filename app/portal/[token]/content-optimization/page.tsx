@@ -36,14 +36,16 @@ export default async function ContentOptimizationPage({
  const thisMonth = sorted.filter((r) => r.proposed_at >= monthStart);
  const prevMonths = sorted.filter((r) => r.proposed_at < monthStart);
 
- // Current month: only show refreshes the SOP has produced output for
+ // Current month: show all non-failed refreshes — includes "approved" (Scheduled)
+ // and "in_progress" (Update in Progress) so users see what's queued, not a
+ // blank page. The ContentOptimization component renders each status correctly.
  const items = thisMonth
- .filter((r) => r.status === "completed" || r.status === "approved_for_publish" || r.status === "published")
+ .filter((r) => r.status !== "failed")
  .slice(0, limit);
 
  // Historical: anything that produced a result, newest first
  const historicalItems = prevMonths.filter(
- (r) => r.status === "completed" || r.status === "approved_for_publish" || r.status === "published"
+ (r) => r.status === "completed" || r.status === "approved_for_publish" || r.status === "published" || r.status === "in_progress"
  );
 
  return (

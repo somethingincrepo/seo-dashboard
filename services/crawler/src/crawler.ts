@@ -2,11 +2,19 @@ import { PlaywrightCrawler, Configuration } from "crawlee";
 import { extract, type ExtractedPage } from "./extractor.js";
 import { normalizeUrl, sameHost, rootOrigin } from "./url.js";
 
+// Realistic Chrome UA on the Fly.io Linux host. Using the same UA everywhere
+// (crawler + sitemap fetches) makes fingerprinting consistent and avoids sites
+// that cross-check the browser UA against fetch headers.
+export const CHROME_UA =
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 export interface CrawlOptions {
   rootUrl: string;
   maxPages?: number;
   concurrency?: number;
   pageTimeoutMs?: number;
+  /** Extra seed URLs (e.g. from sitemap) to prime the crawl queue beyond rootUrl. */
+  seedUrls?: string[];
 }
 
 export interface CrawlOutput {
@@ -24,7 +32,27 @@ export async function crawlSite(opts: CrawlOptions): Promise<CrawlOutput> {
   const origin = rootOrigin(rootUrl);
 
   const pages: ExtractedPage[] = [];
+  // Pre-seed `seen` with both the www and non-www form of rootUrl so that a
+  // www↔non-www redirect on the homepage doesn't cause it to be enqueued and
+  // crawled a second time. Without this, if rootUrl=https://example.com and
+  // the server 301s to https://www.example.com, the homepage link found on
+  // the rendered page resolves to https://www.example.com (not in `seen`) and
+  // gets queued again — wasting one crawl slot and occasionally the Supabase
+  // unique index on (audit_run_id, url).
   const seen = new Set<string>([normalizeUrl(rootUrl)]);
+  const wwwVariant = toggleWww(normalizeUrl(rootUrl));
+  if (wwwVariant) seen.add(wwwVariant);
+
+  // Seed from sitemap (or any caller-provided URLs) — filter to same host and
+  // pre-populate `seen` so enqueueLinks never double-queues them.
+  const extraSeeds: string[] = [];
+  for (const u of opts.seedUrls ?? []) {
+    const norm = normalizeUrl(u);
+    if (!sameHost(norm, origin)) continue;
+    if (seen.has(norm)) continue;
+    seen.add(norm);
+    extraSeeds.push(norm);
+  }
 
   // Crawlee writes its storage to disk by default — use an isolated config so
   // concurrent crawls don't collide and so Fly volumes aren't required.
@@ -38,9 +66,27 @@ export async function crawlSite(opts: CrawlOptions): Promise<CrawlOutput> {
     headless: true,
     launchContext: {
       launchOptions: {
-        args: ["--disable-dev-shm-usage", "--no-sandbox"],
+        args: [
+          "--disable-dev-shm-usage",
+          "--no-sandbox",
+          // Suppress the "HeadlessChrome" substring in the default UA and the
+          // AutomationControlled feature flag — both are primary signals that
+          // Cloudflare, Imperva, Squarespace, and Wix use to detect bots.
+          `--user-agent=${CHROME_UA}`,
+          "--disable-blink-features=AutomationControlled",
+        ],
       },
     },
+    preNavigationHooks: [
+      async ({ page }) => {
+        // Remove navigator.webdriver = true (set by Chrome when launched with
+        // --enable-automation or in headless mode). JS-based bot detectors
+        // check this property before serving content.
+        await page.addInitScript(() => {
+          Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+        });
+      },
+    ],
     async requestHandler({ request, page, response, enqueueLinks, log }) {
       const startedAt = Date.now();
       const finalUrl = request.loadedUrl ?? request.url;
@@ -110,9 +156,22 @@ export async function crawlSite(opts: CrawlOptions): Promise<CrawlOutput> {
     },
   }, config);
 
-  await crawler.run([rootUrl]);
+  await crawler.run([rootUrl, ...extraSeeds]);
 
   return { pages };
+}
+
+/** Returns the www↔non-www variant of a URL, or null if it can't be computed. */
+function toggleWww(url: string): string | null {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.startsWith("www.")
+      ? u.hostname.slice(4)
+      : `www.${u.hostname}`;
+    return u.toString();
+  } catch {
+    return null;
+  }
 }
 
 function failedPagePlaceholder(url: string, origin: string): ExtractedPage {

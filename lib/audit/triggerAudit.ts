@@ -6,6 +6,8 @@ export interface TriggerAuditArgs {
   root_url: string;
   triggered_by: "intake" | "admin_rerun" | "scheduled";
   nav_urls?: string[];
+  /** Crawler concurrency. Intake uses 3 for speed; re-audits use 1 for determinism. */
+  concurrency?: number;
 }
 
 export interface TriggerAuditResult {
@@ -77,6 +79,7 @@ export async function triggerAudit(args: TriggerAuditArgs): Promise<TriggerAudit
       client_id: args.client_id,
       root_url: args.root_url,
       nav_urls: args.nav_urls ?? [args.root_url],
+      concurrency: args.concurrency,
     }),
     signal: AbortSignal.timeout(20_000),
   });

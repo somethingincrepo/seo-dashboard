@@ -34,6 +34,7 @@ type HealthCheckResult = {
   refresh_scheduler_inserted: boolean;
   internal_links_jobs_inserted: number;
   faq_jobs_inserted: number;
+  reddit_scan_jobs_inserted: number;
   per_client: Array<{
     client_id: string;
     company_name: string;
@@ -110,6 +111,7 @@ export async function GET(request: NextRequest) {
   const perClient: HealthCheckResult["per_client"] = [];
   let internalLinksInserted = 0;
   let faqJobsInserted = 0;
+  let redditScanJobsInserted = 0;
 
   for (const client of clients) {
     const companyName = client.fields.company_name ?? client.id;
@@ -219,11 +221,45 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Step 4: per-client weekly Reddit opportunity scan ────────────────────
+  // One scan_reddit_opportunities job per active client per ISO week.
+  // The Fly worker runs it via DETERMINISTIC_SOPS → POST /api/cron/reddit-opportunity-scan.
+  // The job payload carries the client's package tier so the endpoint can
+  // apply the correct weekly reddit_comments quota from packages.ts.
+  for (const client of clients) {
+    if (!client.fields.portal_token) continue;
+    const { data: existingReddit, error: redditErr } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("sop_name", "scan_reddit_opportunities")
+      .eq("client_id", client.id)
+      .gte("created_at", weekStart)
+      .limit(1);
+    if (redditErr) {
+      console.error(`[weekly-health-check] scan_reddit_opportunities lookup failed for ${client.id}:`, redditErr.message);
+      continue;
+    }
+    if (existingReddit && existingReddit.length > 0) continue;
+    const { error: insErr } = await supabase.from("jobs").insert({
+      sop_name: "scan_reddit_opportunities",
+      runner: "fly",
+      status: "pending",
+      client_id: client.id,
+      payload: { client_id: client.id, package: client.fields.package ?? "starter", source: "weekly-health-check" },
+    });
+    if (insErr) {
+      console.error(`[weekly-health-check] scan_reddit_opportunities insert failed for ${client.id}:`, insErr.message);
+    } else {
+      redditScanJobsInserted += 1;
+    }
+  }
+
   console.log(
     `[weekly-health-check] week=${weekStart} clients=${clients.length} ` +
       `refresh_scheduler_inserted=${refreshInserted} ` +
       `internal_links_jobs_inserted=${internalLinksInserted} ` +
-      `faq_jobs_inserted=${faqJobsInserted}`,
+      `faq_jobs_inserted=${faqJobsInserted} ` +
+      `reddit_scan_jobs_inserted=${redditScanJobsInserted}`,
   );
 
   const result: HealthCheckResult = {
@@ -233,6 +269,7 @@ export async function GET(request: NextRequest) {
     refresh_scheduler_inserted: refreshInserted,
     internal_links_jobs_inserted: internalLinksInserted,
     faq_jobs_inserted: faqJobsInserted,
+    reddit_scan_jobs_inserted: redditScanJobsInserted,
     per_client: perClient,
   };
   return NextResponse.json(result);

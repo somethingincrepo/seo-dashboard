@@ -370,8 +370,17 @@ export async function POST(request: NextRequest) {
     const firstBatchSops: Array<{ sop_name: string; payload: Record<string, unknown> }> = [
       { sop_name: "keyword_research", payload: { client_id: run.client_id } },
       { sop_name: "refresh_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
+      // page_creation_scheduler is intentionally included here AND in keyword_research Step 8 fan_out.
+      // The early run (this one) produces 0 suggestions because keyword_groups don't exist yet.
+      // The keyword_research fan_out fires a second run after keyword_groups are written — that one
+      // produces the actual suggestions. Monthly cap prevents any over-generation.
       { sop_name: "page_creation_scheduler", payload: { client_id: run.client_id, force: true } },
       { sop_name: "generate_faq_sections", payload: { client_id: run.client_id, audit_run_id: auditRunId } },
+      // Reddit scan: fires immediately using raw intake keywords as fallback.
+      // The endpoint reads keyword_groups from Airtable if available; falls back to the
+      // raw keywords field. A second scan fires weekly via the GET cron endpoint once
+      // keyword_groups are populated by keyword_research.
+      { sop_name: "scan_reddit_opportunities", payload: { client_id: run.client_id } },
     ];
     if (internalLinksSummary.status === "no_demand" && pages.length >= 5) {
       firstBatchSops.push({

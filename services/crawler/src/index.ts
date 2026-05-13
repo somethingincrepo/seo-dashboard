@@ -1,10 +1,17 @@
 import express from "express";
 import { chromium } from "playwright";
-import { crawlSite } from "./crawler.js";
+import { crawlSite, CHROME_UA } from "./crawler.js";
 import { runSiteChecks } from "./site-checks.js";
 import { defaultStatusOf, postCrawl } from "./post-crawl.js";
 import { setRunStatus, writePages, writeSiteData } from "./supabase.js";
 import { normalizeUrl } from "./url.js";
+
+const STEALTH_ARGS = [
+  "--disable-dev-shm-usage",
+  "--no-sandbox",
+  `--user-agent=${CHROME_UA}`,
+  "--disable-blink-features=AutomationControlled",
+];
 
 const PORT = Number(process.env.PORT ?? 8080);
 const SHARED_TOKEN = process.env.CRAWLER_SERVICE_TOKEN;
@@ -34,7 +41,7 @@ app.get("/ready", async (_req, res) => {
   try {
     const browser = await chromium.launch({
       headless: true,
-      args: ["--disable-dev-shm-usage", "--no-sandbox"],
+      args: STEALTH_ARGS,
       timeout: 30_000,
     });
     await browser.close();
@@ -56,11 +63,12 @@ app.post("/crawl", async (req, res) => {
     return;
   }
 
-  const { audit_run_id, client_id, root_url, nav_urls } = req.body as {
+  const { audit_run_id, client_id, root_url, nav_urls, concurrency } = req.body as {
     audit_run_id?: string;
     client_id?: string;
     root_url?: string;
     nav_urls?: string[];
+    concurrency?: number;
   };
   if (!audit_run_id || !client_id || !root_url) {
     res.status(400).json({ error: "audit_run_id, client_id, root_url required" });
@@ -75,6 +83,7 @@ app.post("/crawl", async (req, res) => {
     clientId: client_id,
     rootUrl: root_url,
     navUrls: new Set((nav_urls ?? [root_url]).map(normalizeUrl)),
+    concurrency,
   }).catch((err) => {
     console.error(`[crawler] pipeline failed for ${audit_run_id}:`, err);
   });
@@ -93,9 +102,12 @@ app.post("/fetch", async (req, res) => {
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage", "--no-sandbox"] });
-    const page = await browser.newPage();
-    await page.setExtraHTTPHeaders({ "User-Agent": "Mozilla/5.0 (compatible; SomethingIncBot/1.0)" });
+    browser = await chromium.launch({ headless: true, args: STEALTH_ARGS });
+    const context = await browser.newContext({ userAgent: CHROME_UA });
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    });
     const response = await page.goto(url, { waitUntil: "networkidle", timeout: 25_000 });
     const status = response?.status() ?? 0;
     const html = await page.content();
@@ -113,18 +125,20 @@ async function runFullPipeline(args: {
   clientId: string;
   rootUrl: string;
   navUrls: Set<string>;
+  concurrency?: number;
 }) {
-  const { auditRunId, clientId, rootUrl, navUrls } = args;
+  const { auditRunId, clientId, rootUrl, navUrls, concurrency } = args;
 
   try {
     await setRunStatus(auditRunId, { status: "crawling", crawl_started_at: new Date().toISOString() });
 
-    const [{ pages }, site] = await Promise.all([
-      crawlSite({ rootUrl }),
-      runSiteChecks(rootUrl),
-    ]);
-
+    // Run site-checks first (pure HTTP, ~2–10s) so sitemap URLs can seed the
+    // crawler. Without this, discovery depends solely on homepage link-following
+    // and fails on JS-heavy / anti-bot-protected / sparse-nav sites.
+    const site = await runSiteChecks(rootUrl);
     await writeSiteData(auditRunId, site);
+
+    const { pages } = await crawlSite({ rootUrl, seedUrls: site.sitemap_urls, concurrency });
 
     const enriched = await postCrawl({
       pages,

@@ -1,7 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/weekly-health-check", "schedule": "0 13 * * 1" },
-    { "path": "/api/cron/reddit-opportunity-scan", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/weekly-health-check", "schedule": "0 13 * * 1" }
   ],
   "functions": {
     "app/api/portal/reports/keyword-snapshot/route.ts": {
@@ -11,7 +10,7 @@
       "maxDuration": 120
     },
     "app/api/cron/reddit-opportunity-scan/route.ts": {
-      "maxDuration": 290
+      "maxDuration": 60
     }
   }
 }

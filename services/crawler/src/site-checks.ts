@@ -1,5 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { rootOrigin } from "./url.js";
+import { CHROME_UA } from "./crawler.js";
 
 export interface SiteChecksResult {
   robots_txt_present: boolean;
@@ -37,12 +38,18 @@ export async function runSiteChecks(rootUrl: string): Promise<SiteChecksResult> 
   };
 }
 
+const SITE_CHECK_HEADERS = { "User-Agent": CHROME_UA };
+
 async function fetchText(url: string): Promise<{ ok: boolean; body: string | null }> {
   // Retry once on transient failure so a single network blip doesn't change the
   // discovered sitemap set across reruns.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000) });
+      const r = await fetch(url, {
+        redirect: "follow",
+        headers: SITE_CHECK_HEADERS,
+        signal: AbortSignal.timeout(15_000),
+      });
       if (!r.ok) return { ok: false, body: null };
       const body = await r.text();
       return { ok: true, body };
@@ -58,7 +65,11 @@ async function checkHttpsEnforced(origin: string): Promise<boolean> {
   if (!origin.startsWith("https://")) return false;
   const httpUrl = origin.replace(/^https:\/\//, "http://");
   try {
-    const r = await fetch(httpUrl, { redirect: "follow", signal: AbortSignal.timeout(15_000) });
+    const r = await fetch(httpUrl, {
+      redirect: "follow",
+      headers: SITE_CHECK_HEADERS,
+      signal: AbortSignal.timeout(15_000),
+    });
     return r.url.startsWith("https://");
   } catch {
     return false;
@@ -67,7 +78,11 @@ async function checkHttpsEnforced(origin: string): Promise<boolean> {
 
 async function checkHsts(origin: string): Promise<boolean> {
   try {
-    const r = await fetch(origin, { redirect: "follow", signal: AbortSignal.timeout(15_000) });
+    const r = await fetch(origin, {
+      redirect: "follow",
+      headers: SITE_CHECK_HEADERS,
+      signal: AbortSignal.timeout(15_000),
+    });
     return !!r.headers.get("strict-transport-security");
   } catch {
     return false;
