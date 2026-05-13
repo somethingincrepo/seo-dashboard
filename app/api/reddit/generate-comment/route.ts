@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 const client = new Anthropic();
 
 export async function POST(request: NextRequest) {
+  try {
   const { title, selftext, comments, keyword, subreddit, permalink, tone, length, existingDraft } =
     await request.json() as {
       title?: string;
@@ -65,4 +66,9 @@ Write a single Reddit comment. Reply with ONLY the comment text — no preamble,
   const comment = (message.content[0] as { type: string; text: string }).text.trim();
 
   return NextResponse.json({ comment, permalink });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[generate-comment]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
