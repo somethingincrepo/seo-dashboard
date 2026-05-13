@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { getSupabase } from "./supabase";
 
 const SESSION_COOKIE = "admin_session";
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
+const RENEWAL_THRESHOLD = 60 * 60 * 24 * 2; // renew when < 2 days remain
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,14 @@ function randomHex(bytes = 16): string {
   return toHex(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
+// ── Session signing secret ─────────────────────────────────────────────────────
+// Uses ADMIN_SESSION_SECRET so rotating ADMIN_PASSWORD never invalidates sessions.
+// Falls back to ADMIN_PASSWORD only when ADMIN_SESSION_SECRET is not yet provisioned.
+
+function getSessionSecret(): string | undefined {
+  return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD;
+}
+
 // ── Session token (format: encUsername.exp.hmac) ──────────────────────────────
 
 async function makeToken(username: string, secret: string): Promise<string> {
@@ -69,7 +78,7 @@ async function makeToken(username: string, secret: string): Promise<string> {
   return `${payload}.${sig}`;
 }
 
-export async function verifyToken(token: string, secret: string): Promise<string | null> {
+export async function verifyToken(token: string, secret: string): Promise<{ username: string; exp: number } | null> {
   const lastDot = token.lastIndexOf(".");
   if (lastDot === -1) return null;
   const payload = token.slice(0, lastDot);
@@ -85,7 +94,7 @@ export async function verifyToken(token: string, secret: string): Promise<string
   const expected = await hmacSign(secret, payload);
   if (expected !== sig) return null;
 
-  return username;
+  return { username, exp };
 }
 
 async function setSessionCookie(username: string, secret: string): Promise<void> {
@@ -100,11 +109,38 @@ async function setSessionCookie(username: string, secret: string): Promise<void>
   });
 }
 
+// ── Login event logging ───────────────────────────────────────────────────────
+
+export async function logLoginEvent(opts: {
+  username: string;
+  success: boolean;
+  userType: "admin" | "portal";
+  clientId?: string;
+  failureReason?: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  try {
+    await getSupabase().from("login_events").insert({
+      username: opts.username,
+      success: opts.success,
+      user_type: opts.userType,
+      client_id: opts.clientId ?? null,
+      failure_reason: opts.failureReason ?? null,
+      ip: opts.ip ?? null,
+      user_agent: opts.userAgent ?? null,
+    });
+  } catch {
+    // Non-fatal — never block login on audit failure
+  }
+}
+
 // ── Session CRUD ──────────────────────────────────────────────────────────────
 
 export async function createSession(username: string, password: string): Promise<boolean> {
-  const secret = process.env.ADMIN_PASSWORD;
-  if (!secret) return false;
+  const loginPassword = process.env.ADMIN_PASSWORD;
+  const sessionSecret = getSessionSecret();
+  if (!loginPassword || !sessionSecret) return false;
 
   const supabase = getSupabase();
 
@@ -116,7 +152,7 @@ export async function createSession(username: string, password: string): Promise
   const tableEmptyOrMissing = countError !== null || (count ?? 0) === 0;
 
   if (tableEmptyOrMissing) {
-    if (username === "admin" && password === secret) {
+    if (username === "admin" && password === loginPassword) {
       if (!countError) {
         const salt = randomHex();
         const hash = await hashPassword(salt, password);
@@ -127,7 +163,6 @@ export async function createSession(username: string, password: string): Promise
           role: "admin",
           assigned_client_ids: [],
         });
-        // Fallback if role columns haven't been added yet
         if (insertErr) {
           await supabase.from("admin_users").insert({
             username: "admin",
@@ -136,7 +171,7 @@ export async function createSession(username: string, password: string): Promise
           });
         }
       }
-      await setSessionCookie("admin", secret);
+      await setSessionCookie("admin", sessionSecret);
       return true;
     }
     return false;
@@ -152,33 +187,28 @@ export async function createSession(username: string, password: string): Promise
 
   const hash = await hashPassword(user.password_salt as string, password);
   if (hash !== user.password_hash) {
-    // Fallback: if admin user supplies the current ADMIN_PASSWORD env var,
-    // treat it as a recovery login and re-sync the DB hash. This handles
-    // the case where ADMIN_PASSWORD was rotated without updating the stored hash.
-    if (username === "admin" && password === secret) {
+    // Recovery: if admin supplies the current ADMIN_PASSWORD env var, re-sync the hash.
+    if (username === "admin" && password === loginPassword) {
       const newSalt = randomHex();
       const newHash = await hashPassword(newSalt, password);
       await supabase
         .from("admin_users")
         .update({ password_hash: newHash, password_salt: newSalt, logged_out_at: null })
         .eq("username", "admin");
-      await setSessionCookie(username, secret);
+      await setSessionCookie(username, sessionSecret);
       return true;
     }
     return false;
   }
 
-  // Clear any stale logged_out_at so the new session is never rejected by it
   try {
     await supabase.from("admin_users").update({ logged_out_at: null }).eq("username", username);
   } catch { /* non-fatal if column doesn't exist yet */ }
 
-  await setSessionCookie(username, secret);
+  await setSessionCookie(username, sessionSecret);
   return true;
 }
 
-// Extracts the issue time (seconds since epoch) from a token without re-verifying.
-// Token format: encUsername.exp.sig — issued_at = exp - SESSION_MAX_AGE
 function parseIssuedAt(token: string): number | null {
   const lastDot = token.lastIndexOf(".");
   if (lastDot === -1) return null;
@@ -190,23 +220,18 @@ function parseIssuedAt(token: string): number | null {
 }
 
 export async function destroySession(): Promise<void> {
+  const secret = getSessionSecret();
   const cookieStore = await cookies();
   const cookie = cookieStore.get(SESSION_COOKIE);
-  if (cookie?.value) {
-    const secret = process.env.ADMIN_PASSWORD;
-    if (secret) {
-      const username = await verifyToken(cookie.value, secret);
-      if (username) {
-        // Record logout time so all tokens issued before now are invalidated
-        try {
-          await getSupabase()
-            .from("admin_users")
-            .update({ logged_out_at: new Date().toISOString() })
-            .eq("username", username);
-        } catch {
-          // non-fatal if column doesn't exist yet
-        }
-      }
+  if (cookie?.value && secret) {
+    const result = await verifyToken(cookie.value, secret);
+    if (result) {
+      try {
+        await getSupabase()
+          .from("admin_users")
+          .update({ logged_out_at: new Date().toISOString() })
+          .eq("username", result.username);
+      } catch { /* non-fatal */ }
     }
   }
   cookieStore.delete(SESSION_COOKIE);
@@ -217,28 +242,37 @@ export async function isAdminAuthenticated(): Promise<boolean> {
 }
 
 export async function getSession(): Promise<AdminSession | null> {
-  const secret = process.env.ADMIN_PASSWORD;
+  const secret = getSessionSecret();
   if (!secret) return null;
   const cookieStore = await cookies();
   const cookie = cookieStore.get(SESSION_COOKIE);
   if (!cookie?.value) return null;
-  const username = await verifyToken(cookie.value, secret);
-  if (!username) return null;
 
-  // Use select('*') so missing columns (before migration) don't cause errors
+  const result = await verifyToken(cookie.value, secret);
+  if (!result) return null;
+  const { username, exp } = result;
+
   const { data } = await getSupabase()
     .from("admin_users")
     .select("*")
     .eq("username", username)
     .maybeSingle();
 
-  // Reject tokens issued before the last logout (requires logged_out_at column in admin_users)
+  // Reject tokens issued before the last logout
   const loggedOutAt = data?.logged_out_at as string | null | undefined;
   if (loggedOutAt) {
     const issuedAt = parseIssuedAt(cookie.value);
     if (issuedAt !== null && issuedAt < new Date(loggedOutAt).getTime() / 1000) {
       return null;
     }
+  }
+
+  // Renew the cookie if it is within the renewal threshold
+  const now = Math.floor(Date.now() / 1000);
+  if (exp - now < RENEWAL_THRESHOLD) {
+    try {
+      await setSessionCookie(username, secret);
+    } catch { /* non-fatal — best effort renewal */ }
   }
 
   const role: AdminRole = (data?.role as AdminRole) ?? "admin";
@@ -268,7 +302,6 @@ export async function createAdminUser(
   const salt = randomHex();
   const hash = await hashPassword(salt, password);
 
-  // Try with role columns first; fall back to base columns if migration hasn't run
   let { error } = await supabase.from("admin_users").insert({
     username: username.trim(),
     password_hash: hash,
@@ -291,7 +324,6 @@ export async function createAdminUser(
 }
 
 export async function listAdminUsers(): Promise<AdminUser[]> {
-  // select('*') so missing columns (before migration) don't cause errors
   const { data } = await getSupabase()
     .from("admin_users")
     .select("*")

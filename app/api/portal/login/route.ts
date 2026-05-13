@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { verifyPassword, createPortalSession } from "@/lib/portal-auth";
+import { getPortalUserByClientId } from "@/lib/portal-users";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  const hash = client.fields.portal_password_hash;
+  // Check Supabase first, fall back to Airtable hash
+  const portalUser = await getPortalUserByClientId(client.id);
+  const hash = portalUser?.password_hash ?? client.fields.portal_password_hash;
+  const username = portalUser?.username ?? client.fields.portal_username ?? client.fields.client_id ?? "";
+
   if (!hash) {
     return NextResponse.json({ error: "Portal not configured" }, { status: 401 });
   }
@@ -35,10 +40,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  // createPortalSession() writes the portal_session cookie internally via next/headers cookies()
   await createPortalSession({
     client_id: client.id,
     portal_token: client.fields.portal_token,
+    username,
   });
 
   return NextResponse.json({ ok: true, client_id: client.id });

@@ -151,7 +151,7 @@ export default function NewClientPage() {
 
   if (result) {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    const loginUrl = `${baseUrl}/portal/login`;
+    const loginUrl = `${baseUrl}/login`;
 
     function CopyBtn({ value }: { value: string }) {
       const [copied, setCopied] = useState(false);

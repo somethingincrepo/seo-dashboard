@@ -52,7 +52,15 @@ function LoginForm() {
         </div>
       </div>
       <SubmitButton />
-      {error && (
+      {error === "rate_limited" && (
+        <div className="flex items-center gap-2 pt-1">
+          <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-sm text-red-600">Too many attempts. Please wait 15 minutes and try again.</p>
+        </div>
+      )}
+      {error && error !== "rate_limited" && (
         <div className="flex items-center gap-2 pt-1">
           <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

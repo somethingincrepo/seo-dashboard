@@ -106,8 +106,8 @@ function SuccessScreen({ companyName, creds }: { companyName: string; creds: Por
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between bg-white rounded-xl px-3.5 py-2.5 border border-amber-200">
                 <span className="text-slate-500 text-xs w-16 shrink-0">Login URL</span>
-                <span className="font-mono text-indigo-700 flex-1 truncate">{creds.portal_url}/portal/login</span>
-                <CopyInline value={`${creds.portal_url}/portal/login`} />
+                <span className="font-mono text-indigo-700 flex-1 truncate">{creds.portal_url}/login</span>
+                <CopyInline value={`${creds.portal_url}/login`} />
               </div>
               <div className="flex items-center justify-between bg-white rounded-xl px-3.5 py-2.5 border border-amber-200">
                 <span className="text-slate-500 text-xs w-16 shrink-0">Username</span>

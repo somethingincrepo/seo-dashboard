@@ -4,6 +4,7 @@ import { airtablePatch } from "@/lib/airtable";
 import { getClient } from "@/lib/clients";
 import { hashPassword } from "@/lib/portal-auth";
 import { getSession } from "@/lib/auth";
+import { upsertPortalUser } from "@/lib/portal-users";
 
 export async function POST(
   _request: NextRequest,
@@ -22,15 +23,23 @@ export async function POST(
     return NextResponse.json({ error: "Client has no client_id slug" }, { status: 400 });
   }
 
+  if (!client.fields.portal_token) {
+    return NextResponse.json({ error: "Client has no portal_token — generate one first" }, { status: 400 });
+  }
+
   // 12 random bytes → 16-char base64url string
   const password = randomBytes(12).toString("base64url");
   const hash = await hashPassword(password);
 
-  await airtablePatch("Clients", id, {
-    portal_username: username,
-    portal_password_hash: hash,
-    portal_password: password,
-  });
+  // Write to Supabase (authoritative) and Airtable (backwards compat) in parallel
+  await Promise.all([
+    upsertPortalUser(client.id, client.fields.portal_token, username, hash),
+    airtablePatch("Clients", id, {
+      portal_username: username,
+      portal_password_hash: hash,
+      portal_password: password,
+    }),
+  ]);
 
   return NextResponse.json({ username, password });
 }

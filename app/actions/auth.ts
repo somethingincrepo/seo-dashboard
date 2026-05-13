@@ -1,13 +1,17 @@
 "use server";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { createSession, destroySession } from "@/lib/auth";
+import { createSession, destroySession, logLoginEvent } from "@/lib/auth";
+import { getPortalUserByUsername } from "@/lib/portal-users";
+import { getClientByUsername } from "@/lib/clients";
+import { verifyPassword, createPortalSession } from "@/lib/portal-auth";
+import { upsertPortalUser } from "@/lib/portal-users";
 
-const ADMIN_MAX_ATTEMPTS = 10;
-const ADMIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const ADMIN_MAX_ATTEMPTS = 20;
+const ADMIN_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_RL_COOKIE = "admin_rl";
 
-async function checkAdminRateLimit(): Promise<boolean> {
+async function checkRateLimit(): Promise<boolean> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(ADMIN_RL_COOKIE)?.value;
   const now = Date.now();
@@ -34,31 +38,64 @@ async function checkAdminRateLimit(): Promise<boolean> {
   return true;
 }
 
+async function tryPortalCredentials(
+  username: string,
+  password: string
+): Promise<{ client_id: string; portal_token: string } | null> {
+  // Supabase first (authoritative)
+  const portalUser = await getPortalUserByUsername(username);
+  if (portalUser) {
+    const valid = await verifyPassword(password, portalUser.password_hash);
+    if (!valid) return null;
+    await createPortalSession({ client_id: portalUser.client_id, portal_token: portalUser.portal_token, username });
+    return { client_id: portalUser.client_id, portal_token: portalUser.portal_token };
+  }
+
+  // Airtable fallback (migration bridge)
+  const client = await getClientByUsername(username);
+  if (!client || !client.fields.portal_password_hash || !client.fields.portal_token) return null;
+  const valid = await verifyPassword(password, client.fields.portal_password_hash);
+  if (!valid) return null;
+  // Write to Supabase so next login skips Airtable
+  await upsertPortalUser(client.id, client.fields.portal_token, username, client.fields.portal_password_hash);
+  await createPortalSession({ client_id: client.id, portal_token: client.fields.portal_token, username });
+  return { client_id: client.id, portal_token: client.fields.portal_token };
+}
+
 export async function login(formData: FormData) {
   const username = ((formData.get("username") as string) || "").trim().toLowerCase();
   const password = formData.get("password") as string;
   const next = formData.get("next") as string | null;
 
-  const base = next
-    ? `/login?error=1&next=${encodeURIComponent(next)}`
-    : "/login?error=1";
+  const errorBase = next ? `/login?error=1&next=${encodeURIComponent(next)}` : "/login?error=1";
 
-  const allowed = await checkAdminRateLimit();
-  if (!allowed) redirect(base);
-
-  const ok = await createSession(username, password);
-  if (!ok) redirect(base);
-
-  // Clear rate limit on successful login
-  const cookieStore = await cookies();
-  cookieStore.delete(ADMIN_RL_COOKIE);
-
-  // Only allow redirects to internal paths (never to external URLs)
-  if (next && next.startsWith("/") && !next.startsWith("//")) {
-    redirect(next);
+  const allowed = await checkRateLimit();
+  if (!allowed) {
+    await logLoginEvent({ username, success: false, userType: "admin", failureReason: "rate_limited" });
+    redirect("/login?error=rate_limited");
   }
 
-  redirect("/");
+  // --- Try admin credentials ---
+  const adminOk = await createSession(username, password);
+  if (adminOk) {
+    await logLoginEvent({ username, success: true, userType: "admin" });
+    const cookieStore = await cookies();
+    cookieStore.delete(ADMIN_RL_COOKIE);
+    if (next && next.startsWith("/") && !next.startsWith("//")) redirect(next);
+    redirect("/");
+  }
+
+  // --- Try portal credentials ---
+  const portal = await tryPortalCredentials(username, password);
+  if (portal) {
+    await logLoginEvent({ username, success: true, userType: "portal", clientId: portal.client_id });
+    const cookieStore = await cookies();
+    cookieStore.delete(ADMIN_RL_COOKIE);
+    redirect(`/portal/${portal.portal_token}`);
+  }
+
+  await logLoginEvent({ username, success: false, userType: "portal", failureReason: "wrong_password" });
+  redirect(errorBase);
 }
 
 export async function logout() {

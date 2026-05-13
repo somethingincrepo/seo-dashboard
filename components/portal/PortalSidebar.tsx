@@ -21,6 +21,7 @@ interface PortalSidebarProps {
  monthlyProgress?: React.ReactNode;
  hasReddit?: boolean;
  redditMentionCount?: number;
+ faqSectionCount?: number;
 }
 
 function IconDashboard({ className }: { className?: string }) {
@@ -115,6 +116,13 @@ function IconPageCreation({ className }: { className?: string }) {
  </svg>
  );
 }
+function IconFaq({ className }: { className?: string }) {
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+ </svg>
+ );
+}
 function IconDeliverables({ className }: { className?: string }) {
  return (
  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -158,6 +166,7 @@ const NAV_ITEMS = [
  { suffix: "/content-optimization", label: "Content Refreshes", Icon: IconOptimization },
  { suffix: "/page-creation", label: "Page Creation", Icon: IconPageCreation },
  { suffix: "/internal-links", label: "Internal Links", Icon: IconLinks },
+ { suffix: "/faqs", label: "FAQ Sections", Icon: IconFaq },
  { suffix: "/indexation", label: "Indexation", Icon: IconIndexation },
  { suffix: "/reports", label: "Reports", Icon: IconReports },
  { suffix: "/reddit", label: "Reddit", Icon: IconReddit },
@@ -180,6 +189,7 @@ export function PortalSidebar({
  monthlyProgress,
  hasReddit,
  redditMentionCount,
+ faqSectionCount,
 }: PortalSidebarProps) {
  const pathname = usePathname();
  const base = `/portal/${token}`;
@@ -266,6 +276,11 @@ export function PortalSidebar({
  {item.suffix === "/internal-links" && (internalLinksPendingCount ?? 0) > 0 && (
  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
  {internalLinksPendingCount}
+ </span>
+ )}
+ {item.suffix === "/faqs" && (faqSectionCount ?? 0) > 0 && (
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200/60">
+ {faqSectionCount}
  </span>
  )}
  {item.suffix === "/audit" && (auditIssueCount ?? 0) > 0 && (
@@ -407,7 +422,7 @@ export function PortalSidebar({
  </form>
  ) : (
  <Link
- href="/portal/login"
+ href="/login"
  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-slate-900 hover:bg-slate-800 transition-colors"
  >
  Sign in

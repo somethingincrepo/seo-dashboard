@@ -425,6 +425,58 @@ export async function skipPageCreationSuggestion(id: string): Promise<void> {
     .eq("id", id);
 }
 
+// ─── FAQ Sections ─────────────────────────────────────────────────────────────
+
+export type FaqSection = {
+  id: string;
+  client_id: string;
+  page_url: string;
+  page_title: string | null;
+  existing_faq_count: number;
+  generated_questions: Array<{ q: string; a: string }>;
+  status: "suggested" | "approved" | "skipped" | "failed";
+  portal_approval: string | null;
+  portal_approved_at: string | null;
+  portal_notes: string | null;
+  priority: string | null;
+  proposed_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getFaqSectionsForClient(clientId: string): Promise<FaqSection[]> {
+  const { data } = await getSupabase()
+    .from("faq_sections")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("proposed_at", { ascending: false })
+    .limit(200);
+  return (data ?? []) as FaqSection[];
+}
+
+export async function approveFaqSection(id: string): Promise<void> {
+  await getSupabase()
+    .from("faq_sections")
+    .update({
+      portal_approval: "approved",
+      portal_approved_at: new Date().toISOString(),
+      status: "approved",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+}
+
+export async function skipFaqSection(id: string): Promise<void> {
+  await getSupabase()
+    .from("faq_sections")
+    .update({
+      portal_approval: "skipped",
+      status: "skipped",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+}
+
 // Retrieve the last N weekly snapshots for a client, newest first
 export async function getGscSnapshots(clientId: string, weeks = 12): Promise<GscSnapshot[]> {
   const { data } = await getSupabase()

@@ -1,70 +1,16 @@
-import { portalLogin } from "@/app/actions/portal-auth";
+import { redirect } from "next/navigation";
 
-export default async function PortalLoginPage({
- searchParams,
+// /portal/login is now deprecated — everyone logs in at /login.
+// The unified /login action identifies admin vs portal by credentials
+// and redirects each user to the right destination automatically.
+export default async function PortalLoginRedirect({
+  searchParams,
 }: {
- searchParams: Promise<{ error?: string; token?: string }>;
+  searchParams: Promise<{ token?: string; error?: string }>;
 }) {
- const { error, token } = await searchParams;
- const adminLoginUrl = token
- ? `/login?next=${encodeURIComponent(`/portal/${token}`)}`
- : "/login";
-
- return (
- <div className="min-h-screen flex items-center justify-center px-4">
- <div className="glass rounded-2xl p-10 w-full max-w-sm text-center">
- <div className="mb-8">
- <div className="text-3xl font-semibold tracking-tight mb-1">Client Portal</div>
- <div className="text-slate-500 text-sm">Sign in to your account</div>
- </div>
-
- <form action={portalLogin} className="space-y-4">
- {token && <input type="hidden" name="token" value={token} />}
- <input
- type="text"
- name="username"
- placeholder="Username"
- required
- autoComplete="username"
- autoFocus
- className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
- />
- <input
- type="password"
- name="password"
- placeholder="Password"
- required
- autoComplete="current-password"
- className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
- />
- <button
- type="submit"
- className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 border border-indigo-500 font-medium transition-all text-white"
- >
- Sign in
- </button>
- </form>
-
- {error === "rate_limited" && (
- <p className="mt-4 text-red-400 text-sm">
- Too many attempts. Please wait 15 minutes and try again.
- </p>
- )}
- {error === "1" && (
- <p className="mt-4 text-red-400 text-sm">
- Incorrect username or password.
- </p>
- )}
-
- <div className="mt-6 pt-6 border-t border-slate-200">
- <a
- href={adminLoginUrl}
- className="text-sm text-slate-400 hover:text-indigo-600 transition-colors"
- >
- Something Inc. staff? Sign in here →
- </a>
- </div>
- </div>
- </div>
- );
+  const { token } = await searchParams;
+  if (token) {
+    redirect(`/login?next=${encodeURIComponent(`/portal/${token}`)}`);
+  }
+  redirect("/login");
 }

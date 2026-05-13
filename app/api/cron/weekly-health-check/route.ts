@@ -32,6 +32,7 @@ type HealthCheckResult = {
   clients_checked: number;
   refresh_scheduler_inserted: boolean;
   internal_links_jobs_inserted: number;
+  faq_jobs_inserted: number;
   per_client: Array<{
     client_id: string;
     company_name: string;
@@ -108,6 +109,7 @@ export async function GET(request: NextRequest) {
 
   const perClient: HealthCheckResult["per_client"] = [];
   let internalLinksInserted = 0;
+  let faqJobsInserted = 0;
 
   for (const client of clients) {
     const companyName = client.fields.company_name ?? client.id;
@@ -178,10 +180,50 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Step 3: monthly FAQ backstop ─────────────────────────────────────────
+  // On the first Monday of each calendar month (UTC date 1–7), ensure every
+  // active client has a generate_faq_sections job for the current month.
+  // This covers clients who missed the post-audit trigger (e.g. re-audits that
+  // don't re-fire the diagnose endpoint) and provides the recurring monthly run.
+  const now = new Date();
+  const isFirstWeekOfMonth = now.getUTCDate() <= 7;
+
+  if (isFirstWeekOfMonth) {
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    for (const client of clients) {
+      if (!client.fields.portal_token) continue;
+      const { data: existingFaq, error: faqErr } = await supabase
+        .from("jobs")
+        .select("id")
+        .eq("sop_name", "generate_faq_sections")
+        .eq("client_id", client.id)
+        .gte("created_at", monthStart)
+        .limit(1);
+      if (faqErr) {
+        console.error(`[weekly-health-check] generate_faq_sections lookup failed for ${client.id}:`, faqErr.message);
+        continue;
+      }
+      if (existingFaq && existingFaq.length > 0) continue;
+      const { error: insErr } = await supabase.from("jobs").insert({
+        sop_name: "generate_faq_sections",
+        runner: "fly",
+        status: "pending",
+        client_id: client.id,
+        payload: { client_id: client.id, source: "weekly-health-check-monthly-faq" },
+      });
+      if (insErr) {
+        console.error(`[weekly-health-check] generate_faq_sections insert failed for ${client.id}:`, insErr.message);
+      } else {
+        faqJobsInserted += 1;
+      }
+    }
+  }
+
   console.log(
     `[weekly-health-check] week=${weekStart} clients=${clients.length} ` +
       `refresh_scheduler_inserted=${refreshInserted} ` +
-      `internal_links_jobs_inserted=${internalLinksInserted}`,
+      `internal_links_jobs_inserted=${internalLinksInserted} ` +
+      `faq_jobs_inserted=${faqJobsInserted}`,
   );
 
   const result: HealthCheckResult = {
@@ -190,6 +232,7 @@ export async function GET(request: NextRequest) {
     clients_checked: clients.length,
     refresh_scheduler_inserted: refreshInserted,
     internal_links_jobs_inserted: internalLinksInserted,
+    faq_jobs_inserted: faqJobsInserted,
     per_client: perClient,
   };
   return NextResponse.json(result);

@@ -263,8 +263,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-slate-400 w-20 shrink-0">Login URL</span>
-                  <span className="font-mono text-sm text-indigo-600">{baseUrl}/portal/login</span>
-                  <CopyButton value={`${baseUrl}/portal/login`} label="Copy" />
+                  <span className="font-mono text-sm text-indigo-600">{baseUrl}/login</span>
+                  <CopyButton value={`${baseUrl}/login`} label="Copy" />
                 </div>
               </>
             ) : (

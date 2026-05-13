@@ -31,6 +31,7 @@ const NAV_GROUPS = [
  label: "Settings",
  items: [
  { href: "/users", label: "Users", icon: "◉" },
+ { href: "/sessions", label: "Sessions", icon: "⊡" },
  ],
  },
 ];

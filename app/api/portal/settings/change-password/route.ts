@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPortalSession, hashPassword, verifyPassword } from "@/lib/portal-auth";
 import { getClientByToken } from "@/lib/clients";
 import { airtablePatch } from "@/lib/airtable";
+import { getPortalUserByClientId, upsertPortalUser } from "@/lib/portal-users";
 
 export async function POST(request: NextRequest) {
   const session = await getPortalSession();
@@ -26,7 +27,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "New password must be at least 8 characters" }, { status: 400 });
   }
 
-  const storedHash = client.fields.portal_password_hash;
+  // Verify current password — check Supabase first, fall back to Airtable
+  const portalUser = await getPortalUserByClientId(client.id);
+  const storedHash = portalUser?.password_hash ?? client.fields.portal_password_hash;
   if (!storedHash) {
     return NextResponse.json({ error: "No password set on this account — contact support" }, { status: 400 });
   }
@@ -37,10 +40,19 @@ export async function POST(request: NextRequest) {
   }
 
   const newHash = await hashPassword(new_password);
-  await airtablePatch("Clients", client.id, {
-    portal_password_hash: newHash,
-    portal_password: new_password,
-  });
+
+  // Update Supabase (authoritative) and Airtable in parallel
+  const portalToken = client.fields.portal_token;
+  const username = (portalUser?.username ?? client.fields.portal_username ?? "").toLowerCase();
+  await Promise.all([
+    portalToken && username
+      ? upsertPortalUser(client.id, portalToken, username, newHash)
+      : Promise.resolve(),
+    airtablePatch("Clients", client.id, {
+      portal_password_hash: newHash,
+      portal_password: new_password,
+    }),
+  ]);
 
   return NextResponse.json({ ok: true });
 }

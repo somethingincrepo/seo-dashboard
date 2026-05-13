@@ -41,8 +41,8 @@ export function GenerateCredentialsButton({
 
   const loginUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/portal/login`
-      : "/portal/login";
+      ? `${window.location.origin}/login`
+      : "/login";
 
   return (
     <div className="space-y-3">

@@ -3,5 +3,5 @@ import { destroyPortalSession } from "@/lib/portal-auth";
 
 export async function POST(req: NextRequest) {
   await destroyPortalSession();
-  return NextResponse.redirect(new URL("/portal/login", req.url));
+  return NextResponse.redirect(new URL("/login", req.url));
 }
