@@ -157,11 +157,20 @@ function IconAudit({ className }: { className?: string }) {
  </svg>
  );
 }
+function IconKeyword({ className }: { className?: string }) {
+ return (
+ <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+ <line x1="7" y1="7" x2="7.01" y2="7"/>
+ </svg>
+ );
+}
 
 const NAV_ITEMS = [
  { suffix: "", label: "Dashboard", Icon: IconDashboard },
  { suffix: "/approvals", label: "Approvals", Icon: IconApprovals },
  { suffix: "/content", label: "Content", Icon: IconContent },
+ { suffix: "/keywords", label: "Keywords", Icon: IconKeyword },
  { suffix: "/content-optimization", label: "Content Refreshes", Icon: IconOptimization },
  { suffix: "/page-creation", label: "Page Creation", Icon: IconPageCreation },
  { suffix: "/internal-links", label: "Internal Links", Icon: IconLinks },
@@ -327,7 +336,6 @@ export function PortalSidebar({
  {[
  { label: "Pipeline", href: `${base}/content`, badge: 0 },
  { label: "Title Proposals", href: `${base}/content/titles`, badge: titleProposalCount },
- { label: "Keywords", href: `${base}/content/keywords`, badge: 0 },
  { label: "Content Profile", href: `${base}/content/profile`, badge: 0 },
  ].map(({ label, href, badge }) => {
  const subActive = label === "Pipeline"
