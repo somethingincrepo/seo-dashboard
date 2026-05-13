@@ -31,7 +31,7 @@ export async function DELETE(
     await disconnectConnection(id);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error("[connections/[id]]", e);
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
   }
 }

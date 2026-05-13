@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { airtableFetch } from "@/lib/airtable";
+import { verifyBearer } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -43,11 +44,10 @@ type HealthCheckResult = {
 };
 
 export async function GET(request: NextRequest) {
-  const auth = request.headers.get("authorization");
   const adminPass = process.env.ADMIN_PASSWORD;
   const cronSecret = process.env.CRON_SECRET;
-  const isAdmin = adminPass && auth === `Bearer ${adminPass}`;
-  const isCronSecret = cronSecret && auth === `Bearer ${cronSecret}`;
+  const isAdmin = adminPass && verifyBearer(request, adminPass);
+  const isCronSecret = cronSecret && verifyBearer(request, cronSecret);
   const isVercelCron = request.headers.get("x-vercel-cron") === "1";
 
   if (!isAdmin && !isCronSecret && !isVercelCron) {

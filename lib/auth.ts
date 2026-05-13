@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+import { timingSafeEqual } from "crypto";
+import { NextRequest } from "next/server";
 import { getSupabase } from "./supabase";
 
 const SESSION_COOKIE = "admin_session";
@@ -419,4 +421,24 @@ export async function resetPassword(
 
   if (error) return { error: error.message };
   return {};
+}
+
+// ── Bearer token verification (timing-safe) ───────────────────────────────────
+
+/**
+ * Validates an Authorization: Bearer <token> header using a constant-time
+ * comparison so the response time doesn't reveal how many characters matched.
+ */
+export function verifyBearer(request: NextRequest, secret: string): boolean {
+  const auth = request.headers.get("authorization");
+  if (!auth || !auth.startsWith("Bearer ")) return false;
+  const token = auth.slice(7);
+  try {
+    const a = Buffer.from(token);
+    const b = Buffer.from(secret);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }

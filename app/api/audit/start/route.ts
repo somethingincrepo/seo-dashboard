@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, verifyBearer } from "@/lib/auth";
 import { triggerAudit } from "@/lib/audit/triggerAudit";
 import { airtableFetch } from "@/lib/airtable";
 import { getSupabase } from "@/lib/supabase";
@@ -7,8 +7,8 @@ import { getSupabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 
 async function isAuthorized(request: NextRequest): Promise<boolean> {
-  const auth = request.headers.get("authorization");
-  if (auth && auth === `Bearer ${process.env.ADMIN_PASSWORD}`) return true;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  if (adminPass && verifyBearer(request, adminPass)) return true;
   const session = await getSession();
   return !!session;
 }

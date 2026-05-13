@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const connections = await listConnectionsForClient(auth.clientId);
     return NextResponse.json({ ok: true, connections });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error("[connections/list]", e);
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase, type SupabaseJob } from "@/lib/supabase";
 import { claimJob, runJob } from "@/lib/agent-runner";
-import { getSession } from "@/lib/auth";
+import { getSession, verifyBearer } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 290;
 
 async function isAuthorized(request: NextRequest): Promise<boolean> {
-  const auth = request.headers.get("authorization");
-  if (auth && auth === `Bearer ${process.env.ADMIN_PASSWORD}`) return true;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  if (adminPass && verifyBearer(request, adminPass)) return true;
   const session = await getSession();
   return !!session;
 }

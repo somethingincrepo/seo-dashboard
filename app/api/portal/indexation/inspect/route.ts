@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { requirePortalAuth } from "@/lib/portal-auth";
-import { airtableFetch } from "@/lib/airtable";
+import { airtableFetch, escapeAirtableString } from "@/lib/airtable";
 import {
   batchInspectUrls,
   writeInspectionResults,
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   // Fetch implemented changes
   const records = await airtableFetch<Change>("Changes", {
-    filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id})),{execution_status}="complete",{page_url}!="")`,
+    filterByFormula: `AND(OR(FIND("${escapeAirtableString(clientId)}",{client_id}),FIND("${escapeAirtableString(recordId)}",{client_id})),{execution_status}="complete",{page_url}!="")`,
     fields: ["page_url", "gsc_last_checked"] as never[],
   });
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { requirePortalAuth } from "@/lib/portal-auth";
-import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate } from "@/lib/airtable";
+import { contentAirtableFetch, contentAirtablePatch, contentAirtableCreate, escapeAirtableString } from "@/lib/airtable";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { getPerTypeQuota, CONTENT_TYPE_CONFIG, type ContentTypeName } from "@/lib/content";
 
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 async function getContentClientId(companyName: string): Promise<string | null> {
   const records = await contentAirtableFetch<{ id: string }>(
     CONTENT_CLIENTS_TABLE,
-    { filterByFormula: `{Client Name}="${companyName}"` }
+    { filterByFormula: `{Client Name}="${escapeAirtableString(companyName)}"` }
   );
   return records[0]?.id ?? null;
 }
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     if (!companyName) return NextResponse.json({ titles: [], keyword_groups: keywordGroups, quota: null, package: "growth" });
 
-    const escaped = companyName.replace(/"/g, '\\"');
+    const escaped = escapeAirtableString(companyName);
     const jobs = await contentAirtableFetch<{
       id: string;
       fields: {
@@ -261,7 +261,7 @@ export async function PATCH(request: NextRequest) {
   const companyName = client.fields.company_name;
 
   // Ownership check — verify this record belongs to the authenticated client
-  const escapedName = companyName.replace(/"/g, '\\"');
+  const escapedName = escapeAirtableString(companyName);
   const ownerCheck = await contentAirtableFetch<{ id: string }>(CONTENT_JOBS_TABLE, {
     filterByFormula: `AND(RECORD_ID()="${record_id}",FIND("${escapedName}",ARRAYJOIN({Client Name (from Client ID)},",")))`,
     maxRecords: 1,
@@ -281,7 +281,7 @@ export async function PATCH(request: NextRequest) {
         refresh_url?: string;
       };
     }>(CONTENT_JOBS_TABLE, {
-      filterByFormula: `AND(FIND("${companyName}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}="approved")`,
+      filterByFormula: `AND(FIND("${escapeAirtableString(companyName)}",ARRAYJOIN({Client Name (from Client ID)},",")),{title_status}="approved")`,
       fields: ["title_status", "approved_at", "Desired length range", "refresh_url"],
     });
 
@@ -448,7 +448,7 @@ export async function DELETE(request: NextRequest) {
 
   // Ownership check — verify this record belongs to the authenticated client
   const companyName = client.fields.company_name;
-  const escapedName = companyName.replace(/"/g, '\\"');
+  const escapedName = escapeAirtableString(companyName);
   const ownerCheck = await contentAirtableFetch<{ id: string }>(CONTENT_JOBS_TABLE, {
     filterByFormula: `AND(RECORD_ID()="${record_id}",FIND("${escapedName}",ARRAYJOIN({Client Name (from Client ID)},",")))`,
     maxRecords: 1,

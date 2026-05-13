@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Error" }, { status: 500 });
+    console.error("[portal/content-review]", e);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

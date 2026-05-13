@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const conn = await connectManual(auth.clientId, body.platform, body.credentials ?? {});
     return NextResponse.json({ ok: true, connection: conn });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    console.error("[connections/manual]", e);
+    return NextResponse.json({ ok: false, error: "Failed to connect. Check credentials and try again." }, { status: 400 });
   }
 }

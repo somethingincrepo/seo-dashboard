@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateApproval, revertDecision } from "@/lib/changes";
 import { getClientByToken } from "@/lib/clients";
-import { airtableCreate, airtableFetch, airtablePatch } from "@/lib/airtable";
+import { airtableCreate, airtableFetch, airtablePatch, escapeAirtableString } from "@/lib/airtable";
 import { getSupabase } from "@/lib/supabase";
 import { PACKAGES, type PackageTier, type PackageDeliverables } from "@/lib/packages";
 import { submitUrlToIndexingAPI } from "@/lib/tools/google-indexing";
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
           const clientId = (client.fields as Record<string, unknown>).client_id as string || client.id;
           const monthStart = startOfMonthISO();
           const approvedSoFar = await airtableFetch<{ id: string }>("Changes", {
-            filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),FIND("${client.id}",{client_id})),{type}="${changeType}",{approval}="approved",IS_AFTER({approved_at},"${monthStart}"))`,
+            filterByFormula: `AND(OR(FIND("${escapeAirtableString(clientId)}",{client_id}),FIND("${escapeAirtableString(client.id)}",{client_id})),{type}="${escapeAirtableString(changeType)}",{approval}="approved",IS_AFTER({approved_at},"${monthStart}"))`,
           });
           if (approvedSoFar.length >= monthlyLimit) {
             return NextResponse.json({
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
           const clientId = (client.fields as Record<string, unknown>).client_id as string || client.id;
           const monthStart = startOfMonthISO();
           const approvedNow = await airtableFetch<{ id: string; fields: { approved_at?: string } }>("Changes", {
-            filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),FIND("${client.id}",{client_id})),{type}="${changeType}",{approval}="approved",IS_AFTER({approved_at},"${monthStart}"))`,
+            filterByFormula: `AND(OR(FIND("${escapeAirtableString(clientId)}",{client_id}),FIND("${escapeAirtableString(client.id)}",{client_id})),{type}="${escapeAirtableString(changeType)}",{approval}="approved",IS_AFTER({approved_at},"${monthStart}"))`,
             fields: ["approved_at"],
           });
           if (approvedNow.length > monthlyLimit) {

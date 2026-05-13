@@ -1,5 +1,10 @@
 const BASE_URL = "https://api.airtable.com/v0";
 
+/** Escapes a value for safe interpolation inside an Airtable filterByFormula string literal. */
+export function escapeAirtableString(val: string): string {
+  return val.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 type SortItem = { field: string; direction?: "asc" | "desc" };
 
 export type AirtableParams = {

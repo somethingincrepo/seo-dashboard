@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientByToken } from "@/lib/clients";
 import { requirePortalAuth } from "@/lib/portal-auth";
-import { contentAirtableFetch, contentAirtablePatch } from "@/lib/airtable";
+import { contentAirtableFetch, contentAirtablePatch, escapeAirtableString } from "@/lib/airtable";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ async function getContentRecord(companyName: string) {
   const records = await contentAirtableFetch<{
     id: string;
     fields: Record<string, string>;
-  }>("Clients", { filterByFormula: `{Client Name}="${companyName}"` });
+  }>("Clients", { filterByFormula: `{Client Name}="${escapeAirtableString(companyName)}"` });
   return records[0] ?? null;
 }
 

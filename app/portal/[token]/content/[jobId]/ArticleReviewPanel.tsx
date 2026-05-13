@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
+import DOMPurify from "dompurify";
 import type { ContentJob, ContentResult } from "@/lib/content";
 import { bracketToHtml } from "@/lib/bracketToHtml";
 
@@ -29,7 +30,10 @@ export function ArticleReviewPanel({ job, result: initialResult, token }: Articl
 
  const handleSave = useCallback(async () => {
  if (!result || !editorRef.current) return;
- const newBody = editorRef.current.innerHTML;
+ const newBody = DOMPurify.sanitize(editorRef.current.innerHTML, {
+   ALLOWED_TAGS: ["h1","h2","h3","p","ul","ol","li","strong","em","del","ins","br"],
+   ALLOWED_ATTR: [],
+ });
  setSaving(true);
  try {
  const res = await fetch(`/api/portal/content-review?token=${token}`, {

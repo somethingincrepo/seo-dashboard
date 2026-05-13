@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { airtableFetch } from "@/lib/airtable";
+import { airtableFetch, escapeAirtableString } from "@/lib/airtable";
 import { batchSubmitUrls, updateIndexingStatusForUrls } from "@/lib/tools/google-indexing";
-import { getSession } from "@/lib/auth";
+import { getSession, verifyBearer } from "@/lib/auth";
 import type { Change } from "@/lib/changes";
 
 export const dynamic = "force-dynamic";
 
 async function isAuthorized(request: NextRequest): Promise<boolean> {
   // Accept bearer token (server-to-server calls)
-  const auth = request.headers.get("authorization");
-  if (auth && auth === `Bearer ${process.env.ADMIN_PASSWORD}`) return true;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  if (adminPass && verifyBearer(request, adminPass)) return true;
   // Accept admin session cookie (browser requests from admin UI)
   const session = await getSession();
   return !!session;
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 
   const records = await airtableFetch<Change>("Changes", {
-    filterByFormula: `AND(OR(FIND("${clientId}",{client_id}),{client_id}="${clientId}"),{execution_status}="complete")`,
+    filterByFormula: `AND(OR(FIND("${escapeAirtableString(clientId)}",{client_id}),{client_id}="${escapeAirtableString(clientId)}"),{execution_status}="complete")`,
     fields: ["page_url", "type", "cat", "implemented_at", "indexing_status", "indexing_submitted_at", "change_title"] as never[],
     sort: [{ field: "implemented_at", direction: "desc" }],
   });

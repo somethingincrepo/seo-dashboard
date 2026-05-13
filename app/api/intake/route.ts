@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { airtableCreate, airtableFetch } from "@/lib/airtable";
+import { airtableCreate, airtableFetch, escapeAirtableString } from "@/lib/airtable";
 import { hashPassword } from "@/lib/portal-auth";
 import { getSupabase } from "@/lib/supabase";
 import { triggerAudit } from "@/lib/audit/triggerAudit";
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
   // Idempotency — reject duplicate site URLs
   try {
     const existing = await airtableFetch<{ id: string }>("Clients", {
-      filterByFormula: `{site_url} = "${normalizedUrl.replace(/\/$/, "")}"`,
+      filterByFormula: `{site_url} = "${escapeAirtableString(normalizedUrl.replace(/\/$/, ""))}"`,
       maxRecords: 1,
     });
     if (existing.length > 0) {

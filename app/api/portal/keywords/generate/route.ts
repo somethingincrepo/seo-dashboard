@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getClientByToken } from "@/lib/clients";
 import { requirePortalAuth } from "@/lib/portal-auth";
-import { contentAirtableFetch } from "@/lib/airtable";
+import { contentAirtableFetch, escapeAirtableString } from "@/lib/airtable";
 import { airtablePatch } from "@/lib/airtable";
 
 export const dynamic = "force-dynamic";
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
   let brandVoice = "", coreServices = "";
   try {
     const records = await contentAirtableFetch<{ id: string; fields: Record<string, string> }>(
-      "Clients", { filterByFormula: `{Client Name}="${companyName}"` }
+      "Clients", { filterByFormula: `{Client Name}="${escapeAirtableString(companyName)}"` }
     );
     if (records.length) {
       brandVoice = records[0].fields["Brand voice summary"] ?? "";

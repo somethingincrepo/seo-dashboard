@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase, type SupabaseJob } from "@/lib/supabase";
 import { claimJob, runJob } from "@/lib/agent-runner";
+import { verifyBearer } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 290;
 
 export async function GET(request: NextRequest) {
   // Allow Vercel cron (no auth header) or admin bearer for manual testing
-  const auth = request.headers.get("authorization");
   const adminPass = process.env.ADMIN_PASSWORD;
-  const isAdmin = adminPass && auth === `Bearer ${adminPass}`;
+  const isAdmin = adminPass && verifyBearer(request, adminPass);
   // Vercel cron requests originate from Vercel's infrastructure — no extra auth needed
   // If called externally without admin auth, reject
   const isVercelCron = request.headers.get("x-vercel-cron") === "1";

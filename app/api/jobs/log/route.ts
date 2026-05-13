@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { verifyBearer } from "@/lib/auth";
 import type { JobStatus, LogLevel } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 function isAuthorized(request: NextRequest): boolean {
-  const auth = request.headers.get("authorization");
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) return false;
-  return auth === `Bearer ${expected}`;
+  return verifyBearer(request, expected);
 }
 
 export async function POST(request: NextRequest) {

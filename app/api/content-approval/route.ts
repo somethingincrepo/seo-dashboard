@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/auth";
+import { isAdminAuthenticated, verifyBearer } from "@/lib/auth";
 import { getPortalSession } from "@/lib/portal-auth";
 import { getClientByToken } from "@/lib/clients";
 import { getNextPublishDate } from "@/lib/content-schedule";
@@ -136,8 +136,8 @@ async function recordBelongsToClient(
 export async function POST(request: NextRequest) {
   // Auth: admin (Bearer or session) OR portal session (customer approving
   // their own content). Portal callers go through an ownership check below.
-  const bearer = request.headers.get("authorization");
-  const bearerOk = bearer === `Bearer ${process.env.ADMIN_PASSWORD}`;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  const bearerOk = !!(adminPass && verifyBearer(request, adminPass));
   const adminOk = bearerOk || (await isAdminAuthenticated());
   let portalClient: Awaited<ReturnType<typeof getClientByToken>> | null = null;
   if (!adminOk) {
@@ -188,10 +188,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Internal error";
+    console.error("[content-approval]", e);
+    const msg = e instanceof Error ? e.message : "";
     const isNotFound = msg.includes("404") || msg.toLowerCase().includes("not_found") || msg.toLowerCase().includes("not found");
     return NextResponse.json(
-      { error: msg },
+      { error: isNotFound ? "Not found" : "Internal server error" },
       { status: isNotFound ? 404 : 500 }
     );
   }
