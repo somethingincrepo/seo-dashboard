@@ -143,6 +143,27 @@ export async function searchRedditMentions(
 export async function fetchTopComments(
   permalink: string
 ): Promise<Array<{ author: string; body: string; score: number }>> {
+  const crawlerUrl = process.env.CRAWLER_SERVICE_URL || "https://something-audit-crawler.fly.dev";
+  const crawlerToken = process.env.CRAWLER_SERVICE_TOKEN;
+
+  if (crawlerToken) {
+    try {
+      const res = await fetch(
+        `${crawlerUrl}/reddit-thread?url=${encodeURIComponent(permalink)}`,
+        {
+          headers: { Authorization: `Bearer ${crawlerToken}` },
+          signal: AbortSignal.timeout(30_000),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json() as { comments?: Array<{ author: string; body: string; score: number }> };
+        return (data.comments ?? []).slice(0, 5);
+      }
+    } catch {
+      // fall through to direct fetch
+    }
+  }
+
   try {
     const result = await fetchRedditThread(permalink);
     return result.comments.slice(0, 5);
