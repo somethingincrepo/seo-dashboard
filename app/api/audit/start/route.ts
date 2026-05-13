@@ -99,19 +99,26 @@ export async function POST(request: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(1);
     const existing = inflight?.[0];
-    // Stale-run safety net: if the existing run is older than 30 minutes
-    // and still hasn't finished, treat it as abandoned and let the new
-    // submission proceed. The watchdog will mark the abandoned one failed.
     const STALE_MS = 30 * 60 * 1000;
-    if (existing && Date.now() - new Date(existing.created_at).getTime() < STALE_MS) {
-      return NextResponse.json(
-        {
-          error: "An audit is already running for this client.",
-          audit_run_id: existing.id,
-          status: existing.status,
-        },
-        { status: 409 },
-      );
+    if (existing) {
+      const ageMs = Date.now() - new Date(existing.created_at).getTime();
+      if (ageMs < STALE_MS) {
+        return NextResponse.json(
+          {
+            error: "An audit is already running for this client.",
+            audit_run_id: existing.id,
+            status: existing.status,
+          },
+          { status: 409 },
+        );
+      }
+      // Stale run — mark it failed so it doesn't linger in the UI forever,
+      // then fall through to create a fresh run.
+      await supabase
+        .from("audit_runs")
+        .update({ status: "failed", error_message: "Abandoned — replaced by a newer run after 30-minute stale timeout." })
+        .eq("id", existing.id)
+        .catch((e: unknown) => console.warn("[audit/start] failed to mark stale run as failed:", e));
     }
   } catch (e) {
     console.warn("[audit/start] in-flight check failed (non-fatal):", e);
@@ -133,6 +140,7 @@ export async function POST(request: NextRequest) {
       root_url: derivedRoot,
       triggered_by: resolvedTrigger,
       nav_urls: navUrls,
+      concurrency: 3,
     });
     return NextResponse.json({ ok: true, audit_run_id: result.audit_run_id }, { status: 201 });
   } catch (e) {
