@@ -67,6 +67,59 @@ function ThreadDetailPanel({
     if (fetching) return;
     setFetching(true);
     setFetchError(null);
+
+    // Helper: flatten Reddit's nested comment tree
+    function flattenComments(
+      children: Array<{ kind: string; data: Record<string, unknown> }>,
+      limit = 20
+    ): StoredComment[] {
+      const out: StoredComment[] = [];
+      for (const child of children) {
+        if (out.length >= limit) break;
+        if (child.kind !== "t1") continue;
+        const { author, body, score, replies } = child.data as {
+          author?: string; body?: string; score?: number;
+          replies?: { data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> } } | string;
+        };
+        if (!body || body === "[deleted]" || body === "[removed]") continue;
+        out.push({ author: author ?? "unknown", body, score: score ?? 0 });
+        if (replies && typeof replies === "object" && replies.data?.children) {
+          out.push(...flattenComments(replies.data.children, limit - out.length));
+        }
+      }
+      return out;
+    }
+
+    // Step 1: fetch directly from the browser — uses the user's residential IP,
+    // which Reddit doesn't block. Reddit serves Access-Control-Allow-Origin: * on .json.
+    try {
+      const path = o.permalink.startsWith("http")
+        ? new URL(o.permalink).pathname
+        : o.permalink;
+      const jsonUrl = `https://www.reddit.com${path.replace(/\/$/, "")}.json?limit=50&depth=3&raw_json=1`;
+
+      const res = await fetch(jsonUrl, { headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error(`Reddit returned ${res.status}`);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const json = await res.json() as any[];
+      if (!Array.isArray(json) || json.length < 2) throw new Error("Unexpected response");
+
+      const postData = json[0]?.data?.children?.[0]?.data ?? {};
+      const selftext = (postData.selftext ?? "").trim() || null;
+      const rawComments = json[1]?.data?.children ?? [];
+      const comments = flattenComments(rawComments);
+      comments.sort((a, b) => b.score - a.score);
+
+      if (selftext) setLiveSelftext(selftext);
+      setLiveComments(comments.slice(0, 20));
+      setFetching(false);
+      return;
+    } catch {
+      // Client-side blocked (CORS or network) — fall through to server route
+    }
+
+    // Step 2: fall back to server route (Fly.io Playwright crawler)
     try {
       const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
       const data = await res.json() as { selftext?: string; comments?: StoredComment[]; error?: string };
