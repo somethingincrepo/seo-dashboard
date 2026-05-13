@@ -35,6 +35,7 @@ type HealthCheckResult = {
   internal_links_jobs_inserted: number;
   faq_jobs_inserted: number;
   reddit_scan_jobs_inserted: number;
+  page_creation_jobs_inserted: number;
   per_client: Array<{
     client_id: string;
     company_name: string;
@@ -112,6 +113,7 @@ export async function GET(request: NextRequest) {
   let internalLinksInserted = 0;
   let faqJobsInserted = 0;
   let redditScanJobsInserted = 0;
+  let pageCreationJobsInserted = 0;
 
   for (const client of clients) {
     const companyName = client.fields.company_name ?? client.id;
@@ -254,12 +256,46 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Step 5: per-client weekly page-creation backstop ────────────────────
+  // pageCreationSchedulerTick in the Fly worker runs a global job weekly, but
+  // individual clients can be skipped if the SOP fails mid-loop. Insert a
+  // per-client job for any client missing one this week (idempotent with the
+  // worker tick — page_creation_scheduler's monthly cap prevents overrun).
+  for (const client of clients) {
+    if (!client.fields.portal_token) continue;
+    const { data: existingPcs, error: pcsErr } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("sop_name", "page_creation_scheduler")
+      .eq("client_id", client.id)
+      .gte("created_at", weekStart)
+      .limit(1);
+    if (pcsErr) {
+      console.error(`[weekly-health-check] page_creation_scheduler lookup failed for ${client.id}:`, pcsErr.message);
+      continue;
+    }
+    if (existingPcs && existingPcs.length > 0) continue;
+    const { error: insErr } = await supabase.from("jobs").insert({
+      sop_name: "page_creation_scheduler",
+      runner: "fly",
+      status: "pending",
+      client_id: client.id,
+      payload: { client_id: client.id, source: "weekly-health-check" },
+    });
+    if (insErr) {
+      console.error(`[weekly-health-check] page_creation_scheduler insert failed for ${client.id}:`, insErr.message);
+    } else {
+      pageCreationJobsInserted += 1;
+    }
+  }
+
   console.log(
     `[weekly-health-check] week=${weekStart} clients=${clients.length} ` +
       `refresh_scheduler_inserted=${refreshInserted} ` +
       `internal_links_jobs_inserted=${internalLinksInserted} ` +
       `faq_jobs_inserted=${faqJobsInserted} ` +
-      `reddit_scan_jobs_inserted=${redditScanJobsInserted}`,
+      `reddit_scan_jobs_inserted=${redditScanJobsInserted} ` +
+      `page_creation_jobs_inserted=${pageCreationJobsInserted}`,
   );
 
   const result: HealthCheckResult = {
@@ -270,6 +306,7 @@ export async function GET(request: NextRequest) {
     internal_links_jobs_inserted: internalLinksInserted,
     faq_jobs_inserted: faqJobsInserted,
     reddit_scan_jobs_inserted: redditScanJobsInserted,
+    page_creation_jobs_inserted: pageCreationJobsInserted,
     per_client: perClient,
   };
   return NextResponse.json(result);
