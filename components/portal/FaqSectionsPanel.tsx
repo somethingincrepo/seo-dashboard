@@ -78,23 +78,28 @@ function SectionCard({
           : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
       }`}
     >
+      {/* Page path — primary identifier */}
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <span className="text-[12px] font-mono text-slate-700 truncate leading-tight font-medium">{path}</span>
+        <span className="text-[11px] font-mono text-slate-500 truncate leading-tight">{path}</span>
         <div className="shrink-0 flex items-center gap-1.5">
           {isDone ? <StatusBadge approval={effectiveApproval} /> : <PriorityBadge priority={section.priority} />}
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[11px] text-slate-400">
-          {qCount} question{qCount !== 1 ? "s" : ""}
+      {/* What's being added — mirroring the anchor-text row in InternalLinksView */}
+      <div className="flex items-start gap-1.5 flex-wrap">
+        <svg className="w-3 h-3 text-teal-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span className="text-[12px] text-teal-700 font-medium leading-snug">
+          {qCount} new question{qCount !== 1 ? "s" : ""}
         </span>
-        {(section.existing_faq_count ?? 0) > 0 && (
-          <>
-            <span className="text-[11px] text-slate-300">·</span>
-            <span className="text-[11px] text-slate-400">{section.existing_faq_count} existing</span>
-          </>
-        )}
       </div>
+      {(section.existing_faq_count ?? 0) > 0 && (
+        <div className="flex items-center gap-1 mt-1">
+          <span className="text-[10px] text-slate-400">supplements</span>
+          <span className="text-[11px] font-mono text-slate-400">{section.existing_faq_count} already on page</span>
+        </div>
+      )}
     </button>
   );
 }
@@ -131,7 +136,7 @@ function DetailPanel({
     setError(null);
     try {
       await onApprove(section.id);
-      setFeedback("Approved — this FAQ section will be added to the page.");
+      setFeedback(`Approved. We will add these ${questions.length} questions to ${path} within 24 hours.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -186,23 +191,25 @@ function DetailPanel({
           </div>
         </div>
 
-        {/* Page context box */}
-        <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3 text-[12px]">
+        {/* Page context box — mirrors InternalLinksView "From / Link / To" */}
+        <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3 text-[12px] space-y-2">
           <div className="flex items-center gap-3">
-            <span className="text-slate-400 text-[10px] tracking-wider w-10 shrink-0">Page</span>
+            <span className="text-slate-400 text-[10px] tracking-wider w-14 shrink-0">Page</span>
             <span className="font-mono text-slate-700 truncate">{path}</span>
           </div>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-slate-400 text-[10px] tracking-wider w-10 shrink-0">Action</span>
-            <span className="text-slate-700">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-400 text-[10px] tracking-wider w-14 shrink-0">Adds</span>
+            <span className="text-teal-700 font-medium">
               {(section.existing_faq_count ?? 0) > 0
-                ? `Add ${questions.length} new Q&As to supplement ${section.existing_faq_count} existing`
-                : `Add ${questions.length} Q&As as a new FAQ section`}
+                ? `${questions.length} new questions (${section.existing_faq_count} already on page)`
+                : `${questions.length} questions as a new FAQ section`}
             </span>
           </div>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-slate-400 text-[10px] tracking-wider w-10 shrink-0">Date</span>
-            <span className="text-slate-500">{formatDate(section.proposed_at)}</span>
+          <div className="flex items-start gap-3">
+            <span className="text-slate-400 text-[10px] tracking-wider w-14 shrink-0 mt-0.5">After</span>
+            <span className="text-slate-600 leading-snug">
+              We will add this FAQ section to <span className="font-mono">{path}</span> within 24 hours of approval. Questions are marked up with schema so they can appear in Google rich results and AI answers.
+            </span>
           </div>
         </div>
       </div>
@@ -226,7 +233,7 @@ function DetailPanel({
               disabled={!!submitting}
               className="flex-1 py-2.5 rounded-xl bg-teal-600 text-white text-[13px] font-semibold hover:bg-teal-700 disabled:opacity-40 transition-colors"
             >
-              {submitting === "approve" ? "Approving…" : "Add FAQ section to page"}
+              {submitting === "approve" ? "Approving…" : `Add ${questions.length} questions to ${path}`}
             </button>
             <button
               onClick={handleSkip}
