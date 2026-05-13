@@ -6,6 +6,9 @@ export interface TriggerAuditArgs {
   root_url: string;
   triggered_by: "intake" | "admin_rerun" | "scheduled";
   nav_urls?: string[];
+  /** Hard cap on pages crawled. Defaults to 100 — enough for a thorough first audit without
+   *  crawling thousands of product/collection pages on large e-commerce sites. */
+  max_pages?: number;
   /** Crawler concurrency. Intake uses 3 for speed; re-audits use 1 for determinism. */
   concurrency?: number;
 }
@@ -79,6 +82,7 @@ export async function triggerAudit(args: TriggerAuditArgs): Promise<TriggerAudit
       client_id: args.client_id,
       root_url: args.root_url,
       nav_urls: args.nav_urls ?? [args.root_url],
+      max_pages: args.max_pages ?? 100,
       concurrency: args.concurrency,
     }),
     signal: AbortSignal.timeout(20_000),
