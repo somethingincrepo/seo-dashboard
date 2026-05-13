@@ -172,8 +172,7 @@ async function runFullPipeline(args: {
   }
 }
 
-// Reddit thread scraper — uses Playwright on old.reddit.com (server-rendered, no JS required).
-// Running on Fly.io avoids the Vercel/AWS IP blocks that Reddit enforces on .json and OAuth endpoints.
+// Reddit thread proxy — fetches from PullPush.io (public archive, no IP blocking).
 app.get("/reddit-thread", async (req, res) => {
   const auth = req.header("authorization") ?? "";
   if (!SHARED_TOKEN || auth !== `Bearer ${SHARED_TOKEN}`) {
@@ -183,71 +182,33 @@ app.get("/reddit-thread", async (req, res) => {
   const { url } = req.query as { url?: string };
   if (!url) { res.status(400).json({ error: "url required" }); return; }
 
-  // Force old.reddit.com — server-side rendered HTML, no SPA, stable selectors
-  const oldUrl = (url as string)
-    .replace("www.reddit.com", "old.reddit.com")
-    .replace("new.reddit.com", "old.reddit.com")
-    .replace(/\?.*$/, ""); // strip any query params
+  const postId = (url as string).match(/\/comments\/([a-z0-9]+)\//i)?.[1];
+  if (!postId) { res.status(400).json({ error: "Could not extract post ID from URL" }); return; }
 
-  console.log(`[reddit-thread] fetching ${oldUrl}`);
+  console.log(`[reddit-thread] PullPush fetch for post ${postId}`);
 
-  let browser;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"],
-    });
-    const context = await browser.newContext({
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      locale: "en-US",
-      extraHTTPHeaders: {
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-    });
-    const page = await context.newPage();
+    const [postRes, commentsRes] = await Promise.all([
+      fetch(`https://api.pullpush.io/reddit/search/submission/?ids=${postId}&limit=1`),
+      fetch(`https://api.pullpush.io/reddit/search/comment/?link_id=${postId}&limit=25&sort=score`),
+    ]);
 
-    const response = await page.goto(oldUrl, { waitUntil: "domcontentloaded", timeout: 25_000 });
-    const status = response?.status() ?? 0;
-    console.log(`[reddit-thread] page status ${status}`);
+    const postJson = await postRes.json() as { data?: Array<Record<string, unknown>> };
+    const commentsJson = await commentsRes.json() as { data?: Array<Record<string, unknown>> };
 
-    if (status >= 400) {
-      res.status(status).json({ error: `Reddit returned ${status}` });
-      return;
-    }
+    const post = postJson.data?.[0];
+    const selftext = ((post?.selftext as string) ?? "").trim() || null;
+    const comments = (commentsJson.data ?? [])
+      .filter((c) => { const b = c.body as string; return b && b !== "[deleted]" && b !== "[removed]"; })
+      .slice(0, 20)
+      .map((c) => ({ author: (c.author as string) ?? "unknown", body: ((c.body as string) ?? "").slice(0, 500), score: (c.score as number) ?? 0 }));
 
-    // Extract post selftext (text posts only — link posts won't have this)
-    const selftext = await page.$eval(
-      ".expando .usertext-body .md, .expando .md",
-      (el: Element) => el.textContent?.trim() || ""
-    ).catch(() => "");
-
-    // Extract comments from the page — evaluates in browser context to avoid selector leakage
-    const comments = await page.evaluate(() => {
-      const out: Array<{ author: string; body: string; score: number }> = [];
-      const commentEls = document.querySelectorAll(".thing.comment");
-      for (const el of Array.from(commentEls)) {
-        if (out.length >= 10) break;
-        const author = el.querySelector("a.author")?.textContent?.trim() || "unknown";
-        const bodyEl = el.querySelector(".usertext-body .md");
-        const body = bodyEl?.textContent?.trim() || "";
-        if (!body || body === "[deleted]" || body === "[removed]") continue;
-        // score is stored in title attribute of the .score span
-        const scoreEl = el.querySelector(".score.unvoted, .score.dislikes, .score.likes");
-        const score = parseInt(scoreEl?.getAttribute("title") || "0", 10) || 0;
-        out.push({ author, body: body.slice(0, 600), score });
-      }
-      return out;
-    }) as Array<{ author: string; body: string; score: number }>;
-
-    console.log(`[reddit-thread] selftext=${selftext.length}chars comments=${comments.length}`);
-    res.json({ selftext: selftext || null, comments, score: null, num_comments: null });
+    console.log(`[reddit-thread] selftext=${selftext?.length ?? 0}chars comments=${comments.length}`);
+    res.json({ selftext, comments, score: (post?.score as number) ?? null, num_comments: (post?.num_comments as number) ?? null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[reddit-thread] error:`, msg);
     res.status(500).json({ error: msg });
-  } finally {
-    if (browser) await browser.close();
   }
 });
 
