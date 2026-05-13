@@ -29,51 +29,59 @@ export async function POST(request: NextRequest) {
     const toneGuide = tone ?? "Helpful";
     const isRefine = !!existingDraft;
 
-    const businessContext = clientName
-      ? `You are posting as someone who works at ${clientName}, a business that specialises in: ${keyword ?? "this area"}.`
-      : `You are posting as someone knowledgeable about: ${keyword ?? "this topic"}.`;
+    const toneInstructions: Record<string, string> = {
+      Helpful:      "Direct and practical. Answer the question clearly, give a specific tip or recommendation, no fluff.",
+      Professional: "Measured and considered. Sound like someone with real industry experience — precise language, acknowledges nuance, not a cheerleader.",
+      Casual:       "Conversational and relaxed. Short sentences, contractions, 'tbh' or 'honestly' are fine. Sounds like a text message, not an email.",
+      Friendly:     "Warm and encouraging. Empathetic to what they're dealing with. Still useful, but the tone is supportive rather than clinical.",
+      Expert:       "Goes one level deeper than most comments. Specific detail, technical accuracy, references the kind of thing only someone with real experience would know.",
+    };
 
-    const disclosureNote = clientName
-      ? `If you mention ${clientName}, disclose it in the first sentence with something like "I'm at ${clientName}, so take this with a grain of salt, but..." or "Heads up, I'm with ${clientName} — that said..." Never bury the disclosure at the end. Never say "I work with". Say "I'm at" or "I'm with".`
+    const toneInstruction = toneInstructions[toneGuide] ?? toneInstructions.Helpful;
+
+    const brandNote = clientName
+      ? `You work at ${clientName}. Mention this once, briefly, in passing — like "I'm at ${clientName} so I'm biased, but..." or just "I'm with ${clientName}" with no further emphasis. After that one mention, drop it completely and just be helpful. The comment should read like 95% genuine advice and 5% incidental affiliation. Never say "I work with". Never pitch. Never bring the name up again after the disclosure.`
       : `Do not mention any company or product.`;
 
     const prompt = isRefine
-      ? `Revise this Reddit comment. Keep the core point but improve it.
+      ? `Revise this comment. Keep the core point, improve the writing.
 
-Rules:
-- No em dashes. Use commas or parentheses instead.
-- No corporate words: no "seamless", "innovative", "game-changing", "cutting-edge", "transformative"
-- No openers like "Great question", "Absolutely", "Certainly", "I'd be happy to"
-- No closing summary
-- Take a clear position — don't hedge everything
-- Tone: ${toneGuide.toLowerCase()}
-- Length: ${lengthGuide}
+Tone to hit: ${toneInstruction}
+Length: ${lengthGuide}
+
+Hard rules:
+- No em dashes. Commas or parentheses only.
+- No corporate words: "seamless", "innovative", "game-changing", "cutting-edge", "transformative"
+- No AI tells: "Great question", "Absolutely", "Certainly", "I'd be happy to", "I hope this helps", "Additionally", "Furthermore"
+- No closing summary. Stop when done.
+- Take a position. Don't hedge everything.
 
 Original:
 ${existingDraft}
 
-Thread: r/${subreddit ?? "unknown"} — "${title}"
+Thread context: r/${subreddit ?? "unknown"} — "${title}"
 
-Reply with ONLY the revised comment. No preamble, no quotes.`
-      : `Write a Reddit comment for this thread. ${businessContext}
+Reply with ONLY the revised comment text.`
+      : `Write a single Reddit comment responding to this thread.
 
 Thread: r/${subreddit ?? "unknown"}
-Title: ${title}${selftext ? `\nPost body: ${selftext.slice(0, 800)}` : ""}${topComments ? `\nTop comments:\n${topComments}` : ""}
+Title: ${title}${selftext ? `\nPost: ${selftext.slice(0, 800)}` : ""}${topComments ? `\nTop comments:\n${topComments}` : ""}
 
-Tone: ${toneGuide}
+Tone: ${toneInstruction}
 Length: ${lengthGuide}
 
-Hard rules — break any of these and it will fail:
-1. No em dashes. Use commas or parentheses instead.
-2. No corporate adjectives: "seamless", "innovative", "game-changing", "cutting-edge", "revolutionary", "transformative", "best-in-class"
+${brandNote}
+
+Hard rules — every single one applies:
+1. No em dashes. Commas or parentheses only.
+2. No corporate adjectives: "seamless", "innovative", "game-changing", "cutting-edge", "revolutionary", "best-in-class"
 3. No AI tells: "Great question", "Absolutely", "Certainly", "I'd be happy to", "I hope this helps", "It's worth noting", "Additionally", "Furthermore"
-4. No closing summary. Stop when you've made your point.
-5. ${disclosureNote}
-6. If mentioning ${clientName ?? "the business"}, acknowledge one real limitation or name a competitor that's also worth considering — this is what makes it credible
-7. The comment must contain genuinely useful advice that would stand on its own even without any brand mention
-8. No call to action. No "check us out", "try it free", "visit our site"
-9. Reference something specific from this thread — do not write a generic answer that could fit any post
-10. Write like a person talking to another person, not a brand talking to a customer. Use contractions. Take a side.
+4. No closing summary or sign-off. Just stop when the point is made.
+5. The comment must be genuinely useful on its own. If you removed the brand mention entirely, the comment should still be worth reading.
+6. If the brand comes up, also acknowledge something it doesn't do well, or mention a competitor that handles a specific thing better. That honesty is what makes people trust it.
+7. No call to action whatsoever. No "check us out", "feel free to DM", "visit our site", "happy to help further".
+8. Reference something specific from this thread. A generic answer that could fit any post is a failure.
+9. Write like a person, not a brand. Contractions. Opinions. Take a side.
 
 Reply with ONLY the comment text. No preamble, no quotes, no explanation.`;
 
