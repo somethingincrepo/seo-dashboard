@@ -131,7 +131,7 @@ function CommentComposer({
   const busy = generating || refining;
 
   return (
-    <div className="border-t-2 border-slate-200 bg-white shrink-0 flex flex-col">
+    <div className="border-t-2 border-slate-200 bg-white shrink-0 flex flex-col h-[262px]">
       {/* Header bar */}
       <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 shrink-0">
         <svg className="w-3.5 h-3.5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -155,8 +155,8 @@ function CommentComposer({
         </svg>
       </div>
 
-      {/* Editor */}
-      <div className="border border-slate-200 mx-4 mt-3 rounded-lg overflow-hidden">
+      {/* Editor — flex-col so textarea fills space and bottom bar stays pinned */}
+      <div className="border border-slate-200 mx-4 mt-2 mb-1 rounded-lg overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Toolbar */}
         <div className="flex items-center gap-0.5 px-2 py-1.5 bg-slate-50 border-b border-slate-200 flex-wrap">
           <ToolbarBtn title="Bold" onClick={() => wrapSelection("**")}><span className="font-black">B</span></ToolbarBtn>
@@ -183,8 +183,7 @@ function CommentComposer({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Reply..."
-          rows={5}
-          className="w-full text-[13px] text-slate-800 bg-white px-3 py-2.5 resize-none overflow-y-auto focus:outline-none leading-relaxed placeholder:text-slate-400"
+          className="flex-1 min-h-0 w-full text-[13px] text-slate-800 bg-white px-3 py-2.5 resize-none overflow-y-auto focus:outline-none leading-relaxed placeholder:text-slate-400"
         />
 
         {/* Bottom toolbar */}
@@ -257,24 +256,19 @@ function CommentComposer({
               )}
               {refining ? "Refining…" : "Refine with AI"}
             </button>
+
+            {draft && (
+              <a href={o.permalink} target="_blank" rel="noreferrer"
+                className="text-[11px] text-slate-400 hover:text-orange-500 transition-colors ml-1">
+                Open thread →
+              </a>
+            )}
           </div>
         </div>
       </div>
 
       {genError && (
-        <p className="text-[11px] text-red-500 bg-red-50 mx-4 mt-2 rounded-lg px-3 py-2">{genError}</p>
-      )}
-
-      {/* Compact how-to strip */}
-      {draft && (
-        <div className="mx-4 mb-3 flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap">
-          <span className="font-semibold text-slate-500">To post:</span>
-          <span>Copy above</span><span className="text-slate-300">→</span>
-          <a href={o.permalink} target="_blank" rel="noreferrer" className="text-orange-500 hover:text-orange-700 font-medium">Open thread</a>
-          <span className="text-slate-300">→</span>
-          <span>Paste in comment box</span><span className="text-slate-300">→</span>
-          <span>Reply</span>
-        </div>
+        <p className="text-[11px] text-red-500 bg-red-50 mx-4 mt-1 rounded-lg px-3 py-1.5">{genError}</p>
       )}
     </div>
   );
