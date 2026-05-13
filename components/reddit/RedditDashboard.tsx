@@ -56,81 +56,33 @@ function ThreadDetailPanel({
   const [liveComments, setLiveComments] = useState<StoredComment[] | null>(null);
   const [liveSelftext, setLiveSelftext] = useState<string | null>(null);
 
-  // Reset live data when a different thread is selected
+  const loadThread = useCallback(async (permalink: string) => {
+    setFetching(true);
+    setFetchError(null);
+    try {
+      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(permalink)}`);
+      const data = await res.json() as { selftext?: string | null; comments?: StoredComment[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setLiveSelftext(data.selftext ?? null);
+      setLiveComments(data.comments ?? []);
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : "Fetch failed");
+      setLiveComments([]);
+    } finally {
+      setFetching(false);
+    }
+  }, []);
+
+  // Auto-load content whenever a new thread is selected
   useEffect(() => {
     setLiveComments(null);
     setLiveSelftext(null);
     setFetchError(null);
-  }, [o.id]);
+    void loadThread(o.permalink);
+  }, [o.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function fetchThread() {
-    if (fetching) return;
-    setFetching(true);
-    setFetchError(null);
-
-    // Helper: flatten Reddit's nested comment tree
-    function flattenComments(
-      children: Array<{ kind: string; data: Record<string, unknown> }>,
-      limit = 20
-    ): StoredComment[] {
-      const out: StoredComment[] = [];
-      for (const child of children) {
-        if (out.length >= limit) break;
-        if (child.kind !== "t1") continue;
-        const { author, body, score, replies } = child.data as {
-          author?: string; body?: string; score?: number;
-          replies?: { data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> } } | string;
-        };
-        if (!body || body === "[deleted]" || body === "[removed]") continue;
-        out.push({ author: author ?? "unknown", body, score: score ?? 0 });
-        if (replies && typeof replies === "object" && replies.data?.children) {
-          out.push(...flattenComments(replies.data.children, limit - out.length));
-        }
-      }
-      return out;
-    }
-
-    // Step 1: fetch directly from the browser — uses the user's residential IP,
-    // which Reddit doesn't block. Reddit serves Access-Control-Allow-Origin: * on .json.
-    try {
-      const path = o.permalink.startsWith("http")
-        ? new URL(o.permalink).pathname
-        : o.permalink;
-      const jsonUrl = `https://www.reddit.com${path.replace(/\/$/, "")}.json?limit=50&depth=3&raw_json=1`;
-
-      const res = await fetch(jsonUrl, { headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error(`Reddit returned ${res.status}`);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const json = await res.json() as any[];
-      if (!Array.isArray(json) || json.length < 2) throw new Error("Unexpected response");
-
-      const postData = json[0]?.data?.children?.[0]?.data ?? {};
-      const selftext = (postData.selftext ?? "").trim() || null;
-      const rawComments = json[1]?.data?.children ?? [];
-      const comments = flattenComments(rawComments);
-      comments.sort((a, b) => b.score - a.score);
-
-      if (selftext) setLiveSelftext(selftext);
-      setLiveComments(comments.slice(0, 20));
-      setFetching(false);
-      return;
-    } catch {
-      // Client-side blocked (CORS or network) — fall through to server route
-    }
-
-    // Step 2: fall back to server route (Fly.io Playwright crawler)
-    try {
-      const res = await fetch(`/api/reddit/thread?permalink=${encodeURIComponent(o.permalink)}`);
-      const data = await res.json() as { selftext?: string; comments?: StoredComment[]; error?: string };
-      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-      if (data.selftext) setLiveSelftext(data.selftext);
-      setLiveComments(data.comments ?? []);
-    } catch (e) {
-      setFetchError(e instanceof Error ? e.message : "Fetch failed");
-    } finally {
-      setFetching(false);
-    }
+  function fetchThread() {
+    void loadThread(o.permalink);
   }
 
   async function setOpStatus(next: "viewed" | "replied" | "dismissed") {
@@ -215,13 +167,18 @@ function ThreadDetailPanel({
           </div>
         )}
 
-        {/* Thread content — live selftext if fetched, else stored snippet */}
+        {/* Thread content */}
         <div>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
             {liveSelftext ? "Thread Content" : "Thread Preview"}
+            {fetching && <span className="text-[9px] font-normal normal-case text-slate-400 animate-pulse">Loading…</span>}
           </div>
           <p className="text-sm text-slate-700 leading-relaxed">
-            {liveSelftext ?? snippet ?? "Open the thread on Reddit to read the full post."}
+            {liveSelftext
+              ? liveSelftext
+              : liveComments !== null && !liveSelftext
+              ? (snippet || "This is a link post — no text body. See comments below.")
+              : (snippet || "Loading…")}
           </p>
         </div>
 
@@ -297,7 +254,7 @@ function ThreadDetailPanel({
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
-                {liveComments ? "Refresh Comments" : "Fetch Comments"}
+                {liveComments !== null ? "Refresh" : "Fetch Comments"}
               </>
             )}
           </button>
