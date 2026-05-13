@@ -478,41 +478,79 @@ export default async function PortalDashboard({
         </div>
 
         {/* Audit */}
-        <div className={cn(
-          "relative rounded-2xl border shadow-sm p-6 overflow-hidden",
-          !auditRun?.status        ? "bg-white border-slate-200" :
-          auditIssueCount === 0    ? "bg-emerald-50 border-emerald-200" :
-          auditIssueCount <= 5     ? "bg-amber-50 border-amber-200" :
-                                     "bg-rose-50 border-rose-200"
-        )}>
-          <div className="absolute right-4 top-4 opacity-[0.08]">
-            <IconSparkle className="w-16 h-16 text-slate-900" />
-          </div>
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Site Health</p>
-          <p className={cn(
-            "text-5xl font-bold tabular-nums mt-3 leading-none",
-            !auditRun?.status     ? "text-slate-900" :
-            auditIssueCount === 0 ? "text-emerald-700" :
-            auditIssueCount <= 5  ? "text-amber-700" :
-                                    "text-rose-700"
-          )}>
-            {auditRun?.status ? auditIssueCount : "—"}
-          </p>
-          <p className={cn("text-xs mt-4",
-            !auditRun?.status     ? "text-slate-400" :
-            auditIssueCount === 0 ? "text-emerald-700" :
-                                    "text-slate-600"
-          )}>
-            {!auditRun?.status ? "No audit run yet" :
-             auditIssueCount === 0 ? "No issues detected" :
-             `issue${auditIssueCount !== 1 ? "s" : ""} identified — we're working on them`}
-          </p>
-          {auditRun?.status === "complete" && auditIssueCount > 0 && (
-            <Link href={`/portal/${token}/audit`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900">
-              View details <IconChevron className="w-3 h-3" />
-            </Link>
-          )}
-        </div>
+        {(() => {
+          const isComplete = auditRun?.status === "complete";
+          const isRunning = auditRun && !isComplete && auditRun.status !== "failed";
+          const isFailed = auditRun?.status === "failed";
+          const neverRun = !auditRun;
+          const cardCls = cn(
+            "relative rounded-2xl border shadow-sm p-6 overflow-hidden",
+            isComplete && auditIssueCount === 0 ? "bg-emerald-50 border-emerald-200" :
+            isComplete && auditIssueCount <= 5  ? "bg-amber-50 border-amber-200" :
+            isComplete                           ? "bg-rose-50 border-rose-200" :
+                                                   "bg-white border-slate-200"
+          );
+          return (
+            <div className={cardCls}>
+              <div className="absolute right-4 top-4 opacity-[0.08]">
+                <IconSparkle className="w-16 h-16 text-slate-900" />
+              </div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Site Health</p>
+              {isComplete ? (
+                <>
+                  <p className={cn(
+                    "text-5xl font-bold tabular-nums mt-3 leading-none",
+                    auditIssueCount === 0 ? "text-emerald-700" :
+                    auditIssueCount <= 5  ? "text-amber-700" : "text-rose-700"
+                  )}>
+                    {auditIssueCount}
+                  </p>
+                  <p className={cn("text-xs mt-4",
+                    auditIssueCount === 0 ? "text-emerald-700" : "text-slate-600"
+                  )}>
+                    {auditIssueCount === 0 ? "No issues detected" :
+                     `issue${auditIssueCount !== 1 ? "s" : ""} identified — we're working on them`}
+                  </p>
+                  {auditIssueCount > 0 && (
+                    <Link href={`/portal/${token}/audit`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900">
+                      View details <IconChevron className="w-3 h-3" />
+                    </Link>
+                  )}
+                </>
+              ) : isRunning ? (
+                <>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="inline-flex w-5 h-5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin shrink-0" />
+                    <span className="text-lg font-semibold text-slate-500">In progress</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-4">
+                    {auditRun?.pages_crawled
+                      ? `Crawling your site — ${auditRun.pages_crawled.toLocaleString()} pages scanned so far.`
+                      : "Crawling your site now. Results will appear here when complete."}
+                  </p>
+                  <Link href={`/portal/${token}/audit`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900">
+                    View progress <IconChevron className="w-3 h-3" />
+                  </Link>
+                </>
+              ) : isFailed ? (
+                <>
+                  <p className="text-lg font-semibold text-rose-600 mt-3">Audit error</p>
+                  <p className="text-xs text-slate-500 mt-4">Something went wrong during the last audit. Your account manager has been notified.</p>
+                </>
+              ) : (
+                <>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="inline-flex w-5 h-5 rounded-full border-2 border-slate-200 border-t-slate-400 animate-spin shrink-0" />
+                    <span className="text-lg font-semibold text-slate-400">Setting up</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-4">
+                    Your site audit is being configured. It will run automatically and results will appear here within a few minutes.
+                  </p>
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ══ Organic Traffic ══════════════════════════════════════════════ */}

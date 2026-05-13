@@ -1235,7 +1235,7 @@ function IssueDetail({
  <div className="rounded-lg border border-slate-200/80 bg-slate-50/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
  {decision === null && (
  <>
- <span className="text-[12px] text-slate-500">Approve to send this to the fix queue.</span>
+ <span className="text-[12px] text-slate-500">{issue.fix_status === "generated" ? "Review the fix above, then approve when ready to implement." : "Approve to queue this fix for implementation."}</span>
  <div className="flex items-center gap-2">
  <button
  onClick={() => decide([issue.id], "approved")}
@@ -1301,8 +1301,8 @@ function IssueDetail({
  )}
  </div>
 
- {/* 5. Implementation guide — shown when approved and client is manual-mode */}
- {decision === "approved" && (() => {
+ {/* 5. Implementation guide — shown when fix is generated (before or after approval) */}
+ {(decision === "approved" || issue.fix_status === "generated") && (() => {
  const deliverable = deliverableFromChangeType(issue.rule_name);
  if (!deliverable) return null;
  const resolved = resolveGuide(deliverable, client);
@@ -1448,10 +1448,14 @@ function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string 
  // Render the right-hand "Proposed" cell based on status
  const renderProposed = () => {
  if (status === null) {
+ const guidance = getFixGuidance(issue.rule_id);
  return (
- <p className="text-[13px] text-slate-500 italic leading-relaxed">
- No auto-fix for this rule — needs editorial judgment.
- </p>
+ <div className="space-y-2">
+ <p className="text-[12px] text-slate-500 italic leading-relaxed">This issue requires a manual fix — no auto-fix is available for this rule.</p>
+ <div className="pl-3 border-l-2 border-indigo-200">
+ <p className="text-[12px] text-slate-700 leading-relaxed">{guidance}</p>
+ </div>
+ </div>
  );
  }
  if (status === "queued" || status === "generating") {
@@ -1555,7 +1559,7 @@ function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string 
  {/* Proposed */}
  <div className="bg-indigo-50/30 px-4 py-3">
  <div className="flex items-center justify-between gap-2 mb-2">
- <div className="text-[10px] font-semibold tracking-widest text-indigo-700">Proposed</div>
+ <div className="text-[10px] font-semibold tracking-widest text-indigo-700">{status === null ? "How to fix" : "Proposed"}</div>
  {showRightActions && (
  <div className="flex items-center gap-2 text-[10px] text-slate-500">
  {savedAt && <span className="text-emerald-600">Saved</span>}
