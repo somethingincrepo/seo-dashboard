@@ -370,6 +370,7 @@ export async function POST(request: NextRequest) {
     const firstBatchSops: Array<{ sop_name: string; payload: Record<string, unknown> }> = [
       { sop_name: "keyword_research", payload: { client_id: run.client_id } },
       { sop_name: "refresh_scheduler", payload: { client_id: run.client_id, weekly_run: true, force: true } },
+      { sop_name: "page_creation_scheduler", payload: { client_id: run.client_id, force: true } },
       { sop_name: "generate_faq_sections", payload: { client_id: run.client_id, audit_run_id: auditRunId } },
     ];
     if (internalLinksSummary.status === "no_demand" && pages.length >= 5) {

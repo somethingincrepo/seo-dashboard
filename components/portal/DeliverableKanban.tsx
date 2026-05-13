@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { ContentJob, ContentResult } from "@/lib/content";
 import type { ContentRefresh, PageCreationSuggestion, FaqSection } from "@/lib/supabase";
@@ -281,6 +282,8 @@ export function DeliverableKanban({
   faqSections: FaqSection[];
   token: string;
 }) {
+  const [activeFilter, setActiveFilter] = useState<DeliverableType | null>(null);
+
   const columns = buildColumns(
     contentJobs,
     contentResults,
@@ -291,7 +294,27 @@ export function DeliverableKanban({
     token
   );
 
+  // Collect which types actually have cards so we only show relevant filter pills
+  const typesWithCards = new Set<DeliverableType>();
+  for (const col of columns) {
+    for (const card of col.cards) typesWithCards.add(card.type);
+  }
+
+  const filteredColumns = columns.map((col) => ({
+    ...col,
+    cards: activeFilter ? col.cards.filter((c) => c.type === activeFilter) : col.cards,
+  }));
+
   const totalActive = columns.slice(0, 3).reduce((n, c) => n + c.cards.length, 0);
+
+  const ALL_PILLS: Array<{ type: DeliverableType; label: string; active: string; inactive: string }> = [
+    { type: "content" as const,       label: "Content",        active: "bg-blue-600 text-white",    inactive: "bg-blue-50 text-blue-700 hover:bg-blue-100" },
+    { type: "refresh" as const,       label: "Refreshes",      active: "bg-violet-600 text-white",  inactive: "bg-violet-50 text-violet-700 hover:bg-violet-100" },
+    { type: "page-creation" as const, label: "Page Creation",  active: "bg-emerald-600 text-white", inactive: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
+    { type: "internal-link" as const, label: "Internal Links", active: "bg-amber-500 text-white",   inactive: "bg-amber-50 text-amber-700 hover:bg-amber-100" },
+    { type: "faq-section" as const,   label: "FAQ Sections",   active: "bg-teal-600 text-white",    inactive: "bg-teal-50 text-teal-700 hover:bg-teal-100" },
+  ];
+  const FILTER_PILLS = ALL_PILLS.filter((p) => typesWithCards.has(p.type));
 
   return (
     <div>
@@ -301,9 +324,38 @@ export function DeliverableKanban({
           <p className="text-[13px] text-slate-400">Nothing needs your attention right now.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-5">
-          {columns.map((col) => <KanbanColumn key={col.key} col={col} />)}
-        </div>
+        <>
+          {/* Filter pills — only render when there's more than one type */}
+          {FILTER_PILLS.length > 1 && (
+            <div className="flex items-center gap-2 mb-5 flex-wrap">
+              <button
+                onClick={() => setActiveFilter(null)}
+                className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+                  activeFilter === null
+                    ? "bg-slate-800 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                All
+              </button>
+              {FILTER_PILLS.map((p) => (
+                <button
+                  key={p.type}
+                  onClick={() => setActiveFilter(activeFilter === p.type ? null : p.type)}
+                  className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+                    activeFilter === p.type ? p.active : p.inactive
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-4 gap-5">
+            {filteredColumns.map((col) => <KanbanColumn key={col.key} col={col} />)}
+          </div>
+        </>
       )}
     </div>
   );
