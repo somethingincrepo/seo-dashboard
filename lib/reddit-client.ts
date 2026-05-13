@@ -1,6 +1,7 @@
 // Reddit data client.
-// Primary: PullPush.io (public Pushshift archive — no auth, no IP blocking, works from any server).
-// Fallback: old.reddit.com .json with browser-like headers (best-effort).
+// 1. PullPush.io — Pushshift archive, data through ~May 2025.
+// 2. Arctic Shift — fuller archive, data through ~Feb 2026 (more recent than PullPush).
+// 3. old.reddit.com .json — last resort, often blocked from datacenter IPs.
 
 type RedditComment = { author: string; body: string; score: number };
 type ThreadResult = {
@@ -132,11 +133,59 @@ async function fetchViaJson(permalink: string): Promise<ThreadResult> {
   throw new Error("Max retries on old.reddit.com");
 }
 
+// ─── Arctic Shift (secondary) ─────────────────────────────────────────────────
+// More recent than PullPush — covers up to ~Feb 2026. No auth, no IP blocking.
+
+async function fetchViaArcticShift(postId: string, permalink: string): Promise<ThreadResult> {
+  const [postRes, commentsRes] = await Promise.all([
+    fetch(
+      `https://arctic-shift.photon-reddit.com/api/posts/search?url=${encodeURIComponent(permalink)}&limit=1`,
+      { signal: AbortSignal.timeout(12_000), cache: "no-store" }
+    ),
+    fetch(
+      `https://arctic-shift.photon-reddit.com/api/comments/search?link_id=${postId}&limit=25`,
+      { signal: AbortSignal.timeout(12_000), cache: "no-store" }
+    ),
+  ]);
+
+  if (!postRes.ok) throw new Error(`Arctic Shift posts returned ${postRes.status}`);
+  if (!commentsRes.ok) throw new Error(`Arctic Shift comments returned ${commentsRes.status}`);
+
+  const postJson = await postRes.json() as { data?: Array<Record<string, unknown>> };
+  const commentsJson = await commentsRes.json() as { data?: Array<Record<string, unknown>> };
+
+  const post = postJson.data?.[0];
+  const selftext = ((post?.selftext as string) ?? "").trim() || null;
+
+  const comments: RedditComment[] = (commentsJson.data ?? [])
+    .filter((c) => {
+      const body = c.body as string | undefined;
+      return body && body !== "[deleted]" && body !== "[removed]" && body.length > 0;
+    })
+    .slice(0, 20)
+    .map((c) => ({
+      author: (c.author as string) ?? "unknown",
+      body: ((c.body as string) ?? "").slice(0, 500),
+      score: (c.score as number) ?? 0,
+    }));
+
+  if (!post && comments.length === 0) {
+    throw new Error("Arctic Shift returned no data for this post");
+  }
+
+  return {
+    selftext,
+    comments,
+    score: (post?.score as number) ?? null,
+    num_comments: (post?.num_comments as number) ?? null,
+  };
+}
+
 // ─── Public entry point ───────────────────────────────────────────────────────
 
 /**
  * Fetches thread content + top comments for a Reddit permalink.
- * Uses PullPush.io (archive, no IP blocking) first, falls back to old.reddit.com .json.
+ * Chain: PullPush (older posts) → Arctic Shift (up to Feb 2026) → old.reddit.com .json.
  */
 export async function fetchRedditThread(permalink: string): Promise<ThreadResult> {
   const postId = extractPostId(permalink);
@@ -146,6 +195,12 @@ export async function fetchRedditThread(permalink: string): Promise<ThreadResult
       return await fetchViaPullPush(postId);
     } catch (err) {
       console.warn("[reddit-client] PullPush failed:", err instanceof Error ? err.message : err);
+    }
+
+    try {
+      return await fetchViaArcticShift(postId, permalink);
+    } catch (err) {
+      console.warn("[reddit-client] Arctic Shift failed:", err instanceof Error ? err.message : err);
     }
   }
 

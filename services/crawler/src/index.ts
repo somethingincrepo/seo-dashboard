@@ -187,24 +187,46 @@ app.get("/reddit-thread", async (req, res) => {
 
   console.log(`[reddit-thread] PullPush fetch for post ${postId}`);
 
+  type Comment = { author: string; body: string; score: number };
+  function parseComments(data: Array<Record<string, unknown>>): Comment[] {
+    return data
+      .filter((c) => { const b = c.body as string; return b && b !== "[deleted]" && b !== "[removed]"; })
+      .slice(0, 20)
+      .map((c) => ({ author: (c.author as string) ?? "unknown", body: ((c.body as string) ?? "").slice(0, 500), score: (c.score as number) ?? 0 }));
+  }
+
   try {
+    // Try PullPush first
     const [postRes, commentsRes] = await Promise.all([
       fetch(`https://api.pullpush.io/reddit/search/submission/?ids=${postId}&limit=1`),
       fetch(`https://api.pullpush.io/reddit/search/comment/?link_id=${postId}&limit=25&sort=score`),
     ]);
-
     const postJson = await postRes.json() as { data?: Array<Record<string, unknown>> };
     const commentsJson = await commentsRes.json() as { data?: Array<Record<string, unknown>> };
-
     const post = postJson.data?.[0];
-    const selftext = ((post?.selftext as string) ?? "").trim() || null;
-    const comments = (commentsJson.data ?? [])
-      .filter((c) => { const b = c.body as string; return b && b !== "[deleted]" && b !== "[removed]"; })
-      .slice(0, 20)
-      .map((c) => ({ author: (c.author as string) ?? "unknown", body: ((c.body as string) ?? "").slice(0, 500), score: (c.score as number) ?? 0 }));
+    const comments = parseComments(commentsJson.data ?? []);
 
-    console.log(`[reddit-thread] selftext=${selftext?.length ?? 0}chars comments=${comments.length}`);
-    res.json({ selftext, comments, score: (post?.score as number) ?? null, num_comments: (post?.num_comments as number) ?? null });
+    if (post || comments.length > 0) {
+      const selftext = ((post?.selftext as string) ?? "").trim() || null;
+      console.log(`[reddit-thread] PullPush: selftext=${selftext?.length ?? 0}chars comments=${comments.length}`);
+      res.json({ selftext, comments, score: (post?.score as number) ?? null, num_comments: (post?.num_comments as number) ?? null });
+      return;
+    }
+
+    // PullPush has no data — try Arctic Shift (covers up to ~Feb 2026)
+    console.log(`[reddit-thread] PullPush empty, trying Arctic Shift`);
+    const [asPostRes, asCommentsRes] = await Promise.all([
+      fetch(`https://arctic-shift.photon-reddit.com/api/posts/search?url=${encodeURIComponent(url as string)}&limit=1`),
+      fetch(`https://arctic-shift.photon-reddit.com/api/comments/search?link_id=${postId}&limit=25`),
+    ]);
+    const asPostJson = await asPostRes.json() as { data?: Array<Record<string, unknown>> };
+    const asCommentsJson = await asCommentsRes.json() as { data?: Array<Record<string, unknown>> };
+    const asPost = asPostJson.data?.[0];
+    const asComments = parseComments(asCommentsJson.data ?? []);
+    const asSelftext = ((asPost?.selftext as string) ?? "").trim() || null;
+
+    console.log(`[reddit-thread] ArcticShift: selftext=${asSelftext?.length ?? 0}chars comments=${asComments.length}`);
+    res.json({ selftext: asSelftext, comments: asComments, score: (asPost?.score as number) ?? null, num_comments: (asPost?.num_comments as number) ?? null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[reddit-thread] error:`, msg);
