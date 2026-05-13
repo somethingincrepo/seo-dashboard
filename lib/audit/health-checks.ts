@@ -1,4 +1,5 @@
 import type { AuditRunSummary, AuditIssue } from "./queries";
+import { getFixGuidance } from "./rules/fix-guidance";
 
 export type HealthStatus = "ok" | "fail" | "warn" | "unknown";
 
@@ -17,6 +18,8 @@ export interface HealthCheck {
   detail?: string;
   /** Optional related rule_id (used to deep-link into the issues page filtered to that rule) */
   rule_id?: string;
+  /** Actionable fix instruction — populated when status is fail or warn */
+  fix_guidance?: string;
 }
 
 /**
@@ -180,6 +183,13 @@ export function buildHealthChecks(run: AuditRunSummary, issues: AuditIssue[]): H
     detail: mixedContentCount > 0 ? `${mixedContentCount} page${mixedContentCount === 1 ? "" : "s"} load HTTP resources over HTTPS.` : undefined,
     rule_id: "R003",
   });
+
+  // Attach fix guidance to every failing/warning check that has a rule_id
+  for (const check of checks) {
+    if ((check.status === "fail" || check.status === "warn") && check.rule_id) {
+      check.fix_guidance = getFixGuidance(check.rule_id);
+    }
+  }
 
   return checks;
 }

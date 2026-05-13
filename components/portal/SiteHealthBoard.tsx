@@ -141,9 +141,14 @@ function ChecksSection({ group, rows, token }: { group: HealthCheck["group"]; ro
  );
 }
 
+// Rules that produce site-scope issues only — linking to Issues tab would show nothing
+const SITE_SCOPE_RULES = new Set(["R009", "R010", "R013", "R014", "R063", "R064", "R040"]);
+
 function CheckRow({ token, row }: { token: string; row: HealthCheck }) {
  const ui = STATUS_UI[row.status];
- const isClickable = !!(row.rule_id && (row.status === "fail" || row.status === "warn"));
+ const isFailing = row.status === "fail" || row.status === "warn";
+ const isPageScopeRule = !!(row.rule_id && !SITE_SCOPE_RULES.has(row.rule_id));
+ const isClickable = isFailing && isPageScopeRule;
  const inner = (
  <div className={`flex items-start gap-4 px-5 py-3.5 transition-colors ${isClickable ? "hover:bg-indigo-50/40 cursor-pointer" : ""}`}>
  <div className="mt-0.5 shrink-0">{ui.icon}</div>
@@ -157,6 +162,12 @@ function CheckRow({ token, row }: { token: string; row: HealthCheck }) {
  <p className={`text-[12px] mt-1.5 ${row.status === "fail" ? "text-rose-600" : row.status === "warn" ? "text-amber-700" : "text-slate-500"}`}>
  {row.detail}
  </p>
+ )}
+ {isFailing && row.fix_guidance && (
+ <div className="mt-2.5 pl-3 border-l-2 border-indigo-200">
+ <span className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">How to fix</span>
+ <p className="text-[12px] text-slate-600 mt-0.5 leading-relaxed">{row.fix_guidance}</p>
+ </div>
  )}
  </div>
  {isClickable && (
@@ -280,6 +291,228 @@ function SchemaSection({ schemaCoverage }: { schemaCoverage: SchemaCoverage[] })
  );
 }
 
+const SCHEMA_SNIPPETS: Record<string, { guidance: string; snippet: string }> = {
+ Organization: {
+ guidance: "Add this JSON-LD block to your homepage <head>. Fill in your real name, URL, logo path, and social profile links.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Your Company Name",
+  "url": "https://yoursite.com",
+  "logo": "https://yoursite.com/logo.png",
+  "sameAs": [
+    "https://linkedin.com/company/your-company",
+    "https://twitter.com/yourhandle"
+  ]
+}
+</script>`,
+ },
+ WebSite: {
+ guidance: "Add this block to your homepage <head> to power sitelinks search and help AI assistants understand your site structure.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Your Site Name",
+  "url": "https://yoursite.com",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://yoursite.com/search?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>`,
+ },
+ Article: {
+ guidance: "Add this block to the <head> of each article or long-form content page. Required for Top Stories and AI citation eligibility.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Your Article Headline",
+  "image": "https://yoursite.com/article-image.jpg",
+  "datePublished": "2024-01-01T08:00:00+00:00",
+  "dateModified": "2024-01-15T08:00:00+00:00",
+  "author": {
+    "@type": "Person",
+    "name": "Author Name",
+    "url": "https://yoursite.com/author/name"
+  }
+}
+</script>`,
+ },
+ BlogPosting: {
+ guidance: "Same as Article but typed as BlogPosting — use this on blog posts. Add it to each post's <head>.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Your Blog Post Title",
+  "image": "https://yoursite.com/post-image.jpg",
+  "datePublished": "2024-01-01T08:00:00+00:00",
+  "dateModified": "2024-01-15T08:00:00+00:00",
+  "author": {
+    "@type": "Person",
+    "name": "Author Name",
+    "url": "https://yoursite.com/author/name"
+  }
+}
+</script>`,
+ },
+ FAQPage: {
+ guidance: "Wrap Q&A content on any page with this schema. Each question/answer pair becomes a separate mainEntity entry.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is your first question?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Your answer here."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is your second question?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Your answer here."
+      }
+    }
+  ]
+}
+</script>`,
+ },
+ HowTo: {
+ guidance: "Add to any page with numbered steps. Each step maps to one HowToStep entry.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "How to Do Something",
+  "step": [
+    {
+      "@type": "HowToStep",
+      "name": "Step 1 name",
+      "text": "Description of step 1."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Step 2 name",
+      "text": "Description of step 2."
+    }
+  ]
+}
+</script>`,
+ },
+ Product: {
+ guidance: "Add to every product page. Required for price/availability rich results and AI shopping comparisons.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "Product Name",
+  "image": "https://yoursite.com/product.jpg",
+  "description": "Short product description.",
+  "offers": {
+    "@type": "Offer",
+    "price": "29.99",
+    "priceCurrency": "USD",
+    "availability": "https://schema.org/InStock",
+    "url": "https://yoursite.com/product"
+  }
+}
+</script>`,
+ },
+ LocalBusiness: {
+ guidance: "Add to your homepage or contact page. Unlocks map pack eligibility and AI geographic queries.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "name": "Your Business Name",
+  "url": "https://yoursite.com",
+  "telephone": "+1-555-000-0000",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "123 Main St",
+    "addressLocality": "City",
+    "addressRegion": "ST",
+    "postalCode": "12345",
+    "addressCountry": "US"
+  },
+  "openingHours": "Mo-Fr 09:00-17:00"
+}
+</script>`,
+ },
+ Person: {
+ guidance: "Add an author entity block to bio or author pages. Strengthens E-E-A-T signals on your articles.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Author Full Name",
+  "url": "https://yoursite.com/author/name",
+  "sameAs": [
+    "https://linkedin.com/in/authorhandle",
+    "https://twitter.com/authorhandle"
+  ]
+}
+</script>`,
+ },
+ BreadcrumbList: {
+ guidance: "Add to every page deeper than your homepage. Replaces the raw URL in SERPs with a readable breadcrumb path.",
+ snippet: `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": "https://yoursite.com"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Category",
+      "item": "https://yoursite.com/category"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "This Page",
+      "item": "https://yoursite.com/category/this-page"
+    }
+  ]
+}
+</script>`,
+ },
+};
+
+function CopyButton({ text }: { text: string }) {
+ const [copied, setCopied] = useState(false);
+ return (
+ <button
+ onClick={(e) => {
+ e.stopPropagation();
+ navigator.clipboard.writeText(text).then(() => {
+ setCopied(true);
+ setTimeout(() => setCopied(false), 2000);
+ });
+ }}
+ className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors font-medium"
+ >
+ {copied ? "Copied!" : "Copy"}
+ </button>
+ );
+}
+
 function SchemaCard({ coverage }: { coverage: SchemaCoverage }) {
  const info = SCHEMA_INFO[coverage.schema_type]!;
  const present = coverage.pages_with > 0;
@@ -292,10 +525,13 @@ function SchemaCard({ coverage }: { coverage: SchemaCoverage }) {
  : "Missing";
  const presencePill = present
  ? "bg-emerald-50 text-emerald-700 ring-emerald-200/70"
- : "bg-slate-50 text-slate-500 ring-slate-200";
+ : "bg-rose-50 text-rose-700 ring-rose-200/70";
+
+ const snippet = !present ? SCHEMA_SNIPPETS[coverage.schema_type] : undefined;
 
  return (
- <div className="flex items-start gap-3 px-4 py-3 bg-white">
+ <div className="flex flex-col gap-0 px-4 py-3 bg-white">
+ <div className="flex items-start gap-3">
  <div className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg ${present ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
  {info.icon}
  </div>
@@ -306,6 +542,25 @@ function SchemaCard({ coverage }: { coverage: SchemaCoverage }) {
  </div>
  <p className="text-[11.5px] text-slate-500 mt-1 leading-relaxed">{info.why}</p>
  </div>
+ </div>
+ {snippet && (
+ <details className="mt-2.5 ml-12 group">
+ <summary className="cursor-pointer text-[11.5px] font-medium text-indigo-600 hover:text-indigo-700 list-none flex items-center gap-1 select-none">
+ <svg className="w-3 h-3 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+ <polyline points="9 18 15 12 9 6"/>
+ </svg>
+ How to implement
+ </summary>
+ <div className="mt-2 rounded-lg bg-slate-50 border border-slate-200/80 overflow-hidden">
+ <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-200/60 bg-slate-100/60">
+ <span className="text-[10.5px] text-slate-500 font-medium">JSON-LD template</span>
+ <CopyButton text={snippet.snippet} />
+ </div>
+ <p className="text-[11.5px] text-slate-600 px-3 pt-2.5 pb-1 leading-relaxed">{snippet.guidance}</p>
+ <pre className="text-[11px] text-slate-700 px-3 pb-3 pt-1 overflow-x-auto leading-relaxed font-mono whitespace-pre">{snippet.snippet}</pre>
+ </div>
+ </details>
+ )}
  </div>
  );
 }
