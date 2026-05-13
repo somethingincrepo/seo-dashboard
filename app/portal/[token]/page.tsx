@@ -17,6 +17,7 @@ import {
   getContentRefreshesForClient,
 } from "@/lib/supabase";
 import { GscTrendChart, type GscWeek } from "@/components/portal/ClientDashboardWidgets";
+import { AuditLivePoller } from "@/components/portal/AuditLivePoller";
 import { cn } from "@/lib/utils";
 
 export const revalidate = 0;
@@ -518,33 +519,23 @@ export default async function PortalDashboard({
                   )}
                 </>
               ) : isRunning ? (
-                <>
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="inline-flex w-5 h-5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin shrink-0" />
-                    <span className="text-lg font-semibold text-slate-500">In progress</span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-4">
-                    {auditRun?.pages_crawled
-                      ? `Crawling your site — ${auditRun.pages_crawled.toLocaleString()} pages scanned so far.`
-                      : "Crawling your site now. Results will appear here when complete."}
-                  </p>
-                  <Link href={`/portal/${token}/audit`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900">
-                    View progress <IconChevron className="w-3 h-3" />
-                  </Link>
-                </>
+                <AuditLivePoller token={token} initialCount={auditRun?.pages_crawled ?? 0} />
               ) : isFailed ? (
                 <>
-                  <p className="text-lg font-semibold text-rose-600 mt-3">Audit error</p>
-                  <p className="text-xs text-slate-500 mt-4">Something went wrong during the last audit. Your account manager has been notified.</p>
+                  <p className="text-sm font-semibold text-rose-600 mt-3">Audit error</p>
+                  <p className="text-xs text-slate-500 mt-2">Something went wrong. Your account manager has been notified.</p>
                 </>
               ) : (
                 <>
                   <div className="mt-3 flex items-center gap-2">
-                    <span className="inline-flex w-5 h-5 rounded-full border-2 border-slate-200 border-t-slate-400 animate-spin shrink-0" />
-                    <span className="text-lg font-semibold text-slate-400">Setting up</span>
+                    <div className="relative w-5 h-5 shrink-0">
+                      <div className="absolute inset-0 rounded-full border-2 border-slate-200" />
+                      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-slate-400 animate-spin" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-400">Setting up your audit</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-4">
-                    Your site audit is being configured. It will run automatically and results will appear here within a few minutes.
+                  <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                    Results will appear here automatically — usually within a few minutes.
                   </p>
                 </>
               )}

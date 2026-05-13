@@ -17,10 +17,10 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
  const latestRun = completedRun ?? (await getLatestAuditRun(recordId));
 
  if (!latestRun) {
- return <AuditEmptyState state="never_run" />;
+ return <AuditEmptyState state="never_run" token={token} />;
  }
  if (!completedRun) {
- return <AuditEmptyState state={latestRun.status === "failed" ? "failed" : "in_progress"} run={latestRun} />;
+ return <AuditEmptyState state={latestRun.status === "failed" ? "failed" : "in_progress"} run={latestRun} token={token} />;
  }
 
  const issues = await getIssuesForRun(completedRun.id);
