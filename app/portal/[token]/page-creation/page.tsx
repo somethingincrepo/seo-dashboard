@@ -18,6 +18,25 @@ export default async function PageCreationPage({
   const clientPackage = (client.fields.package ?? "starter") as PackageTier;
   const limit = PACKAGES[clientPackage in PACKAGES ? clientPackage : "starter"].page_creation_suggestions;
 
+  if (limit === 0) {
+    return (
+      <div className="-mx-10 -my-10 flex flex-col" style={{ height: "calc(100vh - 3rem)" }}>
+        <div className="px-10 pt-8 pb-5 shrink-0 border-b border-slate-100">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Page Creation</h1>
+          <p className="text-[14px] text-slate-500 mt-0.5">
+            New pages identified for your site — approve a suggestion to generate the full page content.
+          </p>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-sm">
+            <p className="text-slate-500 text-sm">Page creation is not included in your current plan.</p>
+            <p className="text-slate-400 text-xs mt-1">Upgrade to Growth or Authority to unlock AI-suggested new pages.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 

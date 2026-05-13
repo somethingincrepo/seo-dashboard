@@ -68,13 +68,15 @@ export default async function PortalLayout({
  })();
  // Show Reddit tab for any client on a package (all tiers include reddit_comments)
  const hasReddit = !!(pkg && PACKAGES[pkg].reddit_comments > 0);
+ const pageCreationLimit = pkg && pkg in PACKAGES ? PACKAGES[pkg as PackageTier].page_creation_suggestions : 0;
+ const hasPageCreation = pageCreationLimit > 0;
 
  const [pending, contentResults, contentJobs, contentRefreshes, pageCreationSuggestions, faqSections, engainStats, auditIssueCount, opportunityNewCount] = await Promise.all([
  getPendingApprovals(clientId, recordId),
  getContentResultsForClient(companyName).catch(() => []),
  getContentJobsForClient(companyName).catch(() => []),
  getContentRefreshesForClient(client.id).catch(() => []),
- getPageCreationSuggestionsForClient(client.id).catch(() => []),
+ hasPageCreation ? getPageCreationSuggestionsForClient(client.id).catch(() => []) : Promise.resolve([]),
  getFaqSectionsForClient(client.id).catch(() => []),
  engainProjectId
  ? getEngainMentionStats(engainProjectId).catch(() => null)
@@ -102,9 +104,16 @@ export default async function PortalLayout({
  (r) => r.status === "completed" && !r.portal_approval
  ).length;
 
- const pageCreationCount = pageCreationSuggestions.filter(
- (s) => (s.status === "suggested" || s.status === "content_ready") && s.portal_approval !== "skipped"
- ).length;
+ // Count only this month's suggestions, capped at the package quota, matching what the page shows.
+ const now = new Date();
+ const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+ const pageCreationCount = hasPageCreation
+ ? pageCreationSuggestions
+   .filter((s) => s.proposed_at >= monthStart && s.status !== "skipped" && s.status !== "failed")
+   .slice(0, pageCreationLimit)
+   .filter((s) => s.status === "suggested" || s.status === "content_ready")
+   .length
+ : 0;
 
  const faqSectionCount = faqSections.filter(
  (s) => s.status === "suggested" && s.portal_approval !== "skipped"
@@ -134,6 +143,7 @@ export default async function PortalLayout({
  isLoggedIn={true}
  monthlyProgress={<MonthlyProgressSidebar client={client} />}
  hasReddit={hasReddit}
+ hasPageCreation={hasPageCreation}
  redditMentionCount={(engainStats?.total ?? 0) + opportunityNewCount}
  faqSectionCount={faqSectionCount}
  >

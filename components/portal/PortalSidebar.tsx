@@ -20,6 +20,7 @@ interface PortalSidebarProps {
  isLoggedIn: boolean;
  monthlyProgress?: React.ReactNode;
  hasReddit?: boolean;
+ hasPageCreation?: boolean;
  redditMentionCount?: number;
  faqSectionCount?: number;
 }
@@ -197,6 +198,7 @@ export function PortalSidebar({
  isLoggedIn,
  monthlyProgress,
  hasReddit,
+ hasPageCreation,
  redditMentionCount,
  faqSectionCount,
 }: PortalSidebarProps) {
@@ -239,6 +241,7 @@ export function PortalSidebar({
  <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
  {NAV_ITEMS.map((item) => {
  if (item.suffix === "/reddit" && !hasReddit) return null;
+ if (item.suffix === "/page-creation" && !hasPageCreation) return null;
 
  const href = `${base}${item.suffix}`;
  const isActive =
