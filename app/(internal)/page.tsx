@@ -89,35 +89,38 @@ export default async function HomePage() {
   const monthEnd   = nextMonthStart(ym);
   const ago30      = nDaysAgoIso(30);
 
-  const sb = getSupabase();
+  let sb;
+  try { sb = getSupabase(); } catch { sb = null; }
+
+  const empty = <T,>(): Promise<T[]> => Promise.resolve([] as T[]);
 
   const [clients, pendingChanges, jobsThisMonth, jobs30d, suggestions, refreshes] =
     await Promise.all([
       getClients(),
       getPendingApprovals(),
 
-      sb.from("jobs")
+      sb ? sb.from("jobs")
         .select("client_id,status,cost_usd,sop_name,created_at")
         .gte("created_at", monthStart)
         .lt("created_at", monthEnd)
         .order("created_at", { ascending: false })
-        .then((r) => (r.data ?? []) as SlimJob[]),
+        .then((r) => (r.data ?? []) as SlimJob[]) : empty<SlimJob>(),
 
-      sb.from("jobs")
+      sb ? sb.from("jobs")
         .select("client_id,status,cost_usd,sop_name,created_at")
         .gte("created_at", ago30)
         .order("created_at", { ascending: false })
-        .then((r) => (r.data ?? []) as SlimJob[]),
+        .then((r) => (r.data ?? []) as SlimJob[]) : empty<SlimJob>(),
 
-      sb.from("page_creation_suggestions")
+      sb ? sb.from("page_creation_suggestions")
         .select("client_id,status,proposed_at,portal_approval,portal_approved_at,generated_at,content_portal_approval,content_portal_approved_at,published_at")
         .order("proposed_at", { ascending: false })
-        .then((r) => (r.data ?? []) as SlimSuggestion[]),
+        .then((r) => (r.data ?? []) as SlimSuggestion[]) : empty<SlimSuggestion>(),
 
-      sb.from("content_refreshes")
+      sb ? sb.from("content_refreshes")
         .select("client_id,status,proposed_at,portal_approval,portal_approved_at,published_at")
         .order("proposed_at", { ascending: false })
-        .then((r) => (r.data ?? []) as SlimRefresh[]),
+        .then((r) => (r.data ?? []) as SlimRefresh[]) : empty<SlimRefresh>(),
     ]);
 
   // ── Active client list ────────────────────────────────────────────────────
