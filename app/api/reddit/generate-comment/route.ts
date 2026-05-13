@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
-
-const openrouter = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: "https://openrouter.ai/api/v1",
-  defaultHeaders: {
-    "HTTP-Referer": "https://github.com/somethingincrepo/seo-dashboard",
-    "X-Title": "SEO Dashboard",
-  },
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,13 +54,24 @@ Reddit commenting guidelines:
 
 Write a single Reddit comment. Reply with ONLY the comment text — no preamble, no quotes, no explanation.`;
 
-    const resp = await openrouter.chat.completions.create({
-      model: "openai/gpt-4o-mini",
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
+    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/somethingincrepo/seo-dashboard",
+        "X-Title": "SEO Dashboard",
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-4o-mini",
+        max_tokens: 300,
+        messages: [{ role: "user", content: prompt }],
+      }),
     });
 
-    const comment = resp.choices[0]?.message?.content?.trim() ?? "";
+    if (!resp.ok) throw new Error(`OpenRouter error: ${resp.status}`);
+    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const comment = data.choices?.[0]?.message?.content?.trim() ?? "";
     if (!comment) throw new Error("No response from model");
 
     return NextResponse.json({ comment, permalink });
