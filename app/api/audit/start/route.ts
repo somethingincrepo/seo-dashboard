@@ -113,12 +113,12 @@ export async function POST(request: NextRequest) {
         );
       }
       // Stale run — mark it failed so it doesn't linger in the UI forever,
-      // then fall through to create a fresh run.
+      // then fall through to create a fresh run. Supabase builders never throw;
+      // they always resolve to { data, error }, so no try/catch needed.
       await supabase
         .from("audit_runs")
         .update({ status: "failed", error_message: "Abandoned — replaced by a newer run after 30-minute stale timeout." })
-        .eq("id", existing.id)
-        .catch((e: unknown) => console.warn("[audit/start] failed to mark stale run as failed:", e));
+        .eq("id", existing.id);
     }
   } catch (e) {
     console.warn("[audit/start] in-flight check failed (non-fatal):", e);
