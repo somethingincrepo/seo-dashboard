@@ -142,7 +142,17 @@ export async function createSession(username: string, password: string): Promise
   const sessionSecret = getSessionSecret();
   if (!loginPassword || !sessionSecret) return false;
 
-  const supabase = getSupabase();
+  let supabase;
+  try {
+    supabase = getSupabase();
+  } catch {
+    // Supabase not configured — fall back to env-var bootstrap auth
+    if (username === "admin" && password === loginPassword) {
+      await setSessionCookie("admin", sessionSecret);
+      return true;
+    }
+    return false;
+  }
 
   // Bootstrap: table missing or empty → accept "admin" + ADMIN_PASSWORD
   const { count, error: countError } = await supabase
@@ -252,11 +262,15 @@ export async function getSession(): Promise<AdminSession | null> {
   if (!result) return null;
   const { username, exp } = result;
 
-  const { data } = await getSupabase()
-    .from("admin_users")
-    .select("*")
-    .eq("username", username)
-    .maybeSingle();
+  let data: Record<string, unknown> | null = null;
+  try {
+    const result = await getSupabase()
+      .from("admin_users")
+      .select("*")
+      .eq("username", username)
+      .maybeSingle();
+    data = result.data as Record<string, unknown> | null;
+  } catch { /* Supabase unavailable — continue with cookie-only auth */ }
 
   // Reject tokens issued before the last logout
   const loggedOutAt = data?.logged_out_at as string | null | undefined;
