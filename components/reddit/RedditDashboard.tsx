@@ -276,7 +276,7 @@ function CommentComposer({
         <div className="mx-4 mt-2 mb-3 border border-dashed border-orange-200 rounded-lg px-3.5 py-3 bg-orange-50/40">
           <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-2">How to post this</p>
           <div className="space-y-1">
-            {["Copy the comment (icon above)", "Open the Reddit thread →", "Click "Add a Comment" and paste", "Review and hit Reply"].map((step, i) => (
+            {['Copy the comment (icon above)', 'Open the Reddit thread →', 'Click "Add a Comment" and paste', 'Review and hit Reply'].map((step, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="w-3.5 h-3.5 rounded-full bg-orange-400 text-white text-[8px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
                 <span className="text-[11px] text-slate-600 leading-relaxed">{step}</span>
