@@ -37,6 +37,24 @@ function RelevanceBadge({ score }: { score: number }) {
 
 type StoredComment = { author: string; body: string; score: number };
 
+const TONES = ["Helpful", "Professional", "Casual", "Friendly", "Expert"] as const;
+const LENGTHS = ["Short", "Medium", "Long"] as const;
+type Tone = (typeof TONES)[number];
+type Length = (typeof LENGTHS)[number];
+
+function ToolbarBtn({ title, children, onClick }: { title: string; children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors text-[11px] font-bold"
+    >
+      {children}
+    </button>
+  );
+}
+
 function CommentComposer({
   opportunity: o,
   selftext,
@@ -49,12 +67,31 @@ function CommentComposer({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [tone, setTone] = useState<Tone>("Helpful");
+  const [length, setLength] = useState<Length>("Medium");
   const [generating, setGenerating] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  async function generate() {
-    setGenerating(true);
+  function wrapSelection(before: string, after = before) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = draft.slice(start, end);
+    const next = draft.slice(0, start) + before + selected + after + draft.slice(end);
+    setDraft(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(start + before.length, end + before.length);
+    });
+  }
+
+  async function callGenerate(refineMode = false) {
+    if (refineMode) setRefining(true);
+    else setGenerating(true);
     setGenError(null);
     try {
       const res = await fetch("/api/reddit/generate-comment", {
@@ -67,6 +104,9 @@ function CommentComposer({
           keyword: o.keyword,
           subreddit: o.subreddit,
           permalink: o.permalink,
+          tone,
+          length,
+          existingDraft: refineMode ? draft : undefined,
         }),
       });
       const data = await res.json() as { comment?: string; error?: string };
@@ -76,6 +116,7 @@ function CommentComposer({
       setGenError(e instanceof Error ? e.message : "Failed to generate");
     } finally {
       setGenerating(false);
+      setRefining(false);
     }
   }
 
@@ -86,116 +127,167 @@ function CommentComposer({
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const busy = generating || refining;
+
   return (
-    <div className="border-t border-slate-200 bg-slate-50 shrink-0">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+    <div className="border-t-2 border-slate-200 bg-white shrink-0 flex flex-col">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-700">
         <div className="flex items-center gap-2">
-          <svg className="w-3.5 h-3.5 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          <svg className="w-3.5 h-3.5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
-          <span className="text-[12px] font-semibold text-slate-700">Draft a Reply</span>
+          <span className="text-[13px] font-semibold text-white">Add Comment</span>
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-0.5">
+        <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
       </div>
 
-      <div className="px-5 py-4 space-y-3">
-        {/* Generate button */}
-        <button
-          onClick={generate}
-          disabled={generating}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-60 px-4 py-2 rounded-xl transition-colors w-full justify-center"
-        >
-          {generating ? (
-            <>
-              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              Writing reply…
-            </>
-          ) : (
-            <>
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-              </svg>
-              {draft ? "Regenerate" : "Generate Reply with AI"}
-            </>
-          )}
-        </button>
-
-        {genError && (
-          <p className="text-[11px] text-red-500 bg-red-50 rounded-lg px-3 py-2">{genError}</p>
-        )}
-
-        {/* Draft textarea */}
-        {draft && (
-          <>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={4}
-              className="w-full text-[13px] text-slate-800 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent leading-relaxed"
-            />
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={copyDraft}
-                className={`inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-all ${
-                  copied
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-white text-slate-700 border border-slate-200 hover:border-slate-400"
-                }`}
-              >
-                {copied ? (
-                  <>
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                    Copy Comment
-                  </>
-                )}
-              </button>
-              <a
-                href={o.permalink}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-orange-500 hover:text-orange-700 font-medium transition-colors"
-              >
-                Open thread →
-              </a>
-            </div>
-
-            {/* How-to steps */}
-            <div className="bg-white border border-slate-100 rounded-xl p-3.5 space-y-1.5">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">How to post</p>
-              {[
-                "Copy the comment above",
-                "Open the thread on Reddit (link above)",
-                "Scroll to the comment box and click it",
-                "Paste your comment and hit Reply",
-              ].map((step, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <span className="w-4 h-4 rounded-full bg-orange-100 text-orange-600 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                  <p className="text-[12px] text-slate-600 leading-relaxed">{step}</p>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+      {/* Account row */}
+      <div className="flex items-center gap-2.5 px-4 py-2 bg-slate-50 border-b border-slate-200">
+        {/* Reddit alien avatar */}
+        <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 20 20" className="w-4 h-4" fill="white">
+            <circle cx="10" cy="10" r="10" fill="#FF4500"/>
+            <path fill="white" d="M16.67 10a1.46 1.46 0 0 0-2.47-1 7.12 7.12 0 0 0-3.85-1.23l.65-3.07 2.13.45a1 1 0 1 0 1-.97 1 1 0 0 0-.96.68l-2.38-.5a.27.27 0 0 0-.32.2l-.73 3.44a7.14 7.14 0 0 0-3.89 1.23 1.46 1.46 0 1 0-1.61 2.39 2.8 2.8 0 0 0 0 .44c0 2.24 2.61 4.06 5.83 4.06s5.83-1.82 5.83-4.06a2.8 2.8 0 0 0 0-.44 1.46 1.46 0 0 0 .68-1.62zm-9.4 1.1a1 1 0 1 1 1 1 1 1 0 0 1-1-1zm5.58 2.63a3.57 3.57 0 0 1-2.85.79 3.57 3.57 0 0 1-2.85-.79.28.28 0 0 1 .4-.4 3 3 0 0 0 2.45.65 3 3 0 0 0 2.45-.65.28.28 0 0 1 .4.4zm-.17-1.63a1 1 0 1 1 1-1 1 1 0 0 1-1 1z"/>
+          </svg>
+        </div>
+        <span className="text-[12px] font-medium text-slate-700">Your Reddit Account</span>
+        <svg className="w-3.5 h-3.5 text-slate-400 ml-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
       </div>
+
+      {/* Editor */}
+      <div className="border border-slate-200 mx-4 mt-3 rounded-lg overflow-hidden">
+        {/* Toolbar */}
+        <div className="flex items-center gap-0.5 px-2 py-1.5 bg-slate-50 border-b border-slate-200 flex-wrap">
+          <ToolbarBtn title="Bold" onClick={() => wrapSelection("**")}><span className="font-black">B</span></ToolbarBtn>
+          <ToolbarBtn title="Italic" onClick={() => wrapSelection("*")}><span className="italic">I</span></ToolbarBtn>
+          <ToolbarBtn title="Strikethrough" onClick={() => wrapSelection("~~")}><span className="line-through">S</span></ToolbarBtn>
+          <ToolbarBtn title="Superscript" onClick={() => wrapSelection("^")}><span>X<sup>2</sup></span></ToolbarBtn>
+          <div className="w-px h-4 bg-slate-200 mx-1" />
+          <ToolbarBtn title="Link" onClick={() => wrapSelection("[", "](url)")}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </ToolbarBtn>
+          <ToolbarBtn title="Bullet list" onClick={() => setDraft((d) => d + "\n- ")}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
+          </ToolbarBtn>
+          <ToolbarBtn title="Numbered list" onClick={() => setDraft((d) => d + "\n1. ")}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4" stroke="currentColor"/><path d="M4 10h2" stroke="currentColor"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" stroke="currentColor"/></svg>
+          </ToolbarBtn>
+          <ToolbarBtn title="Inline code" onClick={() => wrapSelection("`")}><span className="font-mono text-[10px]">&lt;&gt;</span></ToolbarBtn>
+          <ToolbarBtn title="Code block" onClick={() => wrapSelection("```\n", "\n```")}><span className="font-mono text-[10px]">{"{}"}</span></ToolbarBtn>
+        </div>
+
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Reply..."
+          rows={4}
+          className="w-full text-[13px] text-slate-800 bg-white px-3 py-2.5 resize-none focus:outline-none leading-relaxed placeholder:text-slate-400"
+        />
+
+        {/* Bottom toolbar */}
+        <div className="flex items-center justify-between px-3 py-2 bg-white border-t border-slate-200">
+          <div className="flex items-center gap-2">
+            {/* Generate button */}
+            <button
+              onClick={() => callGenerate(false)}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 text-[12px] font-bold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-60 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {generating ? (
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+              ) : (
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              )}
+              {generating ? "Writing…" : "Generate Comment"}
+            </button>
+
+            {/* Tone selector */}
+            <select
+              value={tone}
+              onChange={(e) => setTone(e.target.value as Tone)}
+              className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-300 cursor-pointer"
+            >
+              {TONES.map((t) => <option key={t}>{t}</option>)}
+            </select>
+
+            {/* Length selector */}
+            <select
+              value={length}
+              onChange={(e) => setLength(e.target.value as Length)}
+              className="text-[12px] text-slate-600 border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-300 cursor-pointer"
+            >
+              {LENGTHS.map((l) => <option key={l}>{l}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Copy */}
+            <button
+              onClick={copyDraft}
+              disabled={!draft}
+              title="Copy to clipboard"
+              className="text-slate-400 hover:text-slate-700 disabled:opacity-30 transition-colors"
+            >
+              {copied ? (
+                <svg className="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              )}
+            </button>
+
+            {/* Refine with AI */}
+            <button
+              onClick={() => callGenerate(true)}
+              disabled={!draft || busy}
+              className="inline-flex items-center gap-1 text-[12px] font-semibold text-orange-500 hover:text-orange-700 disabled:opacity-30 transition-colors"
+            >
+              {refining ? (
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+              ) : (
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              )}
+              {refining ? "Refining…" : "Refine with AI"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {genError && (
+        <p className="text-[11px] text-red-500 bg-red-50 mx-4 mt-2 rounded-lg px-3 py-2">{genError}</p>
+      )}
+
+      {/* How to post — shown once draft exists */}
+      {draft && (
+        <div className="mx-4 mt-2 mb-3 border border-dashed border-orange-200 rounded-lg px-3.5 py-3 bg-orange-50/40">
+          <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-2">How to post this</p>
+          <div className="space-y-1">
+            {["Copy the comment (icon above)", "Open the Reddit thread →", "Click "Add a Comment" and paste", "Review and hit Reply"].map((step, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <span className="w-3.5 h-3.5 rounded-full bg-orange-400 text-white text-[8px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                <span className="text-[11px] text-slate-600 leading-relaxed">{step}</span>
+                {i === 1 && (
+                  <a href={o.permalink} target="_blank" rel="noreferrer" className="text-[11px] text-orange-500 hover:text-orange-700 font-medium ml-1">here</a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const client = new Anthropic();
 
 export async function POST(request: NextRequest) {
-  const { title, selftext, comments, keyword, subreddit, permalink } =
+  const { title, selftext, comments, keyword, subreddit, permalink, tone, length, existingDraft } =
     await request.json() as {
       title?: string;
       selftext?: string | null;
@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
       keyword?: string;
       subreddit?: string;
       permalink?: string;
+      tone?: string;
+      length?: string;
+      existingDraft?: string;
     };
 
   if (!title) return NextResponse.json({ error: "title required" }, { status: 400 });
@@ -23,21 +26,33 @@ export async function POST(request: NextRequest) {
     .map((c, i) => `${i + 1}. u/${c.author}: ${c.body}`)
     .join("\n");
 
-  const prompt = `You are helping a marketing professional respond helpfully to a Reddit discussion on behalf of a business.
+  const lengthGuide = length === "Short" ? "1–2 sentences" : length === "Long" ? "4–6 sentences" : "2–4 sentences";
+  const toneGuide = tone ?? "Helpful";
+  const isRefine = !!existingDraft;
+
+  const prompt = isRefine
+    ? `Refine this Reddit comment to be more ${toneGuide.toLowerCase()} and ${lengthGuide} long. Keep the core message but improve the tone and clarity. Reply with ONLY the revised comment text.
+
+Original comment:
+${existingDraft}
+
+Thread context: r/${subreddit ?? "unknown"} — "${title}"`
+    : `You are helping a marketing professional respond helpfully to a Reddit discussion on behalf of a business.
 
 Thread: r/${subreddit ?? "unknown"}
 Title: ${title}${selftext ? `\nPost: ${selftext.slice(0, 600)}` : ""}${topComments ? `\nTop comments:\n${topComments}` : ""}
 Business keyword/service: ${keyword ?? ""}
+Tone: ${toneGuide}
+Length: ${lengthGuide}
 
-Reddit commenting guidelines to follow:
+Reddit commenting guidelines:
 - Be genuinely helpful and add real value — don't just promote
 - Sound like a real person, not a marketer or PR rep
-- Keep it conversational and concise (2–4 sentences)
+- Keep it ${toneGuide.toLowerCase()} and ${lengthGuide}
 - Only mention the business/service if it directly and naturally answers what's being asked
-- No spammy phrases, no excessive punctuation, no "Great question!"
-- If the thread is asking for recommendations, give honest context first
-- Match the tone of the subreddit (casual for lifestyle/hobby subs, more detailed for technical subs)
-- Never include links unless they're directly relevant and asked for
+- No spammy phrases, no "Great question!", no excessive punctuation
+- Match the tone of the subreddit
+- Never include links unless directly relevant and asked for
 
 Write a single Reddit comment. Reply with ONLY the comment text — no preamble, no quotes, no explanation.`;
 
