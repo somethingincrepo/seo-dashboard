@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { CONTENT_TYPE_CONFIG, type ContentTypeName } from "@/lib/content";
 
@@ -686,6 +686,7 @@ function AddTitlePanel({
 export default function TitlesPage() {
  const params = useParams();
  const token = params.token as string;
+ const router = useRouter();
 
  const [titles, setTitles] = useState<Title[]>([]);
  const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
@@ -723,8 +724,12 @@ export default function TitlesPage() {
 
  const handleUpdate = useCallback((id: string, changes: Partial<Title>) => {
  setTitles((prev) => prev.map((t) => t.id === id ? { ...t, ...changes } : t));
- }, []);
- const handleRemove = useCallback((id: string) => { setTitles((prev) => prev.filter((t) => t.id !== id)); }, []);
+ router.refresh();
+ }, [router]);
+ const handleRemove = useCallback((id: string) => {
+ setTitles((prev) => prev.filter((t) => t.id !== id));
+ router.refresh();
+ }, [router]);
  const handleAdded = useCallback((t: Title) => { setTitles((prev) => [t, ...prev]); }, []);
 
  const proposals = titles.filter(

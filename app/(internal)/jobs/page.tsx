@@ -4,6 +4,7 @@ import { listJobs } from "@/lib/supabase";
 import type { SupabaseJob } from "@/lib/supabase";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { AutoRefresh } from "@/components/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ export default async function JobsPage() {
 
   return (
     <div className="space-y-10">
+      <AutoRefresh intervalMs={10_000} />
       <div>
         <h1 className="text-2xl font-semibold">Jobs</h1>
       </div>

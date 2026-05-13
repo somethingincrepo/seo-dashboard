@@ -11,6 +11,7 @@ import { PACKAGES, type PackageTier } from "@/lib/packages";
 import { getLatestIssueCount } from "@/lib/audit/queries";
 import { PortalSidebar } from "@/components/portal/PortalSidebar";
 import { MonthlyProgressSidebar } from "@/components/portal/MonthlyProgress";
+import { AutoRefresh } from "@/components/AutoRefresh";
 
 export const revalidate = 0;
 
@@ -136,6 +137,7 @@ export default async function PortalLayout({
  redditMentionCount={(engainStats?.total ?? 0) + opportunityNewCount}
  faqSectionCount={faqSectionCount}
  >
+ <AutoRefresh intervalMs={60_000} />
  {children}
  </PortalSidebar>
  );

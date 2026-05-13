@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClientByToken } from "@/lib/clients";
 import { getClientChanges } from "@/lib/changes";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { getContentRefreshesForClient, getPageCreationSuggestionsForClient, getFaqSectionsForClient } from "@/lib/supabase";
 import { DeliverableKanban, type InternalLinkChange } from "@/components/portal/DeliverableKanban";
@@ -46,6 +47,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ toke
 
   return (
     <div>
+      <AutoRefresh intervalMs={15_000} />
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Deliverables</h1>
         <p className="text-base text-slate-500 mt-1">

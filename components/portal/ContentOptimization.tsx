@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { bracketToHtml, bracketToHtmlProposed } from "@/lib/bracketToHtml";
 import { wordDiff } from "@/lib/wordDiff";
 import { PACKAGES, type PackageTier } from "@/lib/packages";
@@ -810,6 +810,7 @@ export function ContentOptimization({
  token: string;
  clientPackage: string;
 }) {
+ const router = useRouter();
  const searchParams = useSearchParams();
  const urlId = searchParams.get("id");
  const allRefreshes = [...items, ...(historicalItems ?? [])];
@@ -843,12 +844,13 @@ export function ContentOptimization({
  : r
  )
  );
+ router.refresh();
  } catch (e) {
  alert(e instanceof Error ? e.message : "Approval failed");
  } finally {
  setApproving(false);
  }
- }, [selectedItem, selectedId, token]);
+ }, [selectedItem, selectedId, token, router]);
 
  const handleEdit = useCallback(
  async (refreshId: string, field: "proposed_meta_title" | "proposed_meta_description" | "proposed_body", value: string) => {

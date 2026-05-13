@@ -3,6 +3,7 @@ import { getClientByToken } from "@/lib/clients";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { ContentKanban, ContentActivityFeed } from "@/components/portal/ContentKanban";
 import { PublishCalendar } from "@/components/portal/PublishCalendar";
+import { AutoRefresh } from "@/components/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function ContentPage({
 
  return (
  <div className="-mx-10 flex flex-col min-h-[calc(100vh-5rem)]">
+ <AutoRefresh intervalMs={15_000} />
  <div className="px-10 mb-6">
  <h1 className="text-3xl font-bold tracking-tight text-slate-900">Content Pipeline</h1>
  <p className="text-base text-slate-500 mt-1">
