@@ -100,13 +100,18 @@ export default async function PortalLayout({
  (j) => j.fields.title_status === "titled"
  ).length;
 
+ // Items needing portal action (included in Approvals rollup badge)
  const contentOptimizationCount = contentRefreshes.filter(
  (r) => r.status === "completed" && !r.portal_approval
  ).length;
 
- // Count only this month's suggestions, capped at the package quota, matching what the page shows.
  const now = new Date();
  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+
+ // All visible this-month non-failed items (drives the Content Refreshes sidebar badge)
+ const contentOptimizationBadgeCount = contentRefreshes.filter(
+ (r) => r.status !== "failed" && r.proposed_at >= monthStart
+ ).length;
  const pageCreationCount = hasPageCreation
  ? pageCreationSuggestions
    .filter((s) => s.proposed_at >= monthStart && s.status !== "skipped" && s.status !== "failed")
@@ -136,7 +141,7 @@ export default async function PortalLayout({
  approvalsActionCount={approvalsActionCount}
  contentReviewCount={contentReviewCount}
  titleProposalCount={titleProposalCount}
- contentOptimizationCount={contentOptimizationCount}
+ contentOptimizationCount={contentOptimizationBadgeCount}
  pageCreationCount={pageCreationCount}
  internalLinksPendingCount={internalLinksPendingCount}
  auditIssueCount={auditIssueCount}
