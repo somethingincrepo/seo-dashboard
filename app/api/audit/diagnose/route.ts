@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
       proposals_generated: number;
       proposal_failures: number;
       changes_written: number;
-      status: "complete" | "skipped" | "no_demand" | "errored" | "no_html";
+      status: "complete" | "skipped" | "no_demand" | "errored" | "no_html" | "no_match";
       message: string;
     } = {
       pages_considered: pages.length,

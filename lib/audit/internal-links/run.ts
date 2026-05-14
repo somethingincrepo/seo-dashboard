@@ -99,7 +99,18 @@ export interface RunInternalLinksResult {
   /** Per-issue failure reasons for observability. */
   failure_details?: Array<{ issue_id: string; rule_id: string; reason: string }>;
   changes_written: number;
-  status: "complete" | "skipped" | "no_html";
+  /**
+   * - "complete":  proposals were generated (or no issues exist)
+   * - "skipped":   no pages / no audit run — didn't run at all
+   * - "no_html":   pages exist and issues exist but body_html is 0 everywhere
+   *               (JS-only site — Wix, heavy SPA — live-fetch fallback also failed)
+   * - "no_match":  HTML is available and issues exist but no phrase in any issue
+   *               target appears in any source page's prose (e.g. Shopify stores
+   *               where product names only appear as link anchors)
+   * "no_html" and "no_match" are delivery failures: issues were detected but
+   * no proposals were produced. They must not be returned as "complete".
+   */
+  status: "complete" | "skipped" | "no_html" | "no_match";
   message?: string;
 }
 
@@ -265,14 +276,26 @@ export async function runInternalLinksGeneration(
     nowIso,
   });
 
-  const message =
-    result.proposals.length === 0
-      ? `${issues.length} R047–R050 issues but generator produced 0 proposals (pages_with_html=${htmlByUrl.size}/${pages.length})`
-      : `${result.proposals.length} proposals generated → ${writeRes.written} Changes written`;
-  // "no_html" only when even the live-fetch fallback produced nothing.
+  let message: string;
+  if (result.proposals.length > 0) {
+    message = `${result.proposals.length} proposals generated → ${writeRes.written} Changes written`;
+  } else if (htmlByUrl.size === 0) {
+    message = `${issues.length} R047–R050 issues detected but 0 pages have body_html — site may be JS-only (Wix/SPA); live-fetch fallback also produced no usable HTML. Proposals will generate after next Playwright crawl.`;
+  } else {
+    message = `${issues.length} R047–R050 issues detected, ${htmlByUrl.size}/${pages.length} pages with HTML, but no phrase from any issue target appears in any source page prose. Common cause: product-grid sites (Shopify) where product names appear only as link anchors, which the scanner skips to avoid link-in-link.`;
+  }
+  // Classify the outcome:
+  // - no_html:   pages exist, issues exist, but no HTML even after live-fetch
+  //             (JS-only sites like Wix where server HTML has no content)
+  // - no_match:  HTML was available but no phrase matched anywhere
+  //             (sparse prose or product-grid-dominated sites like Shopify)
+  // - complete:  proposals generated, or no issues detected (nothing to do)
   const status: RunInternalLinksResult["status"] =
-    htmlByUrl.size === 0 && issues.length > 0 ? "no_html"
-    : "complete";
+    issues.length > 0 && result.proposals.length === 0
+      ? htmlByUrl.size === 0
+        ? "no_html"
+        : "no_match"
+      : "complete";
   console.log(
     `[internal-links] ${status} (audit_run_id=${auditRunId}, pages=${pages.length}, pages_with_html=${htmlByUrl.size}, issues=${issues.length}, proposals=${result.proposals.length}, failures=${result.failures.length}, changes=${writeRes.written})`,
   );
