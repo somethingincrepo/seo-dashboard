@@ -49,7 +49,7 @@ export default async function PortalLayout({
  const client = await getClientByToken(token);
  if (!client) notFound();
 
- const clientId = client.fields.client_id || client.id;
+ const clientId = client.id;
  const recordId = client.id;
  const companyName = client.fields.company_name || "";
 

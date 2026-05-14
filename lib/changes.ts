@@ -56,22 +56,23 @@ export type Change = AirtableRecord<ChangeFields>;
 
 const TABLE = "Changes";
 
-// clientId may be an Airtable record ID (recXXX — written by SOPs) or a slug field value.
-// Search both so portal and admin views work regardless of which was stored.
+// clientId is always the Airtable record ID (recXXX). Some older SOP-written
+// Changes rows stored a text slug in client_id — keep the FIND as a fallback
+// so those rows still surface, but the primary match is exact.
 function clientFilter(clientId: string): string {
-  return `OR(FIND("${clientId}",{client_id}),{client_id}="${clientId}")`;
+  return `OR({client_id}="${clientId}",FIND("${clientId}",{client_id}))`;
 }
 
 const EXCLUDED_TYPES = `AND({type}!="Reddit",{type}!="Reddit Comment",{type}!="reddit")`;
 
 export async function getPendingApprovals(clientId?: string, recordId?: string): Promise<Change[]> {
   let filter: string;
-  if (!clientId && !recordId) {
+  // Use the most specific ID available — prefer the Airtable record ID (recordId).
+  // clientId is also always the record ID from the portal layout.
+  const id = recordId || clientId;
+  if (!id) {
     filter = `AND({approval}="pending",${EXCLUDED_TYPES})`;
-  } else if (clientId && recordId && clientId !== recordId) {
-    filter = `AND({approval}="pending",${EXCLUDED_TYPES},OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id})))`;
   } else {
-    const id = clientId || recordId!;
     filter = `AND({approval}="pending",${EXCLUDED_TYPES},${clientFilter(id)})`;
   }
   return airtableFetch<Change>(TABLE, {
@@ -81,10 +82,8 @@ export async function getPendingApprovals(clientId?: string, recordId?: string):
 }
 
 export async function getClientChanges(clientId: string, recordId?: string): Promise<Change[]> {
-  const filter = recordId && recordId !== clientId
-    ? `OR(FIND("${clientId}",{client_id}),FIND("${recordId}",{client_id}))`
-    : clientFilter(clientId);
-  return airtableFetch<Change>(TABLE, { filterByFormula: filter });
+  const id = recordId || clientId;
+  return airtableFetch<Change>(TABLE, { filterByFormula: clientFilter(id) });
 }
 
 export async function updateApproval(
