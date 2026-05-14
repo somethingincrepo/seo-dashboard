@@ -1236,7 +1236,13 @@ function RuleDetail({
  <span className="text-[10px] text-slate-400">dismissed</span>
  )}
  <span className="text-[11px] font-medium text-indigo-600 bg-indigo-50 group-hover:bg-indigo-100 group-hover:text-indigo-700 whitespace-nowrap px-2.5 py-1 rounded-full ring-1 ring-inset ring-indigo-200/70 transition-colors">
- View fix →
+ {i.fix_status === "generated"
+ ? "View fix →"
+ : i.fix_status === "queued" || i.fix_status === "generating"
+ ? "Generating…"
+ : i.fix_status === "failed"
+ ? "View error →"
+ : "Generate fix →"}
  </span>
  </div>
  </div>
@@ -1568,6 +1574,24 @@ function CurrentVsProposed({ issue, token }: { issue: AuditIssue; token: string 
  );
  }
  if (status === "failed") {
+ // Long fix_error = agent made a reasoned decision (e.g. "page should be noindexed").
+ // Short fix_error = technical failure (HTTP 500, timeout, etc.) — show as error + retry.
+ const isAgentDecision = (issue.fix_error?.length ?? 0) > 80;
+ if (isAgentDecision) {
+ return (
+ <div className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-2">
+ <div className="text-[10px] font-semibold tracking-widest text-amber-700">Analysis note</div>
+ <p className="text-[12.5px] text-slate-700 leading-relaxed">{issue.fix_error}</p>
+ <button
+ onClick={regenerate}
+ disabled={retrying}
+ className="text-[11px] text-slate-400 hover:text-slate-700 underline underline-offset-2 disabled:opacity-50"
+ >
+ {retrying ? "Retrying…" : "Retry generation"}
+ </button>
+ </div>
+ );
+ }
  return (
  <div>
  <p className="text-[12px] text-rose-700 mb-2">
