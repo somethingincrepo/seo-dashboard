@@ -33,8 +33,9 @@ export default async function ContentOptimizationPage({
  };
  const sorted = [...all].sort((a, b) => rank(a) - rank(b));
 
+ const threeMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1)).toISOString();
  const thisMonth = sorted.filter((r) => r.proposed_at >= monthStart);
- const prevMonths = sorted.filter((r) => r.proposed_at < monthStart);
+ const prevMonths = sorted.filter((r) => r.proposed_at >= threeMonthsAgo && r.proposed_at < monthStart);
 
  // Current month: show all non-failed refreshes — includes "approved" (Scheduled)
  // and "in_progress" (Update in Progress) so users see what's queued, not a

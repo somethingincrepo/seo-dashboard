@@ -39,6 +39,9 @@ export default async function PageCreationPage({
 
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  // Only surface historical items from the last 3 months — prevents stale test
+  // data or old runs from polluting the historical section.
+  const threeMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1)).toISOString();
 
   const all = await getPageCreationSuggestionsForClient(client.id).catch(() => [] as PageCreationSuggestion[]);
 
@@ -52,7 +55,7 @@ export default async function PageCreationPage({
   const sorted = [...all].sort((a, b) => rank(a) - rank(b));
 
   const thisMonth = sorted.filter((s) => s.proposed_at >= monthStart);
-  const prevMonths = sorted.filter((s) => s.proposed_at < monthStart);
+  const prevMonths = sorted.filter((s) => s.proposed_at >= threeMonthsAgo && s.proposed_at < monthStart);
 
   const items = thisMonth
     .filter((s) => s.status !== "skipped" && s.status !== "failed")
