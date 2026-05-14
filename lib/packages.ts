@@ -23,7 +23,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     articles_longform: 0,
     faq_sections: 1,
     content_refreshes: 4,
-    page_creation_suggestions: 0,
+    page_creation_suggestions: 2,
     internal_links: 8,
     reddit_comments: 2,
   },
