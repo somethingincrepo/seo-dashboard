@@ -64,11 +64,12 @@ app.post("/crawl", async (req, res) => {
     return;
   }
 
-  const { audit_run_id, client_id, root_url, nav_urls, concurrency } = req.body as {
+  const { audit_run_id, client_id, root_url, nav_urls, max_pages, concurrency } = req.body as {
     audit_run_id?: string;
     client_id?: string;
     root_url?: string;
     nav_urls?: string[];
+    max_pages?: number;
     concurrency?: number;
   };
   if (!audit_run_id || !client_id || !root_url) {
@@ -84,6 +85,7 @@ app.post("/crawl", async (req, res) => {
     clientId: client_id,
     rootUrl: root_url,
     navUrls: new Set((nav_urls ?? [root_url]).map(normalizeUrl)),
+    maxPages: max_pages,
     concurrency,
   }).catch((err) => {
     console.error(`[crawler] pipeline failed for ${audit_run_id}:`, err);
@@ -203,9 +205,10 @@ async function runFullPipeline(args: {
   clientId: string;
   rootUrl: string;
   navUrls: Set<string>;
+  maxPages?: number;
   concurrency?: number;
 }) {
-  const { auditRunId, clientId, rootUrl, navUrls, concurrency } = args;
+  const { auditRunId, clientId, rootUrl, navUrls, maxPages, concurrency } = args;
   const livePages: ExtractedPage[] = [];
 
   try {
@@ -253,8 +256,13 @@ async function runFullPipeline(args: {
     }, 15_000); // check every 15s
 
     try {
+      // Nav URLs are queued before sitemap seeds so they are always crawled
+      // even when maxPages caps the run short of the full sitemap.
+      const navSeedUrls = [...navUrls].filter((u) => u !== normalizeUrl(rootUrl));
+      const seedUrls = [...navSeedUrls, ...site.sitemap_urls];
+
       const { pages } = await crawlSite({
-        rootUrl, seedUrls: site.sitemap_urls, concurrency, livePages,
+        rootUrl, seedUrls, maxPages, concurrency, livePages,
       });
 
       clearInterval(checkpointTimer);
@@ -272,10 +280,29 @@ async function runFullPipeline(args: {
 
       await writePages(auditRunId, clientId, enriched);
 
+      // Under-collection check: if the sitemap suggests many more pages than
+      // were crawled, the audit is covering a small slice of the site. Flag
+      // it so the portal and admin view can show a warning rather than
+      // presenting a partial audit as comprehensive.
+      // Threshold: flag when sitemap has >20 URLs and we crawled <50% of them.
+      const sitemapCount = site.sitemap_urls.length;
+      const undercollected = sitemapCount > 20 && enriched.length < sitemapCount * 0.5;
+      if (undercollected) {
+        console.warn(
+          `[crawler] under-collection warning for ${auditRunId}: ` +
+          `crawled ${enriched.length} pages but sitemap has ${sitemapCount} URLs ` +
+          `(${Math.round((enriched.length / sitemapCount) * 100)}% coverage). ` +
+          `Audit is partial — consider increasing max_pages.`,
+        );
+      }
+
       await setRunStatus(auditRunId, {
         status: "crawled",
         crawl_completed_at: new Date().toISOString(),
         pages_crawled: enriched.length,
+        ...(undercollected ? {
+          error_message: `Partial crawl: ${enriched.length}/${sitemapCount} sitemap pages covered (${Math.round((enriched.length / sitemapCount) * 100)}%). Audit results reflect a sample only.`,
+        } : {}),
       });
 
       // Notify diagnose endpoint
