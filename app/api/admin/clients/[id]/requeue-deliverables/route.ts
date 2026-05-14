@@ -30,7 +30,7 @@ export async function POST(
   // to SOPs that need it (generate_faq_sections, audit_internal_links).
   const { data: auditRows, error: auditErr } = await supabase
     .from("audit_runs")
-    .select("id, internal_links_summary, pages_count")
+    .select("id, internal_links_summary, completion_summary")
     .eq("client_id", clientId)
     .eq("status", "complete")
     .order("diagnose_completed_at", { ascending: false })
@@ -42,6 +42,8 @@ export async function POST(
 
   const latestRun = auditRows?.[0] ?? null;
   const auditRunId = latestRun?.id ?? null;
+
+  type CompletionSummary = { pages?: number } | null | undefined;
 
   // Build the first-batch SOP jobs — same set as diagnose route fires.
   const jobs: Array<{ sop_name: string; client_id: string; payload: Record<string, unknown> }> = [
@@ -82,12 +84,11 @@ export async function POST(
       | { status?: string }
       | null
       | undefined;
-    const pagesCount =
-      typeof latestRun?.pages_count === "number" ? latestRun.pages_count : null;
 
-    // Fetch page count from pages table if not on the audit_run row.
-    let pageCount = pagesCount;
-    if (pageCount === null) {
+    // Page count: prefer completion_summary.pages, else count from pages table.
+    const summary = latestRun?.completion_summary as CompletionSummary;
+    let pageCount: number = typeof summary?.pages === "number" ? summary.pages : 0;
+    if (pageCount === 0) {
       const { count } = await supabase
         .from("pages")
         .select("*", { count: "exact", head: true })
