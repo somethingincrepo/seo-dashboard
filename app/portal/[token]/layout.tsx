@@ -108,9 +108,10 @@ export default async function PortalLayout({
  const now = new Date();
  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
- // All visible this-month non-failed items (drives the Content Refreshes sidebar badge)
+ // All active (non-terminal) items regardless of month — drives the Content Refreshes sidebar badge.
+ // "published" and "failed" are terminal; everything else is still in-flight or pending review.
  const contentOptimizationBadgeCount = contentRefreshes.filter(
- (r) => r.status !== "failed" && r.proposed_at >= monthStart
+ (r) => r.status !== "failed" && r.status !== "published"
  ).length;
  const pageCreationCount = hasPageCreation
  ? pageCreationSuggestions
