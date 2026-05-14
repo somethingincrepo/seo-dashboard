@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableFetch } from "@/lib/airtable";
 import { verifyBearer } from "@/lib/auth";
+import { getSupabase } from "@/lib/supabase";
 import {
   searchRedditByKeyword,
   searchRedditMentions,
@@ -184,6 +185,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "client_id required" }, { status: 400 });
   }
 
+  // Guard: skip Reddit scanning until the client has at least one completed audit.
+  // Without an audit the client's keyword/brand data may be incomplete or incorrect
+  // (e.g. company_name still "Test" from a test form submission).
+  const { data: completedAudits } = await getSupabase()
+    .from("audit_runs")
+    .select("id")
+    .eq("client_id", client_id)
+    .eq("status", "complete")
+    .limit(1);
+  if (!completedAudits || completedAudits.length === 0) {
+    console.log(`[reddit-scan] client ${client_id} has no completed audit — skipping scan`);
+    return NextResponse.json({ ok: true, client_id, skipped: true, reason: "no_completed_audit" });
+  }
+
   let clients: ClientRecord[] = [];
   try {
     clients = await airtableFetch<ClientRecord>("Clients", {
@@ -242,6 +257,19 @@ export async function GET(request: NextRequest) {
   for (const client of clients) {
     const keywords = parseKeywords(client);
     if (keywords.length === 0) continue;
+
+    // Same guard as POST: skip until at least one audit has completed.
+    const { data: audits } = await getSupabase()
+      .from("audit_runs")
+      .select("id")
+      .eq("client_id", client.id)
+      .eq("status", "complete")
+      .limit(1);
+    if (!audits || audits.length === 0) {
+      console.log(`[reddit-scan] client ${client.id} (${client.fields.company_name ?? ""}) has no completed audit — skipping`);
+      continue;
+    }
+
     clientsProcessed++;
 
     const tier = (client.fields.package as PackageTier | undefined) ?? "starter";

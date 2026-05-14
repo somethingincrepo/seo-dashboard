@@ -292,7 +292,20 @@ export async function upsertOpportunities(
     updated_at: new Date().toISOString(),
   }));
 
-  // Insert new rows (status defaults to 'new', explanation stored)
+  // Replace-by-keyword: delete stale "new" rows for each keyword being scanned so
+  // results from a previous wrong company name / keyword set don't accumulate.
+  // "dismissed" rows are preserved — they represent a deliberate user action.
+  const uniqueKeywords = [...new Set(rows.map((r) => r.keyword))];
+  for (const kw of uniqueKeywords) {
+    await supabase
+      .from("reddit_opportunities")
+      .delete()
+      .eq("client_id", clientId)
+      .eq("keyword", kw)
+      .eq("status", "new");
+  }
+
+  // Insert the fresh batch; skip posts the user already dismissed.
   await supabase
     .from("reddit_opportunities")
     .upsert(rows, { onConflict: "client_id,reddit_post_id", ignoreDuplicates: true })
