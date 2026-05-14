@@ -382,7 +382,7 @@ export async function POST(request: NextRequest) {
       // keyword_groups are populated by keyword_research.
       { sop_name: "scan_reddit_opportunities", payload: { client_id: run.client_id } },
     ];
-    if (internalLinksSummary.status === "no_demand" && pages.length >= 5) {
+    if ((internalLinksSummary.status === "no_demand" || internalLinksSummary.changes_written === 0) && pages.length >= 5) {
       firstBatchSops.push({
         sop_name: "audit_internal_links",
         payload: {
