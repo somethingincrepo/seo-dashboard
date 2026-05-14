@@ -10,7 +10,7 @@
       "maxDuration": 120
     },
     "app/api/cron/reddit-opportunity-scan/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 120
     }
   }
 }

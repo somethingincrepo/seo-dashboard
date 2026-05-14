@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { airtableFetch, airtablePatch } from "@/lib/airtable";
 import { runAllRules, type Page, type SiteContext } from "@/lib/audit/rules";
 import { buildFixGuidance } from "@/lib/audit/rules/fix-guidance";
 import { getRuleDescription } from "@/lib/audit/rules/rule-descriptions";
@@ -309,6 +310,32 @@ export async function POST(request: NextRequest) {
       if (updateErr) {
         throw new Error(`audit_runs status flip failed: ${updateErr.message}`);
       }
+    }
+
+    // ── Advance plan_status to "active" ──────────────────────────────────
+    // The old agentic audit_parent SOP did this in Phase 4. The deterministic
+    // pipeline has no equivalent — without this, clients stay at "month1_audit"
+    // forever: the monthly audit scheduler, monthAdvanceTick, and reportScheduler
+    // all filter for plan_status="active" and silently skip them.
+    // Only advance from month1_audit → active (not month1_audit_complete or any
+    // other status we don't own).
+    try {
+      type ClientRow = { id: string; fields: { plan_status?: string } };
+      const clientRows = await airtableFetch<ClientRow>("Clients", {
+        filterByFormula: `RECORD_ID() = "${run.client_id}"`,
+        fields: ["plan_status"],
+        maxRecords: 1,
+      });
+      const currentStatus = clientRows[0]?.fields?.plan_status;
+      if (currentStatus === "month1_audit" || currentStatus === "month1_audit_complete") {
+        await airtablePatch("Clients", run.client_id, { plan_status: "active" });
+        console.log(`[diagnose] advanced plan_status from ${currentStatus} → active for ${run.client_id}`);
+      }
+    } catch (e) {
+      // Non-fatal: deliverables and audit data are still valid even if this patch fails.
+      // The monthly audit and report schedulers will silently skip this client until
+      // the status is corrected manually or on the next successful audit.
+      console.error(`[diagnose] plan_status advancement failed for ${run.client_id} (non-fatal):`, e instanceof Error ? e.message : e);
     }
 
     // ── First-batch deliverables ─────────────────────────────────────────
