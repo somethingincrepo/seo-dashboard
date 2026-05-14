@@ -92,6 +92,8 @@ export default async function PortalRedditPage({
           emptyMessage={
             section === "archive"
               ? "No archived threads yet."
+              : client.fields?.package === "starter"
+              ? "Reddit opportunity scanning is available on the Growth plan and above."
               : "We scan Reddit daily for relevant threads. Check back soon."
           }
         />
