@@ -17,6 +17,7 @@ import { EngainLinkButton } from "@/components/ui/EngainLinkButton";
 import { ContentStylesEditor } from "@/components/ui/ContentStylesEditor";
 import { IntegrationsForm } from "@/components/ui/IntegrationsForm";
 import { LocalSeoForm } from "@/components/ui/LocalSeoForm";
+import { RequeueDeliverablesButton } from "@/components/ui/RequeueDeliverablesButton";
 import { PACKAGE_LABELS, type PackageTier } from "@/lib/packages";
 import { getSupabase } from "@/lib/supabase";
 
@@ -431,11 +432,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   </span>
                 )}
               </div>
-              {latestAuditRun.error_message && (
-                <span className="text-xs text-rose-600 max-w-md truncate" title={latestAuditRun.error_message}>
-                  {latestAuditRun.error_message}
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {latestAuditRun.error_message && (
+                  <span className="text-xs text-rose-600 max-w-md truncate" title={latestAuditRun.error_message}>
+                    {latestAuditRun.error_message}
+                  </span>
+                )}
+                <RequeueDeliverablesButton clientId={id} />
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
               {/* Internal links */}
