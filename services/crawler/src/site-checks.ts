@@ -1,6 +1,14 @@
+import { chromium } from "playwright";
 import { XMLParser } from "fast-xml-parser";
 import { rootOrigin } from "./url.js";
 import { CHROME_UA } from "./crawler.js";
+
+const STEALTH_ARGS = [
+  "--disable-dev-shm-usage",
+  "--no-sandbox",
+  `--user-agent=${CHROME_UA}`,
+  "--disable-blink-features=AutomationControlled",
+];
 
 export interface SiteChecksResult {
   robots_txt_present: boolean;
@@ -102,15 +110,45 @@ async function discoverSitemap(origin: string, robotsBody: string | null): Promi
     }
   }
 
+  // Fast path: plain HTTP fetch (works for most sites).
+  const urls = await crawlSitemapQueue(candidates, fetchText);
+
+  // Slow-path fallback: if plain HTTP found nothing (Cloudflare or other bot
+  // protection may have challenged or blocked the Fly.io datacenter IP), retry
+  // the same candidate set with a stealth Playwright browser. One browser
+  // instance is reused for all retries to keep startup overhead to one launch.
+  if (urls.size === 0) {
+    console.log(`[site-checks] sitemap plain-fetch returned 0 URLs for ${origin} — retrying with browser`);
+    let browser;
+    try {
+      browser = await chromium.launch({ headless: true, args: STEALTH_ARGS });
+      const browserFetch = makeBrowserFetcher(browser);
+      const browserUrls = await crawlSitemapQueue(candidates, browserFetch);
+      for (const u of browserUrls) urls.add(u);
+    } catch (e) {
+      console.warn(`[site-checks] browser sitemap fallback failed for ${origin}:`, e instanceof Error ? e.message : String(e));
+    } finally {
+      await browser?.close().catch(() => {});
+    }
+  }
+
+  return Array.from(urls).sort();
+}
+
+/** Shared queue-walk logic — works with any fetcher (plain HTTP or browser). */
+async function crawlSitemapQueue(
+  candidates: Set<string>,
+  fetcher: (url: string) => Promise<{ ok: boolean; body: string | null }>,
+): Promise<Set<string>> {
   const urls = new Set<string>();
   const seen = new Set<string>();
-  // Sort the candidate queue so traversal order is deterministic across reruns.
+  // Sort so traversal order is deterministic across reruns.
   const queue: string[] = Array.from(candidates).sort();
   while (queue.length > 0) {
     const next = queue.shift()!;
     if (seen.has(next)) continue;
     seen.add(next);
-    const r = await fetchText(next);
+    const r = await fetcher(next);
     if (!r.ok || !r.body) continue;
     const parsed = parseSitemap(r.body);
     for (const u of parsed.urls) urls.add(u);
@@ -119,7 +157,34 @@ async function discoverSitemap(origin: string, robotsBody: string | null): Promi
     }
     if (urls.size > 50_000) break; // safety cap
   }
-  return Array.from(urls).sort();
+  return urls;
+}
+
+/** Returns a fetcher that uses a headless browser page for each request.
+ *  Uses response.text() (raw body) rather than page.content() so XML sitemaps
+ *  are not wrapped in the browser's HTML rendering. */
+function makeBrowserFetcher(browser: Awaited<ReturnType<typeof chromium.launch>>) {
+  return async function browserFetch(url: string): Promise<{ ok: boolean; body: string | null }> {
+    const ctx = await browser.newContext({ userAgent: CHROME_UA });
+    try {
+      const page = await ctx.newPage();
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+      });
+      const response = await page.goto(url, {
+        waitUntil: "domcontentloaded",
+        timeout: 20_000,
+      }).catch(() => null);
+      const status = response?.status() ?? 0;
+      if (!response || status < 200 || status >= 300) return { ok: false, body: null };
+      const body = await response.text().catch(() => null);
+      return { ok: body !== null, body };
+    } catch {
+      return { ok: false, body: null };
+    } finally {
+      await ctx.close().catch(() => {});
+    }
+  };
 }
 
 function parseSitemap(xml: string): { urls: string[]; sitemaps: string[] } {

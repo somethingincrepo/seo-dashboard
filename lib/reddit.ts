@@ -353,6 +353,7 @@ export async function listOpportunitiesForClient(
     .eq("client_id", clientId)
     .order("relevance_score", { ascending: false })
     .order("scraped_at", { ascending: false })
+    .order("id", { ascending: true }) // stable tiebreaker — prevents reorder when scores/scraped_at are identical after a scan
     .range(offset, offset + limit - 1);
 
   if (status) q = q.eq("status", status);

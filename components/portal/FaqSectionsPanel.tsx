@@ -313,9 +313,15 @@ interface Props {
   token: string;
   limit: number;
   clientPackage: PackageTier;
+  /** Status of the most recent generate_faq_sections job for this client.
+   *  "pending"    — no job run yet (or job still queued/running)
+   *  "done_empty" — job ran successfully but found no eligible pages
+   *  "failed"     — job ran and failed; message contains the error
+   */
+  generationStatus?: { state: "pending" | "done_empty" | "failed"; message?: string };
 }
 
-export function FaqSectionsPanel({ items, historicalItems, token, limit, clientPackage }: Props) {
+export function FaqSectionsPanel({ items, historicalItems, token, limit, clientPackage, generationStatus }: Props) {
   const [sections, setSections] = useState<FaqSection[]>(items);
   const [selectedId, setSelectedId] = useState<string | null>(
     items.find((s) => s.status === "suggested" && s.portal_approval !== "skipped")?.id ?? items[0]?.id ?? null
@@ -433,17 +439,46 @@ export function FaqSectionsPanel({ items, historicalItems, token, limit, clientP
 
       {/* Master-detail */}
       {isEmpty ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
+        generationStatus?.state === "failed" ? (
+          <div className="bg-white rounded-2xl border border-red-200 p-12 text-center">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <h3 className="text-[15px] font-semibold text-slate-800 mb-2">FAQ generation failed</h3>
+            <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
+              The FAQ generator ran but encountered an error. Your account manager has been notified and will rerun it shortly.
+            </p>
+            {generationStatus.message && (
+              <p className="text-[11px] text-slate-300 mt-3 font-mono">{generationStatus.message}</p>
+            )}
           </div>
-          <h3 className="text-[15px] font-semibold text-slate-800 mb-2">FAQ sections on the way</h3>
-          <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
-            We generate FAQ sections after your audit completes and refresh them monthly. The first batch usually appears within an hour of your audit finishing.
-          </p>
-        </div>
+        ) : generationStatus?.state === "done_empty" ? (
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h3 className="text-[15px] font-semibold text-slate-800 mb-2">No eligible pages found</h3>
+            <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
+              The FAQ generator ran but found no eligible service or category pages to add FAQs to this month. FAQ sections will be generated as more content is indexed.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h3 className="text-[15px] font-semibold text-slate-800 mb-2">FAQ sections on the way</h3>
+            <p className="text-[13px] text-slate-400 max-w-sm mx-auto leading-relaxed">
+              We generate FAQ sections after your audit completes and refresh them monthly. The first batch usually appears within an hour of your audit finishing.
+            </p>
+          </div>
+        )
       ) : listItems.length > 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_2px_0_rgba(16,24,40,0.05)] overflow-hidden flex h-[calc(100vh-22rem)] min-h-[480px]">
           {/* Left: list */}

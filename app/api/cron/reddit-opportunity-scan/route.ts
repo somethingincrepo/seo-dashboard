@@ -76,7 +76,7 @@ async function runClientScan(
 
       for (const post of posts) {
         const relevanceScore = scoreThread(post, keyword, true);
-        if (relevanceScore < 10) continue;
+        if (relevanceScore < 30) continue;
         allOpportunities.push({
           ...post,
           keyword,
@@ -106,7 +106,16 @@ async function runClientScan(
 
   try {
     const mentionPosts = await searchRedditMentions(brandName || clientName, { limit: 10 });
+    const searchTerm = (brandName || clientName).toLowerCase();
     for (const post of mentionPosts) {
+      // Only label as "mention" if the brand name actually appears in the
+      // thread title or snippet — DataForSEO returns Google SERP results where
+      // the brand may appear only in the URL or site-level description.
+      const titleLower = post.title.toLowerCase();
+      const snippetLower = post.selftext.toLowerCase();
+      const hasBrandMention = titleLower.includes(searchTerm) || snippetLower.includes(searchTerm);
+      if (!hasBrandMention) continue;
+
       const relevanceScore = Math.min(scoreThread(post, clientName, true) + 20, 100);
       allOpportunities.push({
         ...post,

@@ -14,7 +14,7 @@
 
 import { getSupabase } from "@/lib/supabase";
 import { getClient } from "@/lib/clients";
-import { PACKAGES, type PackageTier } from "@/lib/packages";
+import { PACKAGES, getWeeklyTargets, type PackageTier } from "@/lib/packages";
 import type { Page } from "@/lib/audit/rules/types";
 import { generateProposals } from "./generator";
 import { writeInternalLinkChanges } from "./changes-writer";
@@ -267,7 +267,11 @@ export async function runInternalLinksGeneration(
   }
 
   // Write client-facing Internal Link Change records to Airtable.
-  const quota = input.quotaOverride ?? PACKAGES[pkg].internal_links;
+  // Default to the weekly delivery target (e.g. 4 for Growth) rather than the
+  // full monthly quota (16). The weekly scheduler calls this once per week and
+  // the changes-writer deduplicates by source→target pair, so subsequent runs
+  // naturally fill the remaining monthly slots without ever exceeding them.
+  const quota = input.quotaOverride ?? getWeeklyTargets(pkg).internal_links;
   const writeRes = await writeInternalLinkChanges({
     clientId,
     auditRunId,

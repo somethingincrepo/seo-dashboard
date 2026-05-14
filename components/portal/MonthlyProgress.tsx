@@ -60,6 +60,7 @@ type ChangeRecord = {
  type?: string;
  execution_status?: string;
  implemented_at?: string;
+ identified_at?: string;
  page_url?: string;
  client_id?: string;
  };
@@ -80,11 +81,12 @@ async function fetchActuals(
  clientRecordId: string,
  clientSlug: string,
  companyName: string,
- monthStart: string
+ monthStart: string,
+ pkg: PackageTier,
 ) {
  const clientFilter = `OR(FIND("${clientRecordId}",{client_id}),FIND("${clientSlug}",{client_id}))`;
 
- // Fetch implemented changes this month
+ // Fetch implemented changes this month (for FAQs, reddit, and other Airtable-tracked types)
  let changes: ChangeRecord[] = [];
  try {
  changes = await airtableFetch<ChangeRecord>("Changes", {
@@ -99,6 +101,22 @@ async function fetchActuals(
  for (const c of changes) {
  const type = c.fields.type ?? "";
  typeCount[type] = (typeCount[type] ?? 0) + 1;
+ }
+
+ // Count Internal Link proposals from this month regardless of implementation
+ // status. Proposals land in Airtable as approval="pending"; they have no
+ // implemented_at so the "complete" query above returns 0. We count them via
+ // identified_at so the levels bar numerator tracks proposals, consistent with
+ // how page_creation_suggestions are counted below.
+ let internalLinkProposalCount = 0;
+ try {
+ const ilData = await airtableFetch<ChangeRecord>("Changes", {
+ filterByFormula: `AND(${clientFilter},{type}="Internal Link",IS_AFTER({identified_at},"${monthStart}"))`,
+ });
+ internalLinkProposalCount = ilData.length;
+ } catch {
+ // non-fatal — fall back to implemented count
+ internalLinkProposalCount = typeCount["Internal Link"] ?? typeCount["Internal Links"] ?? 0;
  }
 
  // Count content_refreshes and page_creation_suggestions from Supabase.
@@ -122,7 +140,10 @@ async function fetchActuals(
  .limit(200),
  ]);
  contentRefreshCount = (refreshData.data ?? []).length;
- pageCreationCount = (pageCreationData.data ?? []).length;
+ // Cap at the package limit so the numerator never exceeds the denominator
+ // when the generator ran with a stale/wrong quota.
+ const pageCreationCap = PACKAGES[pkg].page_creation_suggestions;
+ pageCreationCount = Math.min((pageCreationData.data ?? []).length, pageCreationCap);
  } catch {
  // non-fatal — fall back to 0
  }
@@ -163,7 +184,7 @@ async function fetchActuals(
  faq_sections: typeCount["FAQ"] ?? 0,
  content_refreshes: contentRefreshCount,
  page_creation_suggestions: pageCreationCount,
- internal_links: typeCount["Internal Link"] ?? typeCount["Internal Links"] ?? 0,
+ internal_links: internalLinkProposalCount,
  reddit_comments: typeCount["Reddit"] ?? typeCount["Reddit Comment"] ?? 0,
  };
 }
@@ -207,7 +228,8 @@ export async function MonthlyProgressSidebar({ client }: { client: Client }) {
  client.id,
  client.fields.client_id,
  client.fields.company_name,
- monthStart
+ monthStart,
+ pkg,
  );
 
  const pkgBadge: Record<PackageTier, string> = {
@@ -283,7 +305,8 @@ export async function MonthlyProgress({ client }: { client: Client }) {
  client.id,
  client.fields.client_id,
  client.fields.company_name,
- monthStart
+ monthStart,
+ pkg,
  );
 
  const packageColors: Record<PackageTier, string> = {
