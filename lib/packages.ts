@@ -25,7 +25,7 @@ export const PACKAGES: Record<PackageTier, PackageDeliverables> = {
     content_refreshes: 4,
     page_creation_suggestions: 0,
     internal_links: 8,
-    reddit_comments: 0,
+    reddit_comments: 2,
   },
   // Studio — $699/mo
   growth: {
