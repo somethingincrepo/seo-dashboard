@@ -73,6 +73,12 @@ export interface ExtractedPage {
   has_table_of_contents: boolean;
 
   page_type: "home" | "article" | "product" | "category" | "other";
+  /**
+   * Stripped body HTML for internal-link generation. Scripts, styles, nav,
+   * header, footer, and aside are removed to reduce storage size. Empty string
+   * when the page is too large or extraction failed.
+   */
+  body_html: string;
 }
 
 const GENERIC_ANCHORS = new Set([
@@ -309,6 +315,19 @@ export function extract(input: ExtractionInput): ExtractedPage {
   // Page type heuristic
   const pageType = classifyPageType(url, $, schemaTypes);
 
+  // Stripped body HTML for internal-link generation. Remove noise elements so
+  // the stored HTML is as small as possible while keeping all linkable content.
+  // Cap at 500 KB — anything larger is almost certainly a pathological page that
+  // the generator would fail on anyway (too slow to scan).
+  const MAX_BODY_HTML_BYTES = 500 * 1024;
+  let body_html = "";
+  try {
+    const $s = cheerio.load(input.html);
+    $s("script, style, noscript, nav, header, footer, aside, iframe, svg, template").remove();
+    const raw = $s.html("body") ?? "";
+    if (Buffer.byteLength(raw, "utf8") <= MAX_BODY_HTML_BYTES) body_html = raw;
+  } catch { /* leave body_html as "" */ }
+
   return {
     url,
     status_code: input.statusCode,
@@ -369,6 +388,7 @@ export function extract(input: ExtractionInput): ExtractedPage {
     has_author: hasAuthor,
     has_table_of_contents: hasToc,
     page_type: pageType,
+    body_html,
   };
 }
 

@@ -109,6 +109,7 @@ export async function writePages(
     has_table_of_contents: r.has_table_of_contents,
     page_type: r.page_type,
     is_nav_page: r.is_nav_page,
+    body_html: r.body_html || null,
   }));
 
   // De-dup by (audit_run_id, url) before insert. The crawler can land on the

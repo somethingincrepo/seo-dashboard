@@ -1,14 +1,13 @@
 /**
  * Deterministic internal-link generator.
  *
- * Given an audit's pages + the issues raised by R047/R048/R049/R050, fetch
- * the relevant source page HTML (deterministically extract content blocks,
- * scan for target-derived phrases, rank by tuple-score), and emit one
- * LinkProposal per accepted suggestion.
+ * Given an audit's pages + the issues raised by R047/R048/R049/R050, extract
+ * content blocks from the stored body_html (written by the crawler into the
+ * pages table), scan for target-derived phrases, rank by tuple-score, and emit
+ * one LinkProposal per accepted suggestion.
  *
- * The fetcher is injected so unit tests can supply pre-canned HTML and
- * production can use the global `fetch`. There are no other side effects
- * here — the caller is responsible for writing proposals back to Supabase.
+ * There are no live HTTP fetches here. All HTML comes from the crawl snapshot
+ * already in Supabase. Pages missing body_html are skipped (proposal failure).
  */
 
 import type { Page } from "../rules/types";
@@ -25,8 +24,6 @@ export interface IssueInput {
   page_url: string | null;
 }
 
-export type Fetcher = (url: string) => Promise<{ ok: boolean; html: string }>;
-
 export interface GenerateInput {
   issues: IssueInput[];
   pages: Page[];
@@ -34,10 +31,12 @@ export interface GenerateInput {
   brand?: string | null;
   /** Optional client keyword groups (already flattened to subkeyword strings). */
   keywords?: string[];
-  /** Page fetcher. Defaults to a built-in fetch with a 10s timeout. */
-  fetcher?: Fetcher;
-  /** Concurrency for HTML fetches. */
-  concurrency?: number;
+  /**
+   * Stored body HTML per page URL, populated from pages.body_html written by
+   * the crawler. Pages absent from this map produce a proposal failure rather
+   * than a live HTTP fetch.
+   */
+  htmlByUrl?: Map<string, string>;
   /** Wall clock for `generated_at`. Override in tests for stable snapshots. */
   now?: () => Date;
 }
@@ -66,17 +65,16 @@ const RULES_LIMIT_AND_DIRECTION: Record<
 const R050_MAX_SHARE = 0.3;
 
 export async function generateProposals(input: GenerateInput): Promise<GenerateOutput> {
-  const fetcher = input.fetcher ?? defaultFetcher;
-  const concurrency = input.concurrency ?? 6;
   const now = input.now ?? (() => new Date());
+  const htmlByUrl = input.htmlByUrl ?? new Map<string, string>();
   const pagesById = new Map<string, Page>();
   for (const p of input.pages) pagesById.set(p.id, p);
   const pagesByUrl = new Map<string, Page>();
   for (const p of input.pages) pagesByUrl.set(p.url, p);
 
-  // ── Plan: which source URLs need to be fetched? ─────────────────────
+  // ── Plan: which source URLs need blocks extracted? ───────────────────
   // Subject-is-source: just the subject. Subject-is-target: every candidate
-  // source page. We deduplicate so the same URL is fetched once.
+  // source page. We deduplicate so each URL is only extracted once.
   const sourceUrls = new Set<string>();
   for (const issue of input.issues) {
     const cfg = RULES_LIMIT_AND_DIRECTION[issue.rule_id];
@@ -95,7 +93,7 @@ export async function generateProposals(input: GenerateInput): Promise<GenerateO
     }
   }
 
-  const blocksByUrl = await fetchAndExtract(Array.from(sourceUrls), fetcher, concurrency);
+  const blocksByUrl = buildBlocksByUrl(Array.from(sourceUrls), htmlByUrl);
 
   // ── Per-issue: build phrases for the target, scan source(s), rank, pick ──
   const proposals: GenerateOutput["proposals"] = [];
@@ -115,7 +113,7 @@ export async function generateProposals(input: GenerateInput): Promise<GenerateO
     if (cfg.direction === "subject_is_source") {
       const sourceBlocks = blocksByUrl.get(subject.url);
       if (!sourceBlocks || sourceBlocks.length === 0) {
-        failures.push({ issue_id: issue.id, reason: "could not fetch or extract source page body" });
+        failures.push({ issue_id: issue.id, reason: "no stored body HTML for source page (page will be included after next crawl)" });
         continue;
       }
       // Try every other indexable page as a possible target. For each, build
@@ -250,72 +248,23 @@ function isUsableTarget(p: Page): boolean {
   return true;
 }
 
-async function fetchAndExtract(
+function buildBlocksByUrl(
   urls: string[],
-  fetcher: Fetcher,
-  concurrency: number,
-): Promise<Map<string, Block[]>> {
+  htmlByUrl: Map<string, string>,
+): Map<string, Block[]> {
   const out = new Map<string, Block[]>();
-  // Sort URLs so concurrent fetches happen in deterministic order — useful
-  // when debugging request logs against expected output.
-  const queue = [...urls].sort();
-  let active = 0;
-  let cursor = 0;
-
-  await new Promise<void>((resolve) => {
-    const launchNext = () => {
-      while (active < concurrency && cursor < queue.length) {
-        const url = queue[cursor++];
-        active += 1;
-        fetcher(url)
-          .then((res) => {
-            if (res.ok && res.html) {
-              const { blocks } = extractBody(res.html);
-              out.set(url, blocks);
-            } else {
-              out.set(url, []);
-            }
-          })
-          .catch(() => {
-            out.set(url, []);
-          })
-          .finally(() => {
-            active -= 1;
-            if (cursor >= queue.length && active === 0) resolve();
-            else launchNext();
-          });
-      }
-      if (queue.length === 0) resolve();
-    };
-    launchNext();
-  });
-
+  // Sort for deterministic iteration order (matches previous fetch order).
+  for (const url of [...urls].sort()) {
+    const html = htmlByUrl.get(url);
+    if (html) {
+      const { blocks } = extractBody(html);
+      out.set(url, blocks);
+    } else {
+      out.set(url, []);
+    }
+  }
   return out;
 }
-
-const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
-const DEFAULT_USER_AGENT = "PromptiveSEO/1.0 (+https://getpromptive.ai/bot)";
-
-const defaultFetcher: Fetcher = async (url) => {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), DEFAULT_FETCH_TIMEOUT_MS);
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { "user-agent": DEFAULT_USER_AGENT, accept: "text/html,application/xhtml+xml" },
-      signal: ctrl.signal,
-      redirect: "follow",
-    });
-    clearTimeout(timer);
-    if (!res.ok) return { ok: false, html: "" };
-    const ct = res.headers.get("content-type") ?? "";
-    if (!ct.includes("html")) return { ok: false, html: "" };
-    const html = await res.text();
-    return { ok: true, html };
-  } catch {
-    return { ok: false, html: "" };
-  }
-};
 
 function candidateToProposal(c: Candidate, ruleId: string, now: Date, phraseCandidates: string[] = []): LinkProposal {
   const { source, target, block, match } = c;

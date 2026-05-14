@@ -83,7 +83,7 @@ export async function runInternalLinksGeneration(
   }
 
   // Load all pages from the audit run.
-  const pages = await loadAllPages(auditRunId);
+  const { pages, htmlByUrl } = await loadAllPages(auditRunId);
   if (pages.length === 0) {
     const msg = "no pages found for audit_run";
     console.log(`[internal-links] ${msg} (audit_run_id=${auditRunId})`);
@@ -151,12 +151,13 @@ export async function runInternalLinksGeneration(
     console.warn("[run-internal-links] client load failed:", e instanceof Error ? e.message : String(e));
   }
 
-  // Generate deterministic proposals.
+  // Generate deterministic proposals using body HTML stored by the crawler.
   const result = await generateProposals({
     issues: issues.map((i) => ({ id: i.id, rule_id: i.rule_id, page_id: i.page_id, page_url: i.page_url })),
     pages,
     brand,
     keywords,
+    htmlByUrl,
   });
 
   // Write proposals back to Supabase issues.proposed_value (one per issue,
@@ -222,10 +223,13 @@ export async function runInternalLinksGeneration(
   };
 }
 
-async function loadAllPages(auditRunId: string): Promise<Page[]> {
+async function loadAllPages(
+  auditRunId: string,
+): Promise<{ pages: Page[]; htmlByUrl: Map<string, string> }> {
   const supabase = getSupabase();
   const PAGE_SIZE = 1000;
-  const all: Page[] = [];
+  const pages: Page[] = [];
+  const htmlByUrl = new Map<string, string>();
   let from = 0;
   while (true) {
     const { data, error } = await supabase
@@ -234,10 +238,13 @@ async function loadAllPages(auditRunId: string): Promise<Page[]> {
       .eq("audit_run_id", auditRunId)
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`pages load failed: ${error.message}`);
-    const rows = (data ?? []) as Page[];
-    all.push(...rows);
+    const rows = (data ?? []) as Array<Page & { body_html?: string | null }>;
+    for (const row of rows) {
+      pages.push(row as Page);
+      if (row.body_html) htmlByUrl.set(row.url, row.body_html);
+    }
     if (rows.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
-  return all;
+  return { pages, htmlByUrl };
 }

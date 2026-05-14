@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateProposals, type Fetcher } from "../generator";
+import { generateProposals } from "../generator";
 import { makePage } from "../../rules/__tests__/fixtures";
 import type { LinkProposal } from "../types";
 
@@ -24,14 +24,6 @@ const HTML_SERVICES = `<html><body><main>
   <h1>Bookkeeping services for small business owners</h1>
   <p>Our team supports founders, sole proprietors, and growing companies with monthly close support.</p>
 </main></body></html>`;
-
-function fetcherFor(map: Record<string, string>): Fetcher {
-  return async (url: string) => {
-    const html = map[url];
-    if (!html) return { ok: false, html: "" };
-    return { ok: true, html };
-  };
-}
 
 describe("generateProposals", () => {
   it("R047: picks outbound links from a dead-end page using literal anchor text on the page", async () => {
@@ -69,11 +61,11 @@ describe("generateProposals", () => {
       pages: [home, services, blog],
       brand: "Acme",
       now: fixedNow,
-      fetcher: fetcherFor({
-        [home.url]: HTML_HOME,
-        [services.url]: HTML_SERVICES,
-        [blog.url]: HTML_BLOG_POST,
-      }),
+      htmlByUrl: new Map([
+        [home.url, HTML_HOME],
+        [services.url, HTML_SERVICES],
+        [blog.url, HTML_BLOG_POST],
+      ]),
     });
 
     expect(out.failures).toEqual([]);
@@ -134,10 +126,10 @@ describe("generateProposals", () => {
       pages: [home, orphan, blog],
       brand: "Acme",
       now: fixedNow,
-      fetcher: fetcherFor({
-        [blog.url]: blogHtml,
-        [home.url]: HTML_HOME,
-      }),
+      htmlByUrl: new Map([
+        [blog.url, blogHtml],
+        [home.url, HTML_HOME],
+      ]),
     });
 
     expect(out.proposals.length).toBe(1);
@@ -156,16 +148,16 @@ describe("generateProposals", () => {
       h1_text: "Bookkeeping services", title: "Bookkeeping Services for Small Business | Acme",
       internal_links_in: 3, word_count: 400,
     });
-    const fetcher = fetcherFor({
-      [home.url]: HTML_HOME,
-      [services.url]: HTML_SERVICES,
-    });
+    const htmlByUrl = new Map([
+      [home.url, HTML_HOME],
+      [services.url, HTML_SERVICES],
+    ]);
     const args = {
       issues: [{ id: "issue-1", rule_id: "R047", page_id: "p-home", page_url: home.url }],
       pages: [home, services],
       brand: "Acme",
       now: fixedNow,
-      fetcher,
+      htmlByUrl,
     };
     const a = await generateProposals(args);
     const b = await generateProposals(args);
@@ -189,13 +181,12 @@ describe("generateProposals", () => {
       issues: [{ id: "issue-3", rule_id: "R048", page_id: "p-x", page_url: orphan.url }],
       pages: [orphan, blog],
       now: fixedNow,
-      fetcher: fetcherFor({
-        [blog.url]: `<html><body><main><p>Cast iron pans are remarkable for searing steaks evenly all the way through.</p></main></body></html>`,
-      }),
+      htmlByUrl: new Map([
+        [blog.url, `<html><body><main><p>Cast iron pans are remarkable for searing steaks evenly all the way through.</p></main></body></html>`],
+      ]),
     });
     expect(out.proposals).toHaveLength(0);
     expect(out.failures).toHaveLength(1);
     expect(out.failures[0].issue_id).toBe("issue-3");
   });
 });
-

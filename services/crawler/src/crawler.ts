@@ -243,5 +243,6 @@ function failedPagePlaceholder(url: string, origin: string): ExtractedPage {
     has_author: false,
     has_table_of_contents: false,
     page_type: "other",
+    body_html: "",
   };
 }
