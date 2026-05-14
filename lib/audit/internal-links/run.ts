@@ -19,6 +19,56 @@ import type { Page } from "@/lib/audit/rules/types";
 import { generateProposals } from "./generator";
 import { writeInternalLinkChanges } from "./changes-writer";
 
+// ---------------------------------------------------------------------------
+// Live-fetch fallback for pages missing stored body_html
+//
+// The crawler stores stripped body HTML in pages.body_html since 2026-05-14.
+// Pages from earlier audits have body_html = NULL. For those pages, fetch
+// the HTML live with a short timeout and strip noise elements, matching the
+// crawler's preprocessing. This fallback is only active when the stored
+// column is empty; once pages are re-crawled it becomes a no-op.
+// ---------------------------------------------------------------------------
+
+const LIVE_FETCH_TIMEOUT_MS = 12_000;
+const LIVE_FETCH_MAX_BYTES = 500 * 1024;
+
+async function fetchHtmlForUrl(url: string): Promise<string> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LIVE_FETCH_TIMEOUT_MS);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; SomethingIncBot/1.0; internal-link-generator)",
+        "Accept": "text/html",
+      },
+      redirect: "follow",
+    });
+    clearTimeout(timer);
+    if (!res.ok) return "";
+    const raw = await res.text();
+    // Respect size cap — same as crawler extractor
+    if (Buffer.byteLength(raw, "utf8") > LIVE_FETCH_MAX_BYTES) return "";
+    return raw;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Strip nav/header/footer/script/style from raw HTML — mirrors the crawler's
+ * cheerio stripping so the text content is comparable. Uses a simple regex
+ * approach to avoid a cheerio import in the generator path.
+ */
+function stripNoiseElements(html: string): string {
+  // Remove entire tag trees for noise elements. This is a best-effort strip
+  // suitable for the internal-link scanner; the crawler's cheerio version
+  // is more accurate but not importable here without a build dependency.
+  return html
+    .replace(/<(script|style|noscript|nav|header|footer|aside|iframe|svg|template)[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<(script|style|noscript|nav|header|footer|aside|iframe|svg|template)[^>]*\/>/gi, "");
+}
+
 export interface RunInternalLinksInput {
   /** Airtable Clients record ID. */
   clientId: string;
@@ -219,7 +269,7 @@ export async function runInternalLinksGeneration(
     result.proposals.length === 0
       ? `${issues.length} R047–R050 issues but generator produced 0 proposals (pages_with_html=${htmlByUrl.size}/${pages.length})`
       : `${result.proposals.length} proposals generated → ${writeRes.written} Changes written`;
-  // Surface 0-proposal state as a distinct status so health queries can catch it.
+  // "no_html" only when even the live-fetch fallback produced nothing.
   const status: RunInternalLinksResult["status"] =
     htmlByUrl.size === 0 && issues.length > 0 ? "no_html"
     : "complete";
@@ -266,5 +316,31 @@ async function loadAllPages(
     if (rows.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
+
+  // Live-fetch fallback: for pages missing body_html (crawled before the
+  // column was added on 2026-05-14), fetch and strip HTML live. Only fetch
+  // pages that are usable as source candidates (status_code=200, indexable,
+  // word_count>=100) to avoid wasting fetches on redirects and thin pages.
+  // Cap at 20 fetches per run to keep latency bounded; further pages skip.
+  const MAX_LIVE_FETCHES = 20;
+  let liveFetchCount = 0;
+  if (htmlByUrl.size === 0 && pages.length > 0) {
+    console.log(`[internal-links] body_html missing for all ${pages.length} pages — attempting live-fetch fallback`);
+    const fetchTargets = pages.filter(
+      (p) => p.status_code === 200 && p.is_indexable !== false && (p.word_count ?? 0) >= 100,
+    );
+    for (const page of fetchTargets) {
+      if (liveFetchCount >= MAX_LIVE_FETCHES) break;
+      const raw = await fetchHtmlForUrl(page.url);
+      if (!raw) continue;
+      const stripped = stripNoiseElements(raw);
+      if (stripped.length > 0) {
+        htmlByUrl.set(page.url, stripped);
+        liveFetchCount++;
+      }
+    }
+    console.log(`[internal-links] live-fetch fallback: fetched ${liveFetchCount}/${Math.min(fetchTargets.length, MAX_LIVE_FETCHES)} pages`);
+  }
+
   return { pages, htmlByUrl };
 }
