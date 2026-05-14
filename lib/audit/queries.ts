@@ -106,17 +106,18 @@ export async function getIssuesForRun(auditRunId: string): Promise<AuditIssue[]>
   return (data ?? []) as AuditIssue[];
 }
 
-/** Count of active page-scope issues for the nav badge — matches exactly what the Issues tab shows. */
+/** Count of active page-scope issue types for the nav badge — distinct rules, matching the Issues tab display. */
 export async function getLatestIssueCount(clientId: string): Promise<number> {
   const run = await getLatestCompletedRun(clientId);
   if (!run) return 0;
-  const { count } = await getSupabase()
+  const { data } = await getSupabase()
     .from("issues")
-    .select("*", { count: "exact", head: true })
+    .select("rule_id")
     .eq("audit_run_id", run.id)
     .eq("scope", "page")
     .or("decision.is.null,decision.eq.approved");
-  return count ?? 0;
+  if (!data) return 0;
+  return new Set((data as { rule_id: string }[]).map((r) => r.rule_id)).size;
 }
 
 /** Per-schema-type coverage across all 200-status pages in a run. */

@@ -36,8 +36,11 @@ export function computeHealthScore(issues: AuditIssue[], pagesCrawled: number): 
 }
 
 export function computePenalty(issues: AuditIssue[]): number {
+  const seen = new Set<string>();
   let p = 0;
   for (const i of issues) {
+    if (seen.has(i.rule_id)) continue;
+    seen.add(i.rule_id);
     p += SEVERITY_WEIGHTS[(i.severity ?? "").toLowerCase() as keyof typeof SEVERITY_WEIGHTS] ?? 0;
   }
   return p;
@@ -49,8 +52,11 @@ export function severityCounts(issues: AuditIssue[]): {
   medium: number;
   low: number;
 } {
+  const seen = new Set<string>();
   const c = { critical: 0, high: 0, medium: 0, low: 0 };
   for (const i of issues) {
+    if (seen.has(i.rule_id)) continue;
+    seen.add(i.rule_id);
     const k = (i.severity ?? "").toLowerCase();
     if (k === "critical" || k === "high" || k === "medium" || k === "low") c[k]++;
   }

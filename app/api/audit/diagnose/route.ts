@@ -279,9 +279,12 @@ export async function POST(request: NextRequest) {
     // run the SOP before the status flip lands and skip the client because
     // "no completed audit run exists." Flipping status first eliminates that
     // race entirely.
+    // Count distinct rule_ids — one issue = one rule type, regardless of how many pages it fires on.
+    const distinctIssueCount = new Set(issueRows.map((r) => r.rule_id as string)).size;
+
     const completionSummary = {
       pages: pages.length,
-      issues: issueRows.length,
+      issues: distinctIssueCount,
       mechanical_fixes: mechanicalUpdates.length,
       internal_links: internalLinksSummary,
       jobs_enqueued: {} as Record<string, "pending" | "failed">,
@@ -294,7 +297,7 @@ export async function POST(request: NextRequest) {
     const updatePayload: Record<string, unknown> = {
       status: "complete",
       diagnose_completed_at: completedAt,
-      issues_found: issueRows.length,
+      issues_found: distinctIssueCount,
       internal_links_summary: internalLinksSummary,
       completion_summary: completionSummary,
     };
@@ -304,7 +307,7 @@ export async function POST(request: NextRequest) {
       const fallbackPayload = {
         status: "complete",
         diagnose_completed_at: completedAt,
-        issues_found: issueRows.length,
+        issues_found: distinctIssueCount,
       };
       updateErr = (await supabase.from("audit_runs").update(fallbackPayload).eq("id", auditRunId)).error;
       if (updateErr) {

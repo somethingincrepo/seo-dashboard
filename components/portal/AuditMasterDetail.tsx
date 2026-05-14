@@ -237,17 +237,35 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  [issues, localDecisions],
  );
 
+ // Distinct issue types = unique rule_ids in the page-scope visible pool.
+ // One rule firing on 20 pages = 1 issue type. Per-page detail is preserved
+ // in group.issues.length inside each RuleCard.
+ const distinctIssueTypes = useMemo(
+ () => new Set(pageIssues.map((i) => i.rule_id)).size,
+ [pageIssues],
+ );
+
  const severityCounts = useMemo(() => {
+ const seen = new Set<string>();
  const c: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0 };
- for (const i of visibleIssues) c[i.severity as Severity] = (c[i.severity as Severity] ?? 0) + 1;
+ for (const i of pageIssues) {
+ if (seen.has(i.rule_id)) continue;
+ seen.add(i.rule_id);
+ c[i.severity as Severity] = (c[i.severity as Severity] ?? 0) + 1;
+ }
  return c;
- }, [visibleIssues]);
+ }, [pageIssues]);
 
  const categoryCounts = useMemo(() => {
+ const seen = new Set<string>();
  const c: Record<Category, number> = { technical: 0, "on-page": 0, content: 0, "ai-geo": 0 };
- for (const i of visibleIssues) c[i.category as Category] = (c[i.category as Category] ?? 0) + 1;
+ for (const i of pageIssues) {
+ if (seen.has(i.rule_id)) continue;
+ seen.add(i.rule_id);
+ c[i.category as Category] = (c[i.category as Category] ?? 0) + 1;
+ }
  return c;
- }, [visibleIssues]);
+ }, [pageIssues]);
 
  const affectedPages = useMemo(() => {
  const set = new Set<string>();
@@ -391,14 +409,10 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  <div className="min-w-0 flex-1">
  <div className="text-[10px] font-semibold tracking-widest text-slate-400">Site health</div>
  <div className="text-[13px] text-slate-700 mt-1 leading-snug">
- <span className="text-slate-900 font-semibold">{affectedPages}</span> of {totalPagesCrawled} pages have at least one issue.
+ <span className="text-slate-900 font-semibold">{distinctIssueTypes}</span> issue type{distinctIssueTypes !== 1 ? "s" : ""} across <span className="text-slate-900 font-semibold">{affectedPages}</span> page{affectedPages !== 1 ? "s" : ""}.
  </div>
  <div className="text-[11.5px] text-slate-500 mt-1">
- {pageIssues.length.toLocaleString()} findings · avg{" "}
- <span className="tabular-nums">
- {affectedPages > 0 ? (pageIssues.length / affectedPages).toFixed(1) : "0"}
- </span>{" "}
- per affected page
+ {pageIssues.length.toLocaleString()} total instance{pageIssues.length !== 1 ? "s" : ""} · {totalPagesCrawled} pages crawled
  </div>
  </div>
  </div>
@@ -411,7 +425,7 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  slices={donutSlices}
  activeKey={severity}
  onSliceClick={(k) => setSeverity((cur) => (cur === k ? "all" : (k as SeverityFilter)))}
- centerValue={pageIssues.length}
+ centerValue={distinctIssueTypes}
  size={92}
  thickness={11}
  />
@@ -419,7 +433,7 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  {SEVERITIES.map((sev) => {
  const count = severityCounts[sev] ?? 0;
  const isActive = severity === sev;
- const pct = pageIssues.length > 0 ? Math.round((count / pageIssues.length) * 100) : 0;
+ const pct = distinctIssueTypes > 0 ? Math.round((count / distinctIssueTypes) * 100) : 0;
  return (
  <button
  key={sev}
@@ -481,7 +495,7 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  <div className="flex items-center gap-1 overflow-x-auto">
  <CategoryTab
  label="All issues"
- count={pageIssues.length}
+ count={distinctIssueTypes}
  active={category === "all"}
  onClick={() => setCategory("all")}
  />
@@ -565,7 +579,7 @@ function AuditMasterDetailInner({ run, issues, token, client }: Props) {
  <div className="text-[10px] font-semibold tracking-widest text-slate-400 px-2 mb-1">Priority</div>
  <SidebarItem
  label="All priorities"
- count={pageIssues.length}
+ count={distinctIssueTypes}
  active={severity === "all"}
  dotClass="bg-slate-300"
  onClick={() => setSeverity("all")}
