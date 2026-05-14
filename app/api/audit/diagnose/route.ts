@@ -4,7 +4,6 @@ import { runAllRules, type Page, type SiteContext } from "@/lib/audit/rules";
 import { buildFixGuidance } from "@/lib/audit/rules/fix-guidance";
 import { getRuleDescription } from "@/lib/audit/rules/rule-descriptions";
 import { generateMechanicalFix, MECHANICAL_RULE_IDS } from "@/lib/audit/mechanical-fixes";
-import { RULE_TO_FIX_TYPE, FIX_TYPE_TO_SOP, groupByFixType, chunk, ISSUES_PER_JOB } from "@/lib/audit/generation";
 import { runInternalLinksGeneration } from "@/lib/audit/internal-links/run";
 
 const INTERNAL_LINK_RULES = new Set(["R047", "R048", "R049", "R050"]);
@@ -268,41 +267,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Path B — enqueue agent jobs for the per-fix-type rules
-    // Internal-link rules are excluded — they were handled synchronously in
-    // Path C above by the deterministic TS generator.
-    const agentIssues = allIssues.filter(
-      (i) =>
-        i.scope === "page" &&
-        RULE_TO_FIX_TYPE[i.rule_id] &&
-        !INTERNAL_LINK_RULES.has(i.rule_id),
-    );
-    const grouped = groupByFixType(agentIssues);
-    let jobsCreated = 0;
-    for (const [fixType, list] of grouped) {
-      const sopName = FIX_TYPE_TO_SOP[fixType];
-      const chunks = chunk(list, ISSUES_PER_JOB);
-      for (const c of chunks) {
-        const ids = c.map((i) => i.id);
-        const { error: jobErr } = await supabase.from("jobs").insert({
-          sop_name: sopName,
-          client_id: run.client_id,
-          payload: { issue_ids: ids, audit_run_id: auditRunId },
-          status: "pending",
-          runner: "fly",
-        });
-        if (jobErr) {
-          console.error(`[diagnose] failed to enqueue ${sopName} job:`, jobErr.message);
-          continue;
-        }
-        // Mark these issues as queued
-        await supabase
-          .from("issues")
-          .update({ fix_status: "queued" })
-          .in("id", ids);
-        jobsCreated += 1;
-      }
-    }
+    // Path B — fix generation is deferred until the client approves each issue.
+    // Jobs are created by POST /api/portal/audit-decide when decision="approved".
+    // This prevents spending money on fixes the client may never want.
 
     // ── Mark the audit complete BEFORE enqueueing downstream SOPs ────────
     // The schedulers (refresh_scheduler, keyword_research) read the most
@@ -427,7 +394,7 @@ export async function POST(request: NextRequest) {
       internal_link_changes_written: internalLinkChangesWritten,
       internal_link_failures: internalLinkFailures,
       internal_links_summary: internalLinksSummary,
-      agent_jobs_enqueued: jobsCreated,
+      agent_jobs_enqueued: 0,
       first_batch_jobs_enqueued: firstBatchSops.length,
       first_batch_results: completionSummary.jobs_enqueued,
     });
