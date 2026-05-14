@@ -40,12 +40,16 @@ export interface RunInternalLinksInput {
 export interface RunInternalLinksResult {
   audit_run_id: string;
   pages_considered: number;
+  /** How many of the pages have body_html populated (key diagnostic). */
+  pages_with_html: number;
   /** Number of R047–R050 issues that drove generation (the "demand" side). */
   issues_seen: number;
   proposals_generated: number;
   proposal_failures: number;
+  /** Per-issue failure reasons for observability. */
+  failure_details?: Array<{ issue_id: string; rule_id: string; reason: string }>;
   changes_written: number;
-  status: "complete" | "skipped";
+  status: "complete" | "skipped" | "no_html";
   message?: string;
 }
 
@@ -84,12 +88,15 @@ export async function runInternalLinksGeneration(
 
   // Load all pages from the audit run.
   const { pages, htmlByUrl } = await loadAllPages(auditRunId);
+  // Phase-0 trace: log how many pages have body_html so we can see the gap.
+  console.log(`[internal-links] loaded ${pages.length} pages, ${htmlByUrl.size} with body_html (audit_run_id=${auditRunId})`);
   if (pages.length === 0) {
     const msg = "no pages found for audit_run";
     console.log(`[internal-links] ${msg} (audit_run_id=${auditRunId})`);
     return {
       audit_run_id: auditRunId,
       pages_considered: 0,
+      pages_with_html: 0,
       issues_seen: 0,
       proposals_generated: 0,
       proposal_failures: 0,
@@ -116,6 +123,7 @@ export async function runInternalLinksGeneration(
     return {
       audit_run_id: auditRunId,
       pages_considered: pages.length,
+      pages_with_html: htmlByUrl.size,
       issues_seen: 0,
       proposals_generated: 0,
       proposal_failures: 0,
@@ -206,19 +214,28 @@ export async function runInternalLinksGeneration(
 
   const message =
     result.proposals.length === 0
-      ? `${issues.length} R047–R050 issues but generator produced 0 proposals (no anchor matches found in candidate pages)`
+      ? `${issues.length} R047–R050 issues but generator produced 0 proposals (pages_with_html=${htmlByUrl.size}/${pages.length})`
       : `${result.proposals.length} proposals generated → ${writeRes.written} Changes written`;
+  // Surface 0-proposal state as a distinct status so health queries can catch it.
+  const status: RunInternalLinksResult["status"] =
+    htmlByUrl.size === 0 && issues.length > 0 ? "no_html"
+    : "complete";
   console.log(
-    `[internal-links] complete (audit_run_id=${auditRunId}, pages=${pages.length}, issues=${issues.length}, proposals=${result.proposals.length}, failures=${result.failures.length}, changes=${writeRes.written})`,
+    `[internal-links] ${status} (audit_run_id=${auditRunId}, pages=${pages.length}, pages_with_html=${htmlByUrl.size}, issues=${issues.length}, proposals=${result.proposals.length}, failures=${result.failures.length}, changes=${writeRes.written})`,
   );
   return {
     audit_run_id: auditRunId,
     pages_considered: pages.length,
+    pages_with_html: htmlByUrl.size,
     issues_seen: issues.length,
     proposals_generated: result.proposals.length,
     proposal_failures: result.failures.length,
+    failure_details: result.failures.map((f) => {
+      const issue = issues.find((i) => i.id === f.issue_id);
+      return { issue_id: f.issue_id, rule_id: issue?.rule_id ?? "unknown", reason: f.reason };
+    }),
     changes_written: writeRes.written,
-    status: "complete",
+    status,
     message,
   };
 }
