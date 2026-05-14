@@ -142,6 +142,27 @@ export function resolveGuideForChange(
   return base;
 }
 
+// Rules where current_value is a measurement (ratio, count, %) rather than
+// actual page text. Using current_value as "Find this text" is meaningless for
+// these — the fix is always adding/inserting content, not replacing a phrase.
+const CONTENT_INSERT_RULES = new Set(["R045", "R046", "R056"]);
+
+/**
+ * Maps an audit issue (by rule_id + rule_name) to a DeliverableType.
+ * Prefer this over deliverableFromChangeType for audit-portal rendering
+ * because it uses the stable rule_id rather than the freeform rule_name string.
+ */
+export function deliverableForIssue(
+  ruleId: string | undefined,
+  ruleName: string | undefined,
+): DeliverableType | null {
+  // Measurement rules: current_value is a metric, not page text. Must add
+  // content rather than find+replace.
+  if (ruleId && CONTENT_INSERT_RULES.has(ruleId)) return "content_block_insert";
+  // Fall back to name-based matching for all other rules.
+  return deliverableFromChangeType(ruleName);
+}
+
 // Maps an Airtable Change.fields.type string to our internal DeliverableType.
 // Types in the Changes table are agent-written and somewhat freeform, so we normalize generously.
 export function deliverableFromChangeType(type: string | undefined): DeliverableType | null {

@@ -8,7 +8,7 @@ import { AuditDonut } from "./AuditDonut";
 import { getFixGuidance } from "@/lib/audit/rules/fix-guidance";
 import { ImplementationGuide } from "./ImplementationGuide";
 import { AutoModeNotice } from "./AutoModeNotice";
-import { resolveGuide, deliverableFromChangeType } from "@/lib/implementation-guides";
+import { resolveGuide, deliverableFromChangeType, deliverableForIssue } from "@/lib/implementation-guides";
 import type { Client } from "@/lib/clients";
 
 const SEVERITIES = ["critical", "high", "medium", "low"] as const;
@@ -1389,8 +1389,8 @@ function IssueDetail({
  </div>
 
  {/* 5. Implementation guide — shown when fix is generated (before or after approval) */}
- {(decision === "approved" || issue.fix_status === "generated") && (() => {
- const deliverable = deliverableFromChangeType(issue.rule_name);
+ {issue.fix_status === "generated" && issue.proposed_value && (() => {
+ const deliverable = deliverableForIssue(issue.rule_id, issue.rule_name);
  if (!deliverable) return null;
  const resolved = resolveGuide(deliverable, client);
  if (resolved.mode === "auto") {
@@ -1408,7 +1408,7 @@ function IssueDetail({
  token={token}
  values={{
  page_url: issue.page_url ?? "",
- proposed_value: issue.proposed_value ?? issue.expected_value ?? "",
+ proposed_value: issue.proposed_value,
  current_value: issue.current_value ?? "",
  }}
  />
