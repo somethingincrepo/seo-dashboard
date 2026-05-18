@@ -258,7 +258,7 @@ export function ContentActivityFeed({
  const events = buildContentEvents(jobs, results);
 
  return (
- <div className="px-10 mt-6 pb-10">
+ <div className="mt-6 pb-10">
  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
  {/* Header */}
  <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">

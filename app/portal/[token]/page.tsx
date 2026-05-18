@@ -18,6 +18,7 @@ import {
 } from "@/lib/supabase";
 import { GscTrendChart, type GscWeek } from "@/components/portal/ClientDashboardWidgets";
 import { AuditLivePoller } from "@/components/portal/AuditLivePoller";
+import { MetricTile } from "@/components/ui/MetricTile";
 import { cn } from "@/lib/utils";
 
 export const revalidate = 0;
@@ -302,8 +303,8 @@ export default async function PortalDashboard({
           </div>
         </div>
 
-        {/* 4-column week grid */}
-        <div className="grid grid-cols-4 divide-x divide-slate-100 bg-white">
+        {/* 4-column week grid — current week expands, past/future compress */}
+        <div className="flex divide-x divide-slate-100 bg-white">
           {weekRanges.map((range, wIdx) => {
             const weekNum = wIdx + 1;
             const isCurrent = weekNum === currentWeekNum;
@@ -315,73 +316,67 @@ export default async function PortalDashboard({
               <div
                 key={wIdx}
                 className={cn(
-                  "p-5",
-                  isCurrent && "bg-indigo-50/40"
+                  "p-4 min-w-0 transition-all",
+                  isCurrent ? "flex-1" : "w-[17%] shrink-0"
                 )}
               >
                 {/* Week header */}
                 <div className="flex items-center justify-between mb-0.5">
                   <span className={cn(
-                    "text-[11px] font-bold uppercase tracking-wider",
-                    isCurrent ? "text-indigo-600" : isPast ? "text-slate-400" : "text-slate-400"
+                    "text-[11px] font-bold uppercase tracking-widest",
+                    isCurrent ? "text-slate-700" : "text-slate-400"
                   )}>
-                    Week {weekNum}
+                    W{weekNum}
                   </span>
                   {isCurrent && (
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-500 text-white">
+                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-slate-900 text-white">
                       Now
                     </span>
                   )}
                   {isPast && (
-                    <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
                       <IconCheck className="w-2.5 h-2.5 text-emerald-600" />
                     </div>
                   )}
                 </div>
 
-                <p className={cn("text-[11px] mb-4", isCurrent ? "text-indigo-500 font-medium" : "text-slate-400")}>
-                  {dateLabel}
-                </p>
-
-                {/* Deliverables */}
-                {weekTotal === 0 ? (
-                  <p className="text-xs text-slate-300 italic">Rest week</p>
-                ) : (
-                  <div className="space-y-2">
-                    {delivRows.map((row) => {
-                      const count = row.perWeek[wIdx] ?? 0;
-                      if (count === 0) return null;
-                      return (
-                        <div key={row.label} className="flex items-center gap-2">
-                          <span className={cn(
-                            "inline-flex items-center justify-center w-6 h-6 rounded-md shrink-0",
-                            isCurrent  ? "bg-indigo-100 text-indigo-700" :
-                            isPast     ? "bg-emerald-100 text-emerald-600" :
-                                         "bg-slate-100 text-slate-400"
-                          )}>
-                            {row.icon}
-                          </span>
-                          <span className={cn(
-                            "text-xs leading-tight flex-1",
-                            isCurrent ? "text-slate-700 font-medium" :
-                            isPast    ? "text-slate-400" :
-                                        "text-slate-400"
-                          )}>
-                            <span className={cn(
-                              "font-bold mr-1",
-                              isCurrent ? "text-indigo-700" : isPast ? "text-emerald-600" : "text-slate-500"
-                            )}>{count}</span>
-                            {row.label}
-                          </span>
-                          {isPast && <IconCheck className="w-3 h-3 text-emerald-500 shrink-0" />}
-                        </div>
-                      );
-                    })}
-                  </div>
+                {isCurrent && (
+                  <p className="text-[11px] text-slate-400 mb-3 mt-0.5">{dateLabel}</p>
                 )}
 
-                {isCurrent && weekTotal > 0 && (
-                  <p className="mt-4 text-[10px] text-indigo-400 font-medium uppercase tracking-wider">In progress</p>
+                {/* Deliverables — full detail for current; compact summary for past/future */}
+                {isCurrent ? (
+                  weekTotal === 0 ? (
+                    <p className="text-xs text-slate-300 italic">Rest week</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {delivRows.map((row) => {
+                        const count = row.perWeek[wIdx] ?? 0;
+                        if (count === 0) return null;
+                        return (
+                          <div key={row.label} className="flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-md shrink-0 bg-slate-100 text-slate-600">
+                              {row.icon}
+                            </span>
+                            <span className="text-xs leading-tight flex-1 text-slate-700">
+                              <span className="font-bold mr-1 text-slate-900">{count}</span>
+                              {row.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  <div className="mt-1.5">
+                    {weekTotal === 0 ? (
+                      <p className="text-[11px] text-slate-300">—</p>
+                    ) : (
+                      <p className={cn("text-[11px] tabular-nums font-semibold", isPast ? "text-emerald-600" : "text-slate-400")}>
+                        {weekTotal} item{weekTotal !== 1 ? "s" : ""}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -447,31 +442,28 @@ export default async function PortalDashboard({
       <div className="grid grid-cols-3 gap-4">
 
         {/* Published */}
-        <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden">
-          <div className="absolute right-4 top-4 opacity-[0.06]">
-            <IconArticle className="w-16 h-16 text-slate-900" />
-          </div>
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Published This Month</p>
-          <p className="text-5xl font-bold text-slate-900 tabular-nums mt-3 leading-none">{totalPublished}</p>
-          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1">
-            {articlesThisMonth  > 0 && <p className="text-xs text-slate-500">{articlesThisMonth} article{articlesThisMonth !== 1 ? "s" : ""}</p>}
-            {refreshesThisMonth > 0 && <p className="text-xs text-slate-500">{refreshesThisMonth} refresh{refreshesThisMonth !== 1 ? "es" : ""}</p>}
-            {newPagesThisMonth  > 0 && <p className="text-xs text-slate-500">{newPagesThisMonth} new page{newPagesThisMonth !== 1 ? "s" : ""}</p>}
-            {totalPublished === 0 && <p className="text-xs text-slate-400">Content in progress for {monthShort}</p>}
-          </div>
-        </div>
+        <MetricTile
+          label="Published This Month"
+          value={totalPublished}
+          accent="emerald"
+          sub={
+            totalPublished === 0
+              ? `Content in progress for ${monthShort}`
+              : [
+                  articlesThisMonth  > 0 ? `${articlesThisMonth} article${articlesThisMonth !== 1 ? "s" : ""}` : null,
+                  refreshesThisMonth > 0 ? `${refreshesThisMonth} refresh${refreshesThisMonth !== 1 ? "es" : ""}` : null,
+                  newPagesThisMonth  > 0 ? `${newPagesThisMonth} new page${newPagesThisMonth !== 1 ? "s" : ""}` : null,
+                ].filter(Boolean).join(" · ")
+          }
+        />
 
         {/* Changes */}
-        <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden">
-          <div className="absolute right-4 top-4 opacity-[0.06]">
-            <IconShield className="w-16 h-16 text-slate-900" />
-          </div>
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Changes on Your Site</p>
-          <p className="text-5xl font-bold text-slate-900 tabular-nums mt-3 leading-none">{implementedTotal}</p>
-          <p className="text-xs text-slate-500 mt-4">
-            SEO improvements applied since we started.
-          </p>
-        </div>
+        <MetricTile
+          label="Changes on Your Site"
+          value={implementedTotal}
+          accent="violet"
+          sub="SEO improvements applied since we started."
+        />
 
         {/* Audit */}
         {(() => {

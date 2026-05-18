@@ -14,7 +14,7 @@ function fmtDelta(value: number | null | undefined, reverse = false) {
  const positive = reverse ? value <= 0 : value >= 0;
  return {
  display: value >= 0 ? `+${value}` : `${value}`,
- color: positive ? "text-emerald-600" : "text-red-500",
+ color: positive ? "text-emerald-600" : "text-slate-500",
  };
 }
 
@@ -134,7 +134,7 @@ function Divider() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
  return (
- <div className="text-[11px] font-bold tracking-widest text-slate-400 mb-3">
+ <div className="text-[11px] font-bold tracking-widest uppercase text-slate-400 mb-3">
  {children}
  </div>
  );
@@ -437,7 +437,7 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
  <div className="space-y-1.5">
  {(r.top_ranking_losses as RankingEntry[]).slice(0, 3).map((g, i) => (
  <div key={i} className="flex items-center gap-2 text-sm">
- <span className="text-red-400 font-bold w-5">↓{Math.round(Math.abs(g.change))}</span>
+ <span className="text-slate-400 font-bold w-5">↓{Math.round(Math.abs(g.change))}</span>
  <span className="text-slate-600 truncate flex-1">{g.keyword}</span>
  <span className="text-slate-400 text-xs whitespace-nowrap">{fmtPos(g.current_position)}</span>
  </div>
@@ -481,7 +481,7 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
  <div className="space-y-1.5">
  {(r.top_pages_loss as PageEntry[]).slice(0, 3).map((p, i) => (
  <div key={i} className="flex items-center gap-2 text-sm">
- <span className="text-red-400 font-semibold w-8 text-xs">{p.delta}</span>
+ <span className="text-slate-400 font-semibold w-8 text-xs">{p.delta}</span>
  <span className="text-slate-600 truncate flex-1 text-xs">{p.page}</span>
  </div>
  ))}
@@ -610,7 +610,7 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
  <div className="text-[11px] text-slate-400 mt-0.5">
  Entity score
  {r.entity_coverage_prior != null && (
- <span className={`ml-1 font-medium ${r.entity_coverage_score >= r.entity_coverage_prior ? "text-emerald-600" : "text-red-500"}`}>
+ <span className={`ml-1 font-medium ${r.entity_coverage_score >= r.entity_coverage_prior ? "text-emerald-600" : "text-slate-400"}`}>
  ({r.entity_coverage_score >= r.entity_coverage_prior ? "+" : ""}{r.entity_coverage_score - r.entity_coverage_prior})
  </span>
  )}
