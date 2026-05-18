@@ -3,7 +3,6 @@ import { getClientByToken } from "@/lib/clients";
 import { getClientReports } from "@/lib/reports";
 import type { SupabaseReport, TrendEntry, RankingEntry, PageEntry, AiSourceEntry } from "@/lib/reports";
 import { executeGscQuery, executeGscTotals } from "@/lib/tools/gsc";
-import { GlassCard } from "@/components/ui/GlassCard";
 import { ReportsLive, type GscLiveData } from "@/components/portal/ReportsLive";
 
 export const revalidate = 86400; // refresh GSC data once per day
@@ -263,7 +262,7 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
  : [];
 
  return (
- <GlassCard className="overflow-hidden">
+ <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden">
 
  {/* ── Header ── */}
  <div className="p-5 flex items-start justify-between">
@@ -663,7 +662,7 @@ function ReportCard({ report: r }: { report: SupabaseReport }) {
  </>
  )}
 
- </GlassCard>
+ </div>
  );
 }
 
@@ -861,15 +860,14 @@ export default async function PortalReportsPage({
  )}
 
  {reports.length === 0 && (
- <GlassCard className="p-12 text-center">
- <div className="text-3xl mb-4 text-slate-300">◎</div>
- <div className="font-medium text-slate-700 mb-2">No reports yet</div>
- <div className="text-sm text-slate-500 max-w-xs mx-auto">
+ <div className="px-6 py-6 rounded-xl border border-slate-200/80 bg-white">
+ <div className="text-slate-500 text-sm font-medium mb-1">No reports yet</div>
+ <div className="text-slate-400 text-sm">
  {isOnboarding
  ? "Your first monthly report will be ready after Month 1 optimizations are complete."
  : "Reports will appear here after your first monthly cycle."}
  </div>
- </GlassCard>
+ </div>
  )}
  </div>
  );

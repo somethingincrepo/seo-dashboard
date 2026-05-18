@@ -5,7 +5,6 @@ import { getClientChanges } from "@/lib/changes";
 import { getClientReports } from "@/lib/reports";
 import { getContentJobsForClient, getContentResultsForClient } from "@/lib/content";
 import { getContentRefreshesForClient } from "@/lib/supabase";
-import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getChangeTitle, normalizeType } from "@/lib/portal-labels";
 import { ActivityRefresh } from "./ActivityRefresh";
@@ -251,13 +250,11 @@ export default async function ActivityPage({
  </div>
 
  {entries.length === 0 ? (
- <GlassCard className="p-12 text-center">
- <div className="text-slate-400 text-sm">
+ <div className="px-6 py-6 rounded-xl border border-slate-200 bg-white text-slate-400 text-sm">
  No changes yet. Activity will appear here once your audit is complete.
  </div>
- </GlassCard>
  ) : (
- <GlassCard>
+ <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden">
  <div className="divide-y divide-slate-100">
  {/* Header row */}
  <div className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3 text-[11px] font-bold tracking-widest text-slate-400">
@@ -434,7 +431,7 @@ export default async function ActivityPage({
  }
  })}
  </div>
- </GlassCard>
+ </div>
  )}
  </div>
  );

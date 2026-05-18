@@ -169,38 +169,33 @@ export default async function PortalDashboard({
 
   type QueueItem = {
     label: string; description: string; count: number; href: string;
-    accent: string; iconBg: string; icon: React.ReactNode;
+    accent: string; icon: React.ReactNode;
   };
   const queueItems: QueueItem[] = [
     { label: "SEO recommendations to approve",
       description: "On-page changes ready to apply to your site.",
       count: onPagePendingCount, href: `/portal/${token}/approvals`,
       accent: "border-l-amber-400",
-      iconBg: "bg-amber-50 text-amber-600",
       icon: <IconShield className="w-4 h-4" /> },
     { label: "Article titles to sign off on",
       description: "Approve titles before we write the full articles.",
       count: pendingTitleCount, href: `/portal/${token}/content/titles`,
-      accent: "border-l-indigo-400",
-      iconBg: "bg-indigo-50 text-indigo-600",
+      accent: "border-l-amber-400",
       icon: <IconArticle className="w-4 h-4" /> },
     { label: "Content drafts ready to review",
       description: "Full article drafts waiting for your read-through.",
       count: contentReviewCount, href: `/portal/${token}/content`,
       accent: "border-l-violet-400",
-      iconBg: "bg-violet-50 text-violet-600",
       icon: <IconSparkle className="w-4 h-4" /> },
     { label: "Page rewrites ready to publish",
       description: "Refreshed pages awaiting your go-ahead to go live.",
       count: contentOptimizationCount, href: `/portal/${token}/content-optimization`,
-      accent: "border-l-blue-400",
-      iconBg: "bg-blue-50 text-blue-600",
+      accent: "border-l-violet-400",
       icon: <IconRefresh className="w-4 h-4" /> },
     { label: "New page ideas to review",
       description: "Tell us which new pages to build next.",
       count: pageCreationPendingCount, href: `/portal/${token}/page-creation`,
       accent: "border-l-emerald-400",
-      iconBg: "bg-emerald-50 text-emerald-600",
       icon: <IconPage className="w-4 h-4" /> },
   ].filter((i) => i.count > 0) as QueueItem[];
 
@@ -262,7 +257,7 @@ export default async function PortalDashboard({
         {totalReviewCount > 0 && (
           <Link
             href={`/portal/${token}/approvals`}
-            className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 transition-colors shadow-sm"
+            className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 transition-colors"
           >
             <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/25 text-white text-xs font-bold">
               {totalReviewCount}
@@ -416,7 +411,7 @@ export default async function PortalDashboard({
                 )}
               >
                 {/* Icon */}
-                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", item.iconBg)}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-slate-100 text-slate-500">
                   {item.icon}
                 </div>
 
@@ -437,13 +432,13 @@ export default async function PortalDashboard({
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-4 px-6 py-5 rounded-2xl border border-emerald-200 bg-emerald-50">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm">
-            <IconCheck className="w-4 h-4 text-white" />
+        <div className="flex items-center gap-4 px-6 py-5 rounded-xl border border-slate-200 border-l-4 border-l-emerald-400 bg-white">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+            <IconCheck className="w-4 h-4 text-emerald-600" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-emerald-800">You&rsquo;re all caught up</p>
-            <p className="text-xs text-emerald-700 mt-0.5">Nothing needs your review right now. We&rsquo;ll notify you when something is ready.</p>
+            <p className="text-sm font-semibold text-slate-800">You&rsquo;re all caught up</p>
+            <p className="text-xs text-slate-500 mt-0.5">Nothing needs your review right now. We&rsquo;ll notify you when something is ready.</p>
           </div>
         </div>
       )}
@@ -485,11 +480,11 @@ export default async function PortalDashboard({
           const isFailed = auditRun?.status === "failed";
           const neverRun = !auditRun;
           const cardCls = cn(
-            "relative rounded-2xl border shadow-sm p-6 overflow-hidden",
-            isComplete && auditIssueCount === 0 ? "bg-emerald-50 border-emerald-200" :
-            isComplete && auditIssueCount <= 5  ? "bg-amber-50 border-amber-200" :
-            isComplete                           ? "bg-rose-50 border-rose-200" :
-                                                   "bg-white border-slate-200"
+            "relative rounded-2xl border border-slate-200 p-6 overflow-hidden bg-white border-l-4",
+            isComplete && auditIssueCount === 0 ? "border-l-emerald-400" :
+            isComplete && auditIssueCount <= 5  ? "border-l-amber-400" :
+            isComplete                           ? "border-l-rose-400" :
+                                                   "border-l-slate-200"
           );
           return (
             <div className={cardCls}>
