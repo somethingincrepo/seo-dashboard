@@ -45,7 +45,7 @@ const CATEGORY: Record<string, string> = {
   Technical: "text-slate-700 bg-slate-50 ring-slate-200",
   "On-Page": "text-blue-700 bg-blue-50 ring-blue-100",
   Content:   "text-blue-700 bg-blue-50 ring-blue-100",
-  "AI-GEO":  "text-pink-700 bg-pink-50 ring-pink-100",
+  "AI-GEO":  "text-violet-700 bg-violet-50 ring-violet-100",
 };
 
 const PRIORITY: Record<string, string> = {

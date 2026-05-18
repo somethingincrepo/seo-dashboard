@@ -49,7 +49,7 @@ const INTENT_COLORS: Record<string, string> = {
  informational: "bg-blue-50 text-blue-600",
  commercial: "bg-amber-50 text-amber-600",
  transactional: "bg-green-50 text-green-700",
- navigational: "bg-purple-50 text-purple-600",
+ navigational: "bg-slate-100 text-slate-500",
 };
 
 // ── Card ─────────────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ function KanbanCard({
  </span>
  )}
  {isRefreshCard && (
- <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-medium">
+ <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-medium">
  refresh
  </span>
  )}
@@ -602,7 +602,7 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  return (
  <>
  <span className={`text-xs px-2.5 py-1 rounded-lg border font-medium ${
- isRefreshDrawer ? "bg-orange-50 border-orange-200 text-orange-600" :
+ isRefreshDrawer ? "bg-violet-50 border-violet-200 text-violet-700" :
  isLongformDrawer ? "bg-violet-50 border-violet-200 text-violet-600" :
  "bg-slate-100 border-slate-200 text-slate-500"
  }`}>
@@ -626,7 +626,7 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  </div>
  <div className="flex items-start gap-2">
  {liveSelectedJob.fields.page_type && (
- <span className="text-[11px] px-2 py-0.5 rounded bg-orange-50 border border-orange-100 text-orange-600 shrink-0 mt-0.5">
+ <span className="text-[11px] px-2 py-0.5 rounded bg-violet-50 border border-violet-100 text-violet-700 shrink-0 mt-0.5">
  {liveSelectedJob.fields.page_type}
  </span>
  )}

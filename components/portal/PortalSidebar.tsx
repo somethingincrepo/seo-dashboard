@@ -276,12 +276,12 @@ export function PortalSidebar({
  </span>
  )}
  {item.suffix === "/content-optimization" && (contentOptimizationCount ?? 0) > 0 && (
- <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200/60">
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
  {contentOptimizationCount}
  </span>
  )}
  {item.suffix === "/page-creation" && (pageCreationCount ?? 0) > 0 && (
- <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/60">
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
  {pageCreationCount}
  </span>
  )}
@@ -291,7 +291,7 @@ export function PortalSidebar({
  </span>
  )}
  {item.suffix === "/faqs" && (faqSectionCount ?? 0) > 0 && (
- <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200/60">
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
  {faqSectionCount}
  </span>
  )}
@@ -301,7 +301,7 @@ export function PortalSidebar({
  </span>
  )}
  {item.suffix === "/reddit" && (redditMentionCount ?? 0) > 0 && (
- <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 ring-1 ring-inset ring-orange-200/60">
+ <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/60">
  {redditMentionCount}
  </span>
  )}

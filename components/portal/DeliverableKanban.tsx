@@ -308,11 +308,11 @@ export function DeliverableKanban({
   const totalActive = columns.slice(0, 3).reduce((n, c) => n + c.cards.length, 0);
 
   const ALL_PILLS: Array<{ type: DeliverableType; label: string; active: string; inactive: string }> = [
-    { type: "content" as const,       label: "Content",        active: "bg-blue-600 text-white",    inactive: "bg-blue-50 text-blue-700 hover:bg-blue-100" },
+    { type: "content" as const,       label: "Content",        active: "bg-violet-600 text-white",  inactive: "bg-violet-50 text-violet-700 hover:bg-violet-100" },
     { type: "refresh" as const,       label: "Refreshes",      active: "bg-violet-600 text-white",  inactive: "bg-violet-50 text-violet-700 hover:bg-violet-100" },
     { type: "page-creation" as const, label: "Page Creation",  active: "bg-emerald-600 text-white", inactive: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
-    { type: "internal-link" as const, label: "Internal Links", active: "bg-amber-500 text-white",   inactive: "bg-amber-50 text-amber-700 hover:bg-amber-100" },
-    { type: "faq-section" as const,   label: "FAQ Sections",   active: "bg-teal-600 text-white",    inactive: "bg-teal-50 text-teal-700 hover:bg-teal-100" },
+    { type: "internal-link" as const, label: "Internal Links", active: "bg-amber-600 text-white",   inactive: "bg-amber-50 text-amber-700 hover:bg-amber-100" },
+    { type: "faq-section" as const,   label: "FAQ Sections",   active: "bg-violet-600 text-white",  inactive: "bg-violet-50 text-violet-700 hover:bg-violet-100" },
   ];
   const FILTER_PILLS = ALL_PILLS.filter((p) => typesWithCards.has(p.type));
 

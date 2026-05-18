@@ -276,7 +276,7 @@ export default async function ActivityPage({
  <span className="text-sm font-medium text-slate-800">Monthly Report — Month {entry.month}</span>
  <span className="text-xs text-slate-400 truncate">—</span>
  <span className="text-xs text-slate-400">Report</span>
- <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs border bg-blue-50 border-blue-200 text-blue-700">Delivered</span>
+ <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs border bg-indigo-50 border-indigo-200 text-indigo-700">Delivered</span>
  </div>
  );
  }
@@ -292,7 +292,7 @@ export default async function ActivityPage({
  proposed: "bg-slate-100 border-slate-200 text-slate-600",
  approved: "bg-emerald-50 border-emerald-200 text-emerald-700",
  completed: "bg-indigo-50 border-indigo-200 text-indigo-700",
- published: "bg-teal-50 border-teal-200 text-teal-700",
+ published: "bg-emerald-50 border-emerald-200 text-emerald-700",
  };
  return (
  <div key={i} className="grid grid-cols-[160px_1fr_200px_120px_110px] gap-4 px-5 py-3.5 items-center">

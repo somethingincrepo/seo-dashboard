@@ -106,7 +106,7 @@ function DeliverableTile({
  const iconBg =
  tone === "indigo" ? "bg-indigo-50 text-indigo-600"
  : tone === "violet" ? "bg-violet-50 text-violet-600"
- : tone === "sky" ? "bg-sky-50 text-sky-600"
+ : tone === "sky" ? "bg-indigo-50 text-indigo-600"
  : tone === "emerald" ? "bg-emerald-50 text-emerald-600"
  : tone === "amber" ? "bg-amber-50 text-amber-600"
  : "bg-rose-50 text-rose-600";
@@ -114,7 +114,7 @@ function DeliverableTile({
  complete ? "bg-emerald-500"
  : tone === "indigo" ? "bg-indigo-500"
  : tone === "violet" ? "bg-violet-500"
- : tone === "sky" ? "bg-sky-500"
+ : tone === "sky" ? "bg-indigo-500"
  : tone === "emerald" ? "bg-emerald-500"
  : tone === "amber" ? "bg-amber-500"
  : "bg-rose-500";
