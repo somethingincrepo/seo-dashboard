@@ -274,15 +274,15 @@ export default async function PortalDashboard({
       </div>
 
       {/* ══ Monthly Delivery Schedule ═════════════════════════════════════ */}
-      <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-[0_2px_8px_rgba(16,24,40,0.06)]">
+      <div className="rounded-2xl overflow-hidden border border-slate-200">
 
-        {/* Gradient header */}
-        <div className="px-7 py-6 bg-gradient-to-r from-indigo-600 to-violet-600">
+        {/* Schedule header */}
+        <div className="px-7 py-6 bg-slate-900">
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-indigo-200 text-[11px] font-semibold uppercase tracking-widest mb-1">Delivery Schedule</p>
+              <p className="text-slate-400 text-[11px] font-semibold uppercase tracking-widest mb-1">Delivery Schedule</p>
               <h2 className="text-white text-2xl font-bold tracking-tight">{monthFull}</h2>
-              <p className="text-indigo-200 text-sm mt-0.5">{PACKAGE_LABELS[pkg]} plan · Month {monthNum}</p>
+              <p className="text-slate-400 text-sm mt-0.5">{PACKAGE_LABELS[pkg]} plan · Month {monthNum}</p>
             </div>
 
             {/* Week progress indicator */}
@@ -295,12 +295,12 @@ export default async function PortalDashboard({
                       "h-1.5 rounded-full transition-all",
                       w < currentWeekNum  ? "w-8 bg-emerald-400" :
                       w === currentWeekNum ? "w-8 bg-white" :
-                                            "w-5 bg-white/25"
+                                            "w-5 bg-white/20"
                     )}
                   />
                 ))}
               </div>
-              <p className="text-indigo-200 text-xs font-medium">
+              <p className="text-slate-400 text-xs font-medium">
                 Week {currentWeekNum} of 4
               </p>
             </div>
@@ -545,7 +545,7 @@ export default async function PortalDashboard({
       </div>
 
       {/* ══ Organic Traffic ══════════════════════════════════════════════ */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Organic Traffic</h2>

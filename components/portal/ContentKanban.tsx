@@ -20,9 +20,9 @@ import type { Client } from "@/lib/clients";
 type KanbanColumn = {
  key: string;
  label: string;
- accent: string; // Tailwind left-border color class
- headerColor: string; // label color
- gradientStyle: string;
+ accent: string; // card left-stripe color class
+ headerColor: string; // count label color
+ accentBorder: string; // top border on the column container
  jobs: ContentJob[];
 };
 
@@ -174,20 +174,15 @@ function ColumnHeader({
  label,
  count,
  headerColor,
- gradientStyle,
 }: {
  label: string;
  count: number;
  headerColor: string;
- gradientStyle: string;
 }) {
  return (
- <div className="shrink-0">
- <div className="h-[3px] w-full rounded-t-2xl" style={{ background: gradientStyle }} />
- <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+ <div className="shrink-0 px-4 pt-3 pb-2 flex items-center justify-between">
  <span className="text-[11px] font-bold tracking-widest text-slate-500">{label}</span>
  <span className={`text-xs font-bold tabular-nums ${headerColor}`}>{count}</span>
- </div>
  </div>
  );
 }
@@ -374,7 +369,7 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  label: "Proposed",
  accent: "bg-slate-300",
  headerColor: "text-slate-500",
- gradientStyle: "linear-gradient(90deg, #94A3B8, #CBD5E1)",
+ accentBorder: "border-t-2 border-slate-300",
  jobs: liveJobs.filter(isTitled),
  },
  {
@@ -382,7 +377,7 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  label: "Approved",
  accent: "bg-emerald-400",
  headerColor: "text-emerald-600",
- gradientStyle: "linear-gradient(90deg, #10B981, #6EE7B7)",
+ accentBorder: "border-t-2 border-emerald-400",
  jobs: liveJobs.filter(isApproved),
  },
  {
@@ -390,7 +385,7 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  label: "In Progress",
  accent: "bg-amber-400",
  headerColor: "text-amber-600",
- gradientStyle: "linear-gradient(90deg, #F59E0B, #FCD34D)",
+ accentBorder: "border-t-2 border-amber-400",
  jobs: liveJobs.filter(isInProgress),
  },
  {
@@ -398,7 +393,7 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  label: "Ready for Review",
  accent: "bg-indigo-400",
  headerColor: "text-indigo-600",
- gradientStyle: "linear-gradient(90deg, #4F46E5, #818CF8)",
+ accentBorder: "border-t-2 border-indigo-400",
  jobs: liveJobs.filter(isReadyForReview),
  },
  {
@@ -406,15 +401,15 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  label: "Publishing",
  accent: "bg-violet-400",
  headerColor: "text-violet-600",
- gradientStyle: "linear-gradient(90deg, #7C3AED, #A78BFA)",
+ accentBorder: "border-t-2 border-violet-400",
  jobs: liveJobs.filter(isApprovedForPublish),
  },
  {
  key: "published",
  label: "Published",
- accent: "bg-teal-400",
- headerColor: "text-teal-600",
- gradientStyle: "linear-gradient(90deg, #0D9488, #5EEAD4)",
+ accent: "bg-emerald-500",
+ headerColor: "text-emerald-700",
+ accentBorder: "border-t-2 border-emerald-500",
  jobs: liveJobs.filter(isPublished),
  },
  ];
@@ -501,14 +496,13 @@ export function ContentKanban({ jobs, results, token, client }: ContentKanbanPro
  {columns.map((col) => (
  <div
  key={col.key}
- className="flex-1 min-w-[180px] bg-slate-50 rounded-2xl border border-slate-200/70 flex flex-col"
+ className={`flex-1 min-w-[180px] rounded-2xl border border-slate-200/70 flex flex-col ${col.accentBorder}`}
  style={{ minHeight: 420 }}
  >
  <ColumnHeader
  label={col.label}
  count={col.jobs.length}
  headerColor={col.headerColor}
- gradientStyle={col.gradientStyle}
  />
 
  <div className="flex-1 px-3 pb-3 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: "calc(60vh - 120px)" }}>
