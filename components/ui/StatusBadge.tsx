@@ -22,7 +22,7 @@ const JOB_STATUS: Record<string, string> = {
   Approved:         "text-emerald-700 bg-emerald-50 ring-emerald-100",
   Generating:       "text-amber-700 bg-amber-50 ring-amber-100",
   Ready:            "text-indigo-700 bg-indigo-50 ring-indigo-100",
-  Published:        "text-teal-700 bg-teal-50 ring-teal-100",
+  Published:        "text-emerald-700 bg-emerald-50 ring-emerald-100",
   Skipped:          "text-slate-600 bg-slate-50 ring-slate-200",
   Completed:        "text-emerald-700 bg-emerald-50 ring-emerald-100",
 };

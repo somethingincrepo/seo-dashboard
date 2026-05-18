@@ -203,7 +203,7 @@ const EVENT_CONFIG: Record<ContentEvent["event"], { label: string; dot: string; 
  approved: { label: "Title Approved", dot: "bg-emerald-400", badge: "text-emerald-700 bg-emerald-50 border-emerald-200" },
  writing: { label: "Writing Started", dot: "bg-amber-400", badge: "text-amber-700 bg-amber-50 border-amber-200" },
  ready: { label: "Article Ready", dot: "bg-indigo-400", badge: "text-indigo-700 bg-indigo-50 border-indigo-200" },
- published: { label: "Published", dot: "bg-teal-500", badge: "text-teal-700 bg-teal-50 border-teal-200" },
+ published: { label: "Published", dot: "bg-emerald-500", badge: "text-emerald-700 bg-emerald-50 border-emerald-200" },
 };
 
 function formatEventDate(iso: string): string {
